@@ -1,0 +1,22 @@
+<svg viewBox="0 0 120 130" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="OWFC Harris crest">
+  <defs>
+    <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#e7c75a"/>
+      <stop offset="0.5" stop-color="#c9a227"/>
+      <stop offset="1" stop-color="#9c7a18"/>
+    </linearGradient>
+  </defs>
+  <!-- shield -->
+  <path d="M60 4 L112 20 V64 C112 96 88 116 60 126 C32 116 8 96 8 64 V20 Z"
+        fill="#0e0e0f" stroke="url(#gold)" stroke-width="4"/>
+  <path d="M60 12 L104 25 V64 C104 91 84 109 60 118 C36 109 16 91 16 64 V25 Z"
+        fill="none" stroke="url(#gold)" stroke-width="1.5" opacity="0.6"/>
+  <!-- football -->
+  <circle cx="60" cy="52" r="22" fill="#fdfdfd" stroke="#0e0e0f" stroke-width="1.5"/>
+  <path d="M60 38 l8 6 -3 10 h-10 l-3 -10 z" fill="#0e0e0f"/>
+  <path d="M60 38 v-6 M68 44 l7 -3 M65 54 l6 8 M55 54 l-6 8 M52 44 l-7 -3" stroke="#0e0e0f" stroke-width="1.6" fill="none"/>
+  <!-- banner -->
+  <rect x="20" y="80" width="80" height="20" rx="4" fill="url(#gold)"/>
+  <text x="60" y="94" text-anchor="middle" font-family="Anton, sans-serif" font-size="13" fill="#0e0e0f" letter-spacing="1">HARRIS</text>
+  <text x="60" y="113" text-anchor="middle" font-family="Anton, sans-serif" font-size="9" fill="url(#gold)" letter-spacing="2">OWFC · U11</text>
+</svg>
