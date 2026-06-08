@@ -215,7 +215,7 @@
         this.state.players.push(data);
       } else {
         p.id = this._nextId(this.state.players);
-        p.games = p.games||0; p.goals = p.goals||0; p.assists = p.assists||0; p.motm = p.motm||0;
+        p.goals = p.goals||0; p.assists = p.assists||0; p.motm = p.motm||0; p.sessions = p.sessions||0; p.points = p.points||0;
         p.program = p.program || [];
         this.state.players.push(p); this._persistContent();
       }
@@ -281,12 +281,23 @@
       return Object.values(a).filter(v => v === "yes").length;
     },
 
-    /* league points: sum components, add achievement bonus, sort desc */
+    /* league table: rank players by their league points */
     leagueRows() {
-      return this.state.gamePoints.map(gp => {
-        const total = gp.attendance + gp.training + gp.quiz + gp.exercise + (gp.badges?.length || 0) * 10;
-        return { ...gp, total, player: this.player(gp.playerId) };
-      }).filter(r => r.player).sort((a, b) => b.total - a.total);
+      return this.state.players.map(p => ({
+        player: p, playerId: p.id, total: p.points || 0,
+        goals: p.goals || 0, assists: p.assists || 0, motm: p.motm || 0, sessions: p.sessions || 0
+      })).sort((a, b) => b.total - a.total);
+    },
+
+    /* admin: set a player's season stats */
+    async updatePlayerStats(id, s) {
+      const p = this.player(id); if (!p) return { ok: false, msg: "Player not found" };
+      Object.assign(p, s);
+      if (LIVE) {
+        const { error } = await this.sb.from("players").update(s).eq("id", id);
+        if (error) return { ok: false, msg: error.message };
+      } else { this._persistContent(); }
+      return { ok: true };
     }
   };
 

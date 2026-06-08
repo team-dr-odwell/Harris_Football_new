@@ -322,8 +322,13 @@
 
   function Training() {
     const today = new Date();
-    let cur = { y: today.getFullYear(), m: today.getMonth() };
+    // open on the next day that has training or an event (so it's never an empty-looking page)
     let sel = ymd(today);
+    for (let i = 0; i < 21; i++) {
+      const dd = new Date(today.getFullYear(), today.getMonth(), today.getDate() + i);
+      if (itemsOn(ymd(dd)).length) { sel = ymd(dd); break; }
+    }
+    let cur = { y: +sel.slice(0,4), m: +sel.slice(5,7) - 1 };
 
     function render() {
       const first = new Date(cur.y, cur.m, 1);
@@ -420,29 +425,12 @@
   }
 
   function fcCard(p) {
-    return `<div class="fc-card" data-player="${p.id}">
-      <div class="fc-inner">
-        <div class="fc-top">
-          <div><div class="fc-rating">${p.rating}</div><div class="fc-pos">${esc(p.pos)}</div></div>
-          <div class="fc-num">#${p.number}</div>
-        </div>
-        <div class="fc-photo"><div class="avatar">${esc(initials(p))}</div></div>
-        <div class="fc-name">${p.captain?'<span class="capt" title="Captain">C</span> ':''}${esc(p.name)}</div>
-        <div class="fc-stats">
-          <div><span>PAC</span>${p.pace}</div><div><span>DRI</span>${p.dribbling}</div>
-          <div><span>SHO</span>${p.shooting}</div><div><span>DEF</span>${p.defending}</div>
-          <div><span>PAS</span>${p.passing}</div><div><span>PHY</span>${p.physical}</div>
-        </div>
-        <img class="fc-crest" src="assets/crest.svg" alt=""/>
-      </div>
-    </div>`;
+    return `<div class="fc-card" data-player="${p.id}">${fcCardInner(p)}</div>`;
   }
 
   function PlayerDetail(id) {
     const p = S.player(id); if (!p) return Players();
-    const attrs = [["Pace",p.pace],["Shooting",p.shooting],["Passing",p.passing],["Dribbling",p.dribbling],["Defending",p.defending],["Physical",p.physical]];
-    const gp = S.state.gamePoints.find(g=>g.playerId===id);
-    const badges = (gp?.badges||[]).map(b=>S.state.achievements.find(a=>a.key===b)).filter(Boolean);
+    const stats = [["Goals",p.goals||0],["Assists",p.assists||0],["MOTM",p.motm||0],["Training",p.sessions||0],["Points",p.points||0]];
     view.innerHTML = `
       <button class="btn btn-ghost btn-sm" data-go="players" style="margin-bottom:1rem">← All players</button>
       <div class="player-detail">
@@ -452,16 +440,8 @@
         <div>
           <div class="eyebrow" style="color:var(--gold)">${esc(p.pos)} · Squad #${p.number}${p.captain?' · Captain 🧢':''}</div>
           <h2 style="font-family:var(--display);font-size:2.2rem;margin:.1rem 0 1rem">${esc(p.name)}</h2>
-          <div class="stat-strip" style="grid-template-columns:repeat(4,1fr)">
-            <div class="stat"><div class="n">${p.games}</div><div class="l">Games</div></div>
-            <div class="stat"><div class="n">${p.goals}</div><div class="l">Goals</div></div>
-            <div class="stat"><div class="n">${p.assists}</div><div class="l">Assists</div></div>
-            <div class="stat"><div class="n">${p.motm}</div><div class="l">MOTM</div></div>
-          </div>
-
-          <div class="card pad-lg" style="margin-top:1.2rem">
-            <h3 style="margin:0 0 .9rem;font-family:var(--display)">Attributes</h3>
-            ${attrs.map(([k,v])=>`<div class="attr-bar"><div class="row"><span>${k}</span><span style="color:var(--gold-bright)">${v}</span></div><div class="track"><div class="fill" style="width:${v}%"></div></div></div>`).join("")}
+          <div class="stat-strip" style="grid-template-columns:repeat(5,1fr)">
+            ${stats.map(([k,v])=>`<div class="stat"><div class="n">${v}</div><div class="l">${k}</div></div>`).join("")}
           </div>
 
           <div class="card pad-lg" style="margin-top:1.2rem">
@@ -470,24 +450,25 @@
             ${p.program.map((s,i)=>`<div class="program-step"><div class="dot">${i+1}</div><div>${esc(s)}</div></div>`).join("")}
           </div>
 
-          ${badges.length?`<div class="card pad-lg" style="margin-top:1.2rem">
-            <h3 style="margin:0 0 .8rem;font-family:var(--display)">Achievements</h3>
-            <div class="badge-row">${badges.map(b=>`<div class="ach"><span class="em">${b.emoji}</span><div><b>${esc(b.name)}</b><br><span class="muted" style="font-size:.74rem">${esc(b.desc)}</span></div></div>`).join("")}</div>
-          </div>`:""}
-
           <div class="card pad-lg" style="margin-top:1.2rem;border-style:dashed">
-            <h3 style="margin:0 0 .3rem;font-family:var(--display)">Improvement Tracker <span class="tag">Coming soon</span></h3>
-            <p class="muted" style="margin:0">We'll track sprint times, passing accuracy and skill grades all season — so you can see just how far you've come.</p>
+            <h3 style="margin:0 0 .3rem;font-family:var(--display)">Season Tracker</h3>
+            <p class="muted" style="margin:0">Goals, assists, Man of the Match awards, training sessions and league points all build up across the season — so you can see your progress in black and white.</p>
           </div>
         </div>
       </div>`;
     wireGo();
   }
   function fcCardInner(p){ return `<div class="fc-inner">
-      <div class="fc-top"><div><div class="fc-rating">${p.rating}</div><div class="fc-pos">${esc(p.pos)}</div></div><div class="fc-num">#${p.number}</div></div>
+      <div class="fc-top">
+        <div><div class="fc-rating">${p.points||0}</div><div class="fc-pos">PTS</div></div>
+        <div style="text-align:right"><div class="fc-num">#${p.number}</div><div class="fc-pos">${esc(p.pos)}</div></div>
+      </div>
       <div class="fc-photo"><div class="avatar">${esc(initials(p))}</div></div>
-      <div class="fc-name">${esc(p.name)}</div>
-      <div class="fc-stats"><div><span>PAC</span>${p.pace}</div><div><span>DRI</span>${p.dribbling}</div><div><span>SHO</span>${p.shooting}</div><div><span>DEF</span>${p.defending}</div><div><span>PAS</span>${p.passing}</div><div><span>PHY</span>${p.physical}</div></div>
+      <div class="fc-name">${p.captain?'<span class="capt" title="Captain">C</span> ':''}${esc(p.name)}</div>
+      <div class="fc-stats">
+        <div><span>GOALS</span>${p.goals||0}</div><div><span>ASSISTS</span>${p.assists||0}</div>
+        <div><span>MOTM</span>${p.motm||0}</div><div><span>TRAINING</span>${p.sessions||0}</div>
+      </div>
       <img class="fc-crest" src="assets/crest.svg" alt=""/></div>`; }
 
   /* ============================ LEAGUE / GAMIFICATION ============================ */
@@ -501,11 +482,11 @@
       <div class="grid cols-3" style="margin-top:1.2rem">
         <div class="card" style="grid-column:1 / span 2;padding:.4rem 1rem">
           <div class="table-wrap"><table class="league-table">
-            <thead><tr><th>#</th><th>Player</th><th>Train</th><th>Attend</th><th>Quiz</th><th>Fun</th><th>Total</th></tr></thead>
+            <thead><tr><th>#</th><th>Player</th><th>Gls</th><th>Ast</th><th>MOM</th><th>Trn</th><th>Points</th></tr></thead>
             <tbody>${rows.map((r,i)=>`<tr class="${r.playerId===S.me?'me':''}">
               <td class="rank ${i<3?'r'+(i+1):''}">${i+1}</td>
-              <td><b>${esc(r.player.name)}</b> ${(r.badges||[]).slice(0,3).map(b=>S.state.achievements.find(a=>a.key===b)?.emoji||"").join("")}</td>
-              <td>${r.training}</td><td>${r.attendance}</td><td>${r.quiz}</td><td>${r.exercise}</td>
+              <td><b>${esc(r.player.name)}</b>${r.player.captain?' <span class="capt" title="Captain">C</span>':''}</td>
+              <td>${r.goals}</td><td>${r.assists}</td><td>${r.motm}</td><td>${r.sessions}</td>
               <td class="pts">${r.total}</td></tr>`).join("")}</tbody>
           </table></div>
         </div>
@@ -583,7 +564,7 @@
   function Admin(sub) {
     if (!S.isAdmin) { view.innerHTML = `<div class="card pad-lg"><h2 style="font-family:var(--display)">Admins only</h2><p class="muted">This area is for team coaches/admins. Ask the team admin to grant you access.</p></div>`; return; }
     sub = sub || "fixtures";
-    const tabs = [["fixtures","Add fixture"],["result","Enter result"],["players","Add player"],["training","Add training"],["events","Add event"]];
+    const tabs = [["fixtures","Add fixture"],["result","Enter result"],["stats","Player stats"],["players","Add player"],["training","Add training"],["events","Add event"]];
     view.innerHTML = `
       <div class="section-head"><div><div class="eyebrow">Coaches only</div><h2>Admin Panel</h2></div></div>
       <p class="muted" style="margin-top:-.6rem;max-width:62ch">Manage everything from here — no spreadsheets. ${S.MODE==='preview'?'<b>Preview mode:</b> changes save to this browser so you can try it. Connect Supabase to save for everyone.':'Changes save to your database and appear for everyone straight away.'}</p>
@@ -592,7 +573,7 @@
       </div>
       <div id="admin-body"></div>`;
     view.querySelectorAll("[data-atab]").forEach(b => b.addEventListener("click", () => location.hash = "#admin/"+b.dataset.atab));
-    ({ fixtures:AdmFixture, result:AdmResult, players:AdmPlayer, training:AdmTraining, events:AdmEvent }[sub] || AdmFixture)();
+    ({ fixtures:AdmFixture, result:AdmResult, stats:AdmStats, players:AdmPlayer, training:AdmTraining, events:AdmEvent }[sub] || AdmFixture)();
   }
 
   function toast(msg) {
@@ -657,23 +638,45 @@
     render();
   }
 
+  function AdmStats() {
+    const body = $("#admin-body");
+    const num = (id,v)=>`<input type="number" min="0" id="${id}" value="${v}"/>`;
+    function load(id) {
+      const p = S.player(id); if (!p) return;
+      body.querySelector("#st-fields").innerHTML = `
+        <div class="grid cols-3">${F("Goals",num("st-goals",p.goals||0))}${F("Assists",num("st-assists",p.assists||0))}${F("Man of Match",num("st-motm",p.motm||0))}</div>
+        <div class="grid cols-2">${F("Training sessions",num("st-sessions",p.sessions||0))}${F("League points",num("st-points",p.points||0))}</div>
+        <button class="btn btn-gold btn-block" id="st-save">Save ${esc(p.name)}'s stats</button>`;
+      body.querySelector("#st-save").addEventListener("click", async () => {
+        const res = await S.updatePlayerStats(id, {
+          goals:+$("#st-goals").value, assists:+$("#st-assists").value, motm:+$("#st-motm").value,
+          sessions:+$("#st-sessions").value, points:+$("#st-points").value });
+        if (res.ok) toast("Stats saved ✓"); else toast("Error: "+res.msg);
+      });
+    }
+    const players = [...S.state.players].sort((a,b)=>a.number-b.number);
+    body.innerHTML = `<div class="card pad-lg" style="max-width:620px">
+      <p class="muted" style="margin-top:0">Update each player's season stats — they show on their card, profile and the league table.</p>
+      ${F("Player",`<select id="st-player">${players.map(p=>`<option value="${p.id}">#${p.number} ${esc(p.name)}</option>`).join("")}</select>`)}
+      <div id="st-fields"></div>
+    </div>`;
+    body.querySelector("#st-player").addEventListener("change", e => load(+e.target.value));
+    load(players[0].id);
+  }
+
   function AdmPlayer() {
-    const a = (id,l,v="70")=>F(l,`<input type="number" min="1" max="99" id="${id}" value="${v}"/>`);
     $("#admin-body").innerHTML = `<div class="card pad-lg" style="max-width:620px">
-      ${F("Full name",`<input id="p-name" placeholder="e.g. Jack Morgan"/>`)}
-      <div class="grid cols-2">${F("Squad number",`<input type="number" min="1" id="p-num"/>`)}${F("Position",`<select id="p-pos">${["GK","RB","LB","CB","CDM","CM","CAM","LW","RW","ST"].map(x=>`<option>${x}</option>`).join("")}</select>`)}</div>
-      ${F("Overall rating",`<input type="number" min="40" max="99" id="p-rating" value="78"/>`)}
-      <div class="grid cols-3">${a("p-pace","Pace")}${a("p-shooting","Shooting")}${a("p-passing","Passing")}</div>
-      <div class="grid cols-3">${a("p-dribbling","Dribbling")}${a("p-defending","Defending")}${a("p-physical","Physical")}</div>
+      <p class="muted" style="margin-top:0">Add a new squad member. Set their stats afterwards on the <b>Player stats</b> tab.</p>
+      ${F("Full name",`<input id="p-name" placeholder="e.g. Sam Kirby"/>`)}
+      <div class="grid cols-2">${F("Squad number",`<input type="number" min="1" id="p-num"/>`)}${F("Position",`<select id="p-pos">${["GK","RB","LB","CB","CDM","CM","CAM","LM","RM","LW","RW","ST"].map(x=>`<option>${x}</option>`).join("")}</select>`)}</div>
+      <label class="field" style="flex-direction:row;align-items:center;gap:.5rem"><input type="checkbox" id="p-capt" style="width:auto"/> <span style="margin:0">Team captain</span></label>
       <button class="btn btn-gold btn-block" id="p-save">Add player</button>
     </div>`;
     $("#p-save").addEventListener("click", async () => {
       const name=$("#p-name").value.trim(); if(!name) return toast("Add a name");
-      const num=+$("#p-num").value;
       const init=name.split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase();
-      const res = await S.addPlayer({ name, number:num, pos:$("#p-pos").value, rating:+$("#p-rating").value,
-        pace:+$("#p-pace").value, shooting:+$("#p-shooting").value, passing:+$("#p-passing").value,
-        dribbling:+$("#p-dribbling").value, defending:+$("#p-defending").value, physical:+$("#p-physical").value, init });
+      const res = await S.addPlayer({ name, number:+$("#p-num").value, pos:$("#p-pos").value,
+        captain:$("#p-capt").checked, init, goals:0, assists:0, motm:0, sessions:0, points:0 });
       if(res.ok){ toast("Player added ✓"); location.hash="#players"; } else toast("Error: "+res.msg);
     });
   }

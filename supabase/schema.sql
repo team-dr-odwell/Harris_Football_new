@@ -21,6 +21,8 @@ create table if not exists players (
   rating       int default 70,
   pace         int, shooting int, passing int, dribbling int, defending int, physical int,
   games        int default 0, goals int default 0, assists int default 0, motm int default 0,
+  sessions     int default 0,           -- training sessions attended
+  points       int default 0,           -- academy league points
   clean_sheets int default 0,
   program      jsonb default '[]',      -- personal development plan (array of strings)
   init         text,                    -- initials fallback for the card avatar
