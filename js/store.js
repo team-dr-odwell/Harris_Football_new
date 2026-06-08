@@ -18,6 +18,7 @@
     userId: null,
     displayName: "",
     parents: [],          // [{name, relation, email, phone}]
+    season: null,         // currently-viewed season id, e.g. "2025/26"
 
     // Turn a typed name into a stable hidden login id, e.g. "David Kirby" -> "david.kirby@harris.team"
     nameToEmail(name) {
@@ -62,10 +63,72 @@
     /* ---------- load data ---------- */
     async load() {
       if (LIVE) {
-        try { return await this._loadLive(); }
-        catch (e) { console.error("Live load failed, using sample data", e); }
+        try { await this._loadLive(); }
+        catch (e) { console.error("Live load failed, using sample data", e); this._loadPreview(); }
+      } else {
+        this._loadPreview();
       }
-      return this._loadPreview();
+      this._initSeason();
+      this._normalizePlayers();
+      this._applySeason();
+      return this.state;
+    },
+
+    /* ---------- seasons ---------- */
+    _defaultSeason() {
+      const t = new Date().toISOString().slice(0, 10);
+      const list = cfg.SEASONS || [];
+      const f = list.find(s => t >= s.from && t <= s.to);
+      return (f && f.id) || cfg.CURRENT_SEASON || (list[0] && list[0].id) || "2025/26";
+    },
+    _initSeason() {
+      this.season = localStorage.getItem("harris_season") || this._defaultSeason();
+    },
+    setSeason(id) {
+      this.season = id;
+      localStorage.setItem("harris_season", id);
+      this._applySeason();
+    },
+    seasonRange(id) { return (cfg.SEASONS || []).find(s => s.id === (id || this.season)); },
+    inSeason(iso) {
+      const r = this.seasonRange();
+      return r ? (iso >= r.from && iso <= r.to) : true;
+    },
+
+    // Make sure every player has seasons/signed/stats, backfilling 25/26 from flat fields.
+    _normalizePlayers() {
+      (this.state.players || []).forEach(p => {
+        if (!Array.isArray(p.seasons)) p.seasons = ["2025/26", "2026/27"];
+        if (p.signed === undefined || p.signed === null) p.signed = true;
+        if (!p.stats || typeof p.stats !== "object") p.stats = {};
+        if (!p.stats["2025/26"]) {
+          p.stats["2025/26"] = {
+            goals: p.goals || 0, assists: p.assists || 0, motm: p.motm || 0,
+            sessions: p.sessions || 0, points: p.points || 0,
+            dev: p.dev || {}, targets: p.targets || [], program: p.program || [], videos: p.videos || []
+          };
+        }
+      });
+    },
+    // Project the selected season's stats onto each player's flat fields so the
+    // whole UI shows the right numbers without per-screen changes.
+    _applySeason() {
+      const s = this.season;
+      (this.state.players || []).forEach(p => {
+        const st = (p.stats && p.stats[s]) || {};
+        p.goals = st.goals || 0; p.assists = st.assists || 0; p.motm = st.motm || 0;
+        p.sessions = st.sessions || 0; p.points = st.points || 0;
+        p.dev = st.dev || {}; p.targets = st.targets || [];
+        p.program = st.program || []; p.videos = st.videos || [];
+      });
+    },
+    // Players rostered in the current season. By default only signed (visible) ones.
+    roster(includeUnsigned) {
+      const s = this.season;
+      return (this.state.players || []).filter(p =>
+        (Array.isArray(p.seasons) ? p.seasons : ["2025/26"]).includes(s) &&
+        (includeUnsigned || p.signed !== false)
+      );
     },
 
     _loadPreview() {
@@ -224,16 +287,25 @@
     },
 
     async addPlayer(p) {
+      // New players join the SELECTED season and start as "pending" (unsigned) until approved.
+      const season = this.season || "2026/27";
+      const zero = { goals:0, assists:0, motm:0, sessions:0, points:0, dev:{}, targets:[], program:[], videos:[] };
+      p.seasons = p.seasons || [season];
+      p.signed = (p.signed !== undefined) ? p.signed : false;
+      p.stats = { [season]: { ...zero } };
       if (LIVE) {
-        const { data, error } = await this.sb.from("players").insert(p).select().single();
+        const ins = { name:p.name, number:p.number, pos:p.pos, captain:!!p.captain, init:p.init,
+          goals:0, assists:0, motm:0, sessions:0, points:0,
+          seasons:p.seasons, signed:p.signed, stats:p.stats };
+        const { data, error } = await this.sb.from("players").insert(ins).select().single();
         if (error) return { ok:false, msg:error.message };
         this.state.players.push(data);
       } else {
         p.id = this._nextId(this.state.players);
-        p.goals = p.goals||0; p.assists = p.assists||0; p.motm = p.motm||0; p.sessions = p.sessions||0; p.points = p.points||0;
-        p.program = p.program || [];
+        Object.assign(p, zero);
         this.state.players.push(p); this._persistContent();
       }
+      this._normalizePlayers(); this._applySeason();
       return { ok:true };
     },
 
@@ -307,6 +379,7 @@
     fixtures(status) {
       const today = new Date().toISOString().slice(0, 10);
       return this.state.fixtures.filter(f => {
+        if (!this.inSeason(f.date)) return false;
         const isPast = f.status === "past" || (f.date && f.date < today);
         return status === "past" ? isPast : !isPast;
       });
@@ -324,31 +397,53 @@
       return { going: v.filter(x => x === "yes" || x === "lift").length, lifts: v.filter(x => x === "lift").length };
     },
 
-    /* league table: rank players by their league points */
+    /* league table: rank the current season's signed squad by league points */
     leagueRows() {
-      return this.state.players.map(p => ({
+      return this.roster().map(p => ({
         player: p, playerId: p.id, total: p.points || 0,
         goals: p.goals || 0, assists: p.assists || 0, motm: p.motm || 0, sessions: p.sessions || 0
       })).sort((a, b) => b.total - a.total);
     },
 
-    /* admin: set a player's season stats */
+    /* admin: set a player's stats for the CURRENTLY-SELECTED season */
     async updatePlayerStats(id, s) {
       const p = this.player(id); if (!p) return { ok: false, msg: "Player not found" };
-      Object.assign(p, s);
+      if (!p.stats) p.stats = {};
+      p.stats[this.season] = { ...(p.stats[this.season] || {}), ...s };
+      Object.assign(p, s); // reflect immediately on the projected flat fields
       if (LIVE) {
-        const { error } = await this.sb.from("players").update(s).eq("id", id);
+        const { error } = await this.sb.from("players").update({ stats: p.stats }).eq("id", id);
         if (error) return { ok: false, msg: error.message };
       } else { this._persistContent(); }
       return { ok: true };
     },
 
-    /* admin: set a player's development (dev %, targets, plan, videos) */
+    /* admin: set a player's development (dev %, targets, plan, videos) for the selected season */
     async updatePlayerAcademy(id, a) {
       const p = this.player(id); if (!p) return { ok: false, msg: "Player not found" };
+      if (!p.stats) p.stats = {};
+      p.stats[this.season] = { ...(p.stats[this.season] || {}), ...a };
       Object.assign(p, a);
       if (LIVE) {
-        const { error } = await this.sb.from("players").update(a).eq("id", id);
+        const { error } = await this.sb.from("players").update({ stats: p.stats }).eq("id", id);
+        if (error) return { ok: false, msg: error.message };
+      } else { this._persistContent(); }
+      return { ok: true };
+    },
+
+    /* admin: roster management — add/remove a player for the selected season, set signed status */
+    async setRoster(id, opts) {
+      const p = this.player(id); if (!p) return { ok: false, msg: "Player not found" };
+      let seasons = Array.isArray(p.seasons) ? [...p.seasons] : ["2025/26"];
+      if (opts.inSeason !== undefined) {
+        const set = new Set(seasons);
+        if (opts.inSeason) set.add(this.season); else set.delete(this.season);
+        seasons = [...set];
+      }
+      p.seasons = seasons;
+      if (opts.signed !== undefined) p.signed = opts.signed;
+      if (LIVE) {
+        const { error } = await this.sb.from("players").update({ seasons: p.seasons, signed: p.signed }).eq("id", id);
         if (error) return { ok: false, msg: error.message };
       } else { this._persistContent(); }
       return { ok: true };

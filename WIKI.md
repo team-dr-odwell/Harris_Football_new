@@ -254,10 +254,21 @@ Run in **Supabase → SQL Editor**. On a brand-new project, run `schema.sql` fir
 | `migrate-real-squad.sql` | Clears sample data, adds the 12 real players + captain | Done |
 | `migrate-training-events.sql` | Adds `events.time`/`link`; loads Club Awards + FootGolf | Done |
 | `migrate-player-stats.sql` | Adds `players.sessions` + `players.points` | Done |
-| `migrate-fixtures.sql` | Loads all 24 real 2025/26 fixtures (status `past`) | Done |
+| `migrate-fixtures.sql` | Loads the real 22 played 2025/26 fixtures **with scores/results** (W/L) | Done |
 | `migrate-rsvp.sql` | Creates the `rsvp` table for schedule attendance + lifts | **Run this** to save RSVPs for everyone |
+| `migrate-parent-profiles.sql` | Adds `profiles.parents` (contact details collected at first login) | **Run this** for parent onboarding |
+| `migrate-seasons.sql` | Adds `players.seasons`, `players.signed`, `players.stats` (per-season squad + stats); carries all players into 2026/27; backfills 25/26 stats | **Run this** for the season switcher |
 
 > Tip: if past fixtures ever show under "Upcoming", run: `update fixtures set status='past' where date < current_date;`
+
+### Seasons (multi-season model)
+
+- Seasons are defined in `config.js → SEASONS`, each running **1 Jul → 30 Jun**. Add a new entry every summer.
+- Fixtures, training and events fall into a season **automatically by date** — anything from 1 Jul 2026 is 2026/27.
+- The top-bar **season dropdown** switches the view; it defaults to whichever season today falls in. `2025/26` stays a read-only archive.
+- Each player's stats/development are stored **per season** in `players.stats` (e.g. `{"2025/26": {...}, "2026/27": {...}}`). The app projects the selected season onto the cards. 25/26 is preserved as the child's development record.
+- **Squad per season:** `players.seasons` lists which seasons a player is in; `players.signed` controls visibility (unsigned = "pending", hidden from parents).
+- **Admin → Roster:** tick **In <season>** to carry/remove players, tick **Signed** to approve new kids. **Admin → Add player** creates new kids as *pending* in the selected season.
 
 ---
 

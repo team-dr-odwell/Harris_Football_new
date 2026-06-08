@@ -27,6 +27,16 @@ window.HARRIS_CONFIG = {
   AGE_GROUP: "Under-11s",
   CURRENT_SEASON: "2025/26",
 
+  // --- Seasons ---
+  // Each season runs 1 Jul → 30 Jun. Fixtures, training and events fall into a
+  // season automatically by date, so anything from 1 Jul 2026 lands in 2026/27.
+  // The top-bar dropdown switches the view; it defaults to whichever season
+  // today falls in. Add a new season here each summer.
+  SEASONS: [
+    { id: "2025/26", from: "2025-07-01", to: "2026-06-30" },
+    { id: "2026/27", from: "2026-07-01", to: "2027-06-30" }
+  ],
+
   // The signed-in viewer for the demo (which player's profile is "me").
   // In live mode this comes from the user's account.
   DEMO_PLAYER_ID: 7

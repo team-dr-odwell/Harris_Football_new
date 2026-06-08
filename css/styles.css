@@ -96,7 +96,8 @@ img{max-width:100%}
 .nav-link:hover{color:var(--white)}
 .nav-link.active{background:var(--gold-soft);color:var(--gold-bright)}
 .topbar-right{display:flex;align-items:center;gap:.6rem;margin-left:.4rem}
-.season-pill{background:var(--gold-soft);color:var(--gold-bright);border:1px solid rgba(201,162,39,.35);border-radius:999px;padding:.28rem .7rem;font-size:.76rem;font-weight:800;letter-spacing:.5px}
+.season-pill{background:var(--gold-soft);color:var(--gold-bright);border:1px solid rgba(201,162,39,.35);border-radius:999px;padding:.28rem 1.5rem .28rem .7rem;font-size:.76rem;font-weight:800;letter-spacing:.5px;cursor:pointer;-webkit-appearance:none;appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'><path d='M2 3.5 5 6.5 8 3.5' fill='none' stroke='%23e6c24a' stroke-width='1.5'/></svg>");background-repeat:no-repeat;background-position:right .55rem center}
+.season-pill option{background:#171410;color:var(--white)}
 .hamburger{display:none;background:none;border:1px solid var(--line);color:var(--white);border-radius:10px;font-size:1.2rem;width:44px;height:44px;cursor:pointer}
 
 /* ---------- Demo banner ---------- */
@@ -333,7 +334,7 @@ img{max-width:100%}
   .cols-3,.cols-4{grid-template-columns:1fr}
   .cols-2{grid-template-columns:1fr}
   .fixture-meta{grid-template-columns:1fr}
-  .season-pill{display:none}
+  .season-pill{padding:.28rem 1.3rem .28rem .55rem;font-size:.72rem}
 }
 @media (max-width:520px){
   .stat-strip{grid-template-columns:repeat(2,1fr)}

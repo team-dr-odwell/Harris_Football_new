@@ -29,8 +29,8 @@
     $("#gate").classList.add("hidden");
     $("#app").classList.remove("hidden");
     if (S.MODE === "preview") $("#demo-banner").classList.remove("hidden");
-    $("#season-pill").textContent = cfg.CURRENT_SEASON;
     await S.load();
+    populateSeasonSelect();
     $("#nav-admin").classList.toggle("hidden", !S.isAdmin);
     if (S.needsOnboarding()) { showOnboarding(); return; }
     if (!S.hasLinkedPlayer() && !S.isAdmin) { showChildPicker(false); return; }
@@ -51,9 +51,16 @@
     $("#login-password").addEventListener("keydown", e => { if (e.key === "Enter") go(); });
   }
 
+  function populateSeasonSelect() {
+    const sel = $("#season-select"); if (!sel) return;
+    sel.innerHTML = (cfg.SEASONS || []).map(s => `<option value="${esc(s.id)}" ${s.id === S.season ? "selected" : ""}>${esc(s.id)}</option>`).join("");
+  }
+
   function wireShell() {
     $("#logout-btn").addEventListener("click", async () => { await S.logout(); location.hash = "#home"; showGate(); });
     $("#myplayer-btn").addEventListener("click", () => showChildPicker(true));
+    const ssel = $("#season-select");
+    if (ssel) ssel.addEventListener("change", e => { S.setSeason(e.target.value); updateMyPlayerChip(); route(); });
     $("#hamburger").addEventListener("click", () => $("#nav").classList.toggle("open"));
     document.querySelectorAll("[data-route]").forEach(a =>
       a.addEventListener("click", () => { location.hash = "#" + a.dataset.route; $("#nav").classList.remove("open"); }));
@@ -69,7 +76,7 @@
 
   function showOnboarding() {
     $("#nav").classList.remove("open");
-    const players = [...S.state.players].sort((a,b)=>a.number-b.number);
+    const players = S.roster().sort((a,b)=>a.number-b.number);
     const linked = S.linkedPlayer;
     const relOpts = ["Mum","Dad","Guardian","Parent"].map(r=>`<option>${r}</option>`).join("");
     view.innerHTML = `
@@ -119,7 +126,7 @@
         <p style="margin-inline:auto">Pick your child so we can show their card, season stats and match availability as yours. You can change this anytime from the top bar.</p>
       </section>
       <div class="players-grid" style="grid-template-columns:repeat(auto-fill,minmax(220px,1fr))">
-        ${[...S.state.players].sort((a,b)=>a.number-b.number).map(p=>`
+        ${S.roster().sort((a,b)=>a.number-b.number).map(p=>`
           <button class="card" data-pick="${p.id}" style="cursor:pointer;display:flex;gap:.8rem;align-items:center;text-align:left">
             <span class="club-badge us" style="flex:none">${esc(initials(p))}</span>
             <span><b style="font-size:1.05rem;display:block">${esc(p.name)}</b><span class="muted" style="font-size:.82rem">Squad #${p.number} · ${esc(p.pos)}</span></span>
@@ -148,11 +155,12 @@
     const past = S.fixtures("past");
     const W = past.filter(f=>f.result==="W").length, D = past.filter(f=>f.result==="D").length, L = past.filter(f=>f.result==="L").length;
     const goals = past.reduce((n,f)=>n+(f.our_score||0),0);
-    const top = [...S.state.players].sort((a,b)=>b.goals-a.goals)[0];
+    const ros = S.roster();
+    const top = [...ros].sort((a,b)=>(b.goals||0)-(a.goals||0))[0];
 
     view.innerHTML = `
       <section class="hero">
-        <div class="hero-tag">${esc(cfg.TEAM_NAME)} · ${esc(cfg.AGE_GROUP)} · ${esc(cfg.CURRENT_SEASON)}</div>
+        <div class="hero-tag">${esc(cfg.TEAM_NAME)} · ${esc(cfg.AGE_GROUP)} · ${esc(S.season)}</div>
         <h1>Welcome to the <span>Academy</span></h1>
         <p>Your home for fixtures, training, player cards and everything that makes this team special. Every session, every goal, every bit of progress — all tracked right here.</p>
         <div class="hero-actions">
@@ -164,8 +172,8 @@
       <div class="stat-strip">
         <div class="stat"><div class="n">${W}-${D}-${L}</div><div class="l">W · D · L</div></div>
         <div class="stat"><div class="n">${goals}</div><div class="l">Goals scored</div></div>
-        <div class="stat"><div class="n">${S.state.players.length}</div><div class="l">Squad size</div></div>
-        <div class="stat"><div class="n">${top.goals}</div><div class="l">Top scorer (${esc(top.name.split(" ")[0])})</div></div>
+        <div class="stat"><div class="n">${ros.length}</div><div class="l">Squad size</div></div>
+        <div class="stat"><div class="n">${top?top.goals:0}</div><div class="l">Top scorer${top?` (${esc(top.name.split(" ")[0])})`:""}</div></div>
       </div>
 
       <div class="grid cols-2">
@@ -233,7 +241,7 @@
     tab = tab || "upcoming";
     const list = S.fixtures(tab);
     view.innerHTML = `
-      <div class="section-head"><div><div class="eyebrow">${esc(cfg.CURRENT_SEASON)} Season</div><h2>Fixtures</h2></div>
+      <div class="section-head"><div><div class="eyebrow">${esc(S.season)} Season</div><h2>Fixtures</h2></div>
         <div class="badge-row">
           <button class="btn ${tab==='upcoming'?'btn-gold':'btn-ghost'} btn-sm" data-tab="upcoming">Upcoming</button>
           <button class="btn ${tab==='past'?'btn-gold':'btn-ghost'} btn-sm" data-tab="past">Results</button>
@@ -352,6 +360,7 @@
     return `${h}${m?":"+pad2(m):""}${ap}`;
   }
   function itemsOn(iso) {
+    if (!S.inSeason(iso)) return [];
     const d = new Date(iso + "T00:00:00"); const out = [];
     (S.state.trainingSchedule || window.HARRIS_DATA.trainingSchedule || []).forEach(r => {
       if (d.getDay() === r.day && iso <= r.until) out.push({ kind:"training", key:"t"+iso, start:r.start, end:r.end, location:r.location, label:r.label || "Training" });
@@ -510,10 +519,10 @@
   function Players(id) {
     if (id) return AcademyProfile(+id);
     view.innerHTML = `
-      <div class="section-head"><div><div class="eyebrow">${esc(cfg.CURRENT_SEASON)} Squad</div><h2>The Academy</h2></div></div>
+      <div class="section-head"><div><div class="eyebrow">${esc(S.season)} Squad</div><h2>The Academy</h2></div></div>
       <p class="muted" style="margin-top:-.6rem;max-width:62ch">Every player has a card and an academy profile. Tap a card for season stats, development progress and their goals to achieve.</p>
       <div class="players-grid" style="margin-top:1.3rem">
-        ${[...S.state.players].sort((a,b)=>a.number-b.number).map(fcCard).join("")}
+        ${S.roster().sort((a,b)=>a.number-b.number).map(fcCard).join("") || `<div class="card"><p class="muted" style="margin:0">No players in the ${esc(S.season)} squad yet.</p></div>`}
       </div>`;
     view.querySelectorAll("[data-player]").forEach(c => c.addEventListener("click", () => location.hash = "#players/"+c.dataset.player));
   }
@@ -685,7 +694,7 @@
   function Admin(sub) {
     if (!S.isAdmin) { view.innerHTML = `<div class="card pad-lg"><h2 style="font-family:var(--display)">Admins only</h2><p class="muted">This area is for team coaches/admins. Ask the team admin to grant you access.</p></div>`; return; }
     sub = sub || "fixtures";
-    const tabs = [["fixtures","Add fixture"],["result","Enter result"],["stats","Player stats"],["academy","Development"],["drills","Drill videos"],["contacts","Contacts"],["players","Add player"],["training","Add training"],["events","Add event"]];
+    const tabs = [["fixtures","Add fixture"],["result","Enter result"],["stats","Player stats"],["academy","Development"],["drills","Drill videos"],["contacts","Contacts"],["roster","Roster"],["players","Add player"],["training","Add training"],["events","Add event"]];
     view.innerHTML = `
       <div class="section-head"><div><div class="eyebrow">Coaches only</div><h2>Admin Panel</h2></div></div>
       <p class="muted" style="margin-top:-.6rem;max-width:62ch">Manage everything from here — no spreadsheets. ${S.MODE==='preview'?'<b>Preview mode:</b> changes save to this browser so you can try it. Connect Supabase to save for everyone.':'Changes save to your database and appear for everyone straight away.'}</p>
@@ -694,7 +703,7 @@
       </div>
       <div id="admin-body"></div>`;
     view.querySelectorAll("[data-atab]").forEach(b => b.addEventListener("click", () => location.hash = "#admin/"+b.dataset.atab));
-    ({ fixtures:AdmFixture, result:AdmResult, stats:AdmStats, academy:AdmAcademy, drills:AdmDrills, contacts:AdmContacts, players:AdmPlayer, training:AdmTraining, events:AdmEvent }[sub] || AdmFixture)();
+    ({ fixtures:AdmFixture, result:AdmResult, stats:AdmStats, academy:AdmAcademy, drills:AdmDrills, contacts:AdmContacts, roster:AdmRoster, players:AdmPlayer, training:AdmTraining, events:AdmEvent }[sub] || AdmFixture)();
   }
 
   function toast(msg) {
@@ -703,7 +712,7 @@
     t.style.cssText = "position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:linear-gradient(180deg,var(--gold-bright),var(--gold));color:#171205;font-weight:800;padding:.7rem 1.2rem;border-radius:999px;z-index:200;box-shadow:0 10px 30px rgba(0,0,0,.4)";
     document.body.appendChild(t); setTimeout(()=>t.remove(), 2200);
   }
-  const playerOpts = (sel) => S.state.players.map(p=>`<option value="${p.id}" ${sel===p.id?'selected':''}>#${p.number} ${esc(p.name)}</option>`).join("");
+  const playerOpts = (sel) => S.roster(true).sort((a,b)=>a.number-b.number).map(p=>`<option value="${p.id}" ${sel===p.id?'selected':''}>#${p.number} ${esc(p.name)}</option>`).join("");
   const F = (label, inner) => `<label class="field"><span>${label}</span>${inner}</label>`;
 
   function AdmFixture() {
@@ -775,9 +784,10 @@
         if (res.ok) toast("Stats saved ✓"); else toast("Error: "+res.msg);
       });
     }
-    const players = [...S.state.players].sort((a,b)=>a.number-b.number);
+    const players = S.roster(true).sort((a,b)=>a.number-b.number);
+    if (!players.length) { body.innerHTML = `<div class="card pad-lg"><p class="muted" style="margin:0">No players in the ${esc(S.season)} squad yet. Add them on the <b>Roster</b> tab first.</p></div>`; return; }
     body.innerHTML = `<div class="card pad-lg" style="max-width:620px">
-      <p class="muted" style="margin-top:0">Update each player's season stats — they show on their card, profile and the league table.</p>
+      <p class="muted" style="margin-top:0">Update each player's <b>${esc(S.season)}</b> stats — they show on their card, profile and the league table. (Switch season from the top bar.)</p>
       ${F("Player",`<select id="st-player">${players.map(p=>`<option value="${p.id}">#${p.number} ${esc(p.name)}</option>`).join("")}</select>`)}
       <div id="st-fields"></div>
     </div>`;
@@ -787,7 +797,8 @@
 
   function AdmAcademy() {
     const body = $("#admin-body");
-    const players = [...S.state.players].sort((a,b)=>a.number-b.number);
+    const players = S.roster(true).sort((a,b)=>a.number-b.number);
+    if (!players.length) { body.innerHTML = `<div class="card pad-lg"><p class="muted" style="margin:0">No players in the ${esc(S.season)} squad yet. Add them on the <b>Roster</b> tab first.</p></div>`; return; }
     function load(id) {
       const p = S.player(id); if (!p) return;
       const dev = p.dev || {};
@@ -810,7 +821,7 @@
       });
     }
     body.innerHTML = `<div class="card pad-lg" style="max-width:640px">
-      <p class="muted" style="margin-top:0">Set each player's development progress, targets, plan and personalised videos. Shown on their Academy profile and Development page.</p>
+      <p class="muted" style="margin-top:0">Set each player's <b>${esc(S.season)}</b> development progress, targets, plan and personalised videos. Shown on their Academy profile and Development page.</p>
       ${F("Player",`<select id="ac-player">${players.map(p=>`<option value="${p.id}">#${p.number} ${esc(p.name)}</option>`).join("")}</select>`)}
       <div id="ac-fields"></div>
     </div>`;
@@ -854,9 +865,40 @@
     });
   }
 
+  function AdmRoster() {
+    const body = $("#admin-body");
+    const season = S.season;
+    const players = [...S.state.players].sort((a,b)=>(a.number||999)-(b.number||999));
+    body.innerHTML = `<div class="card pad-lg">
+      <p class="muted" style="margin-top:0">Managing the <b>${esc(season)}</b> squad. Tick <b>In ${esc(season)}</b> for the players continuing this season (untick the ones who've left), and tick <b>Signed</b> once a child has registered. <b>Unsigned players are hidden from parents.</b> Switch season from the top bar.</p>
+      <div class="table-wrap"><table class="league-table">
+        <thead><tr><th>#</th><th>Player</th><th>In ${esc(season)}</th><th>Signed</th></tr></thead>
+        <tbody>${players.map(p=>{
+          const inS = (Array.isArray(p.seasons)?p.seasons:[]).includes(season);
+          return `<tr>
+            <td>${p.number||""}</td>
+            <td><b>${esc(p.name)}</b>${p.signed===false?` <span class="tag">pending</span>`:""}</td>
+            <td style="text-align:center"><input type="checkbox" data-in="${p.id}" ${inS?"checked":""} style="width:20px;height:20px"/></td>
+            <td style="text-align:center"><input type="checkbox" data-signed="${p.id}" ${p.signed!==false?"checked":""} style="width:20px;height:20px"/></td>
+          </tr>`;
+        }).join("")}</tbody>
+      </table></div>
+      <div style="margin-top:1rem"><button class="btn btn-ghost btn-sm" data-go-roster-add>+ Add a new player</button></div>
+    </div>`;
+    body.querySelectorAll("[data-in]").forEach(cb => cb.addEventListener("change", async () => {
+      const res = await S.setRoster(+cb.dataset.in, { inSeason: cb.checked });
+      if (res.ok) toast(cb.checked ? "Added to "+season+" ✓" : "Removed from "+season); else toast("Error: "+res.msg);
+    }));
+    body.querySelectorAll("[data-signed]").forEach(cb => cb.addEventListener("change", async () => {
+      const res = await S.setRoster(+cb.dataset.signed, { signed: cb.checked });
+      if (res.ok) { toast(cb.checked ? "Approved ✓" : "Set to pending"); Admin("roster"); } else toast("Error: "+res.msg);
+    }));
+    body.querySelector("[data-go-roster-add]").addEventListener("click", () => location.hash = "#admin/players");
+  }
+
   function AdmPlayer() {
     $("#admin-body").innerHTML = `<div class="card pad-lg" style="max-width:620px">
-      <p class="muted" style="margin-top:0">Add a new squad member. Set their stats afterwards on the <b>Player stats</b> tab.</p>
+      <p class="muted" style="margin-top:0">Add a new squad member to the <b>${esc(S.season)}</b> season. They start as <b>pending</b> (hidden from parents) — approve them on the <b>Roster</b> tab once they've signed. Set their stats on the <b>Player stats</b> tab.</p>
       ${F("Full name",`<input id="p-name" placeholder="e.g. Sam Kirby"/>`)}
       <div class="grid cols-2">${F("Squad number",`<input type="number" min="1" id="p-num"/>`)}${F("Position",`<select id="p-pos">${["GK","RB","LB","CB","CDM","CM","CAM","LM","RM","LW","RW","ST"].map(x=>`<option>${x}</option>`).join("")}</select>`)}</div>
       <label class="field" style="flex-direction:row;align-items:center;gap:.5rem"><input type="checkbox" id="p-capt" style="width:auto"/> <span style="margin:0">Team captain</span></label>
@@ -866,8 +908,8 @@
       const name=$("#p-name").value.trim(); if(!name) return toast("Add a name");
       const init=name.split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase();
       const res = await S.addPlayer({ name, number:+$("#p-num").value, pos:$("#p-pos").value,
-        captain:$("#p-capt").checked, init, goals:0, assists:0, motm:0, sessions:0, points:0 });
-      if(res.ok){ toast("Player added ✓"); location.hash="#players"; } else toast("Error: "+res.msg);
+        captain:$("#p-capt").checked, init });
+      if(res.ok){ toast("Player added as pending ✓"); location.hash="#admin/roster"; } else toast("Error: "+res.msg);
     });
   }
 
