@@ -1,7 +1,21 @@
--- OWFC Harris — sample seed data. Run AFTER schema.sql.
-insert into seasons (name, league, is_current) values ('2025/26','North Tyneside Junior League — Division 2',true);
+-- ===================================================================
+-- OWFC Harris — replace the placeholder squad with the REAL squad.
+-- Safe to run on your live Supabase. Clears the sample match data
+-- (which was tied to the old placeholder players) so no fake stats
+-- get attached to real children. Run in SQL Editor -> New query.
+-- ===================================================================
 
--- PLAYERS
+-- 1. add captain support
+alter table players add column if not exists captain boolean default false;
+
+-- 2. clear sample match data tied to the old squad
+delete from goals;
+delete from attendance;
+delete from game_points;
+update fixtures set status='upcoming', our_score=null, their_score=null, result=null, motm=null;
+
+-- 3. swap in the real squad (season stats start at 0)
+delete from players;
 insert into players (id, number, name, pos, rating, pace, shooting, passing, dribbling, defending, physical, games, goals, assists, motm, captain, init, program) overriding system value values (1, 1, 'Sam Kirby', 'GK', 82, 70, 45, 72, 60, 85, 78, 0, 0, 0, 0, true, 'SK', '["Shot-stopping — low and high saves","Distribution to a target, throws & kicks","Commanding the box and organising the defence","Quick feet and a strong set position"]');
 insert into players (id, number, name, pos, rating, pace, shooting, passing, dribbling, defending, physical, games, goals, assists, motm, captain, init, program) overriding system value values (2, 2, 'Daniel O''Loughlin', 'CB', 80, 74, 50, 76, 64, 84, 80, 0, 0, 0, 0, false, 'DO', '["1v1 defending — jockey, delay, tackle","Heading at both ends of the pitch","Playing out from the back with composure","Communication and holding the line"]');
 insert into players (id, number, name, pos, rating, pace, shooting, passing, dribbling, defending, physical, games, goals, assists, motm, captain, init, program) overriding system value values (3, 3, 'Diego Cappello-Spedding', 'RB', 80, 83, 52, 74, 73, 80, 72, 0, 0, 0, 0, false, 'DC', '["Defending the wing 1v1","Overlapping runs and quality crosses","Recovery sprints to get back","First touch to start attacks"]');
@@ -16,16 +30,6 @@ insert into players (id, number, name, pos, rating, pace, shooting, passing, dri
 insert into players (id, number, name, pos, rating, pace, shooting, passing, dribbling, defending, physical, games, goals, assists, motm, captain, init, program) overriding system value values (14, 14, 'Lucci Verico', 'CM', 80, 77, 66, 82, 79, 70, 70, 0, 0, 0, 0, false, 'LV', '["Receiving on the half-turn and scanning first","Range of passing — short and long","Driving forward with the ball","Pressing and winning the ball back"]');
 select setval(pg_get_serial_sequence('players','id'), (select max(id) from players));
 
--- GAME POINTS
-insert into game_points (player_id, attendance, training, quiz, exercise, badges) values (1, 0, 0, 0, 0, '[]');
-insert into game_points (player_id, attendance, training, quiz, exercise, badges) values (2, 0, 0, 0, 0, '[]');
-insert into game_points (player_id, attendance, training, quiz, exercise, badges) values (3, 0, 0, 0, 0, '[]');
-insert into game_points (player_id, attendance, training, quiz, exercise, badges) values (4, 0, 0, 0, 0, '[]');
-insert into game_points (player_id, attendance, training, quiz, exercise, badges) values (5, 0, 0, 0, 0, '[]');
-insert into game_points (player_id, attendance, training, quiz, exercise, badges) values (6, 0, 0, 0, 0, '[]');
-insert into game_points (player_id, attendance, training, quiz, exercise, badges) values (7, 0, 0, 0, 0, '[]');
-insert into game_points (player_id, attendance, training, quiz, exercise, badges) values (8, 0, 0, 0, 0, '[]');
-insert into game_points (player_id, attendance, training, quiz, exercise, badges) values (9, 0, 0, 0, 0, '[]');
-insert into game_points (player_id, attendance, training, quiz, exercise, badges) values (10, 0, 0, 0, 0, '[]');
-insert into game_points (player_id, attendance, training, quiz, exercise, badges) values (11, 0, 0, 0, 0, '[]');
-insert into game_points (player_id, attendance, training, quiz, exercise, badges) values (14, 0, 0, 0, 0, '[]');
+-- 4. start the Academy League with everyone at 0
+insert into game_points (player_id, attendance, training, quiz, exercise, badges)
+select id, 0, 0, 0, 0, '[]' from players;

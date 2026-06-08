@@ -134,8 +134,8 @@
         </div>
         <div class="card pad-lg">
           <div class="eyebrow" style="color:var(--gold)">Next training</div>
-          ${trainingMini(S.state.training[0])}
-          <button class="btn btn-dark btn-sm" data-go="training" style="margin-top:1rem">Training schedule</button>
+          ${trainingMini(nextTraining())}
+          <button class="btn btn-dark btn-sm" data-go="training" style="margin-top:1rem">Full calendar</button>
         </div>
       </div>
 
@@ -159,12 +159,21 @@
   }
   function trainingMini(t) {
     if (!t) return `<p class="muted">No training booked in yet — watch this space!</p>`;
-    return `<h3 style="margin:.3rem 0 .6rem">${esc(t.focus)}</h3>
+    return `<h3 style="margin:.3rem 0 .6rem">${esc(t.label || t.focus)}</h3>
       <div class="fixture-meta">
         <span class="mi"><b>Date</b> ${fdate(t.date)}</span>
-        <span class="mi"><b>Time</b> ${esc(t.start)}–${esc(t.end)}</span>
+        <span class="mi"><b>Time</b> ${fmt12(t.start)}–${fmt12(t.end)}</span>
         <span class="mi"><b>Where</b> ${esc(t.location)}</span>
       </div>`;
+  }
+  function nextTraining() {
+    const today = new Date();
+    for (let i = 0; i < 21; i++) {
+      const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() + i);
+      const t = itemsOn(ymd(d)).find(x => x.kind === "training");
+      if (t) return { ...t, date: ymd(d) };
+    }
+    return null;
   }
   function leaguePreview() {
     const rows = S.leagueRows().slice(0, 5);
@@ -224,14 +233,16 @@
   function resultCard(f) {
     const rc = f.result==="W"?"win":f.result==="L"?"loss":"draw";
     const motm = S.player(f.motm);
+    const hasResult = f.our_score != null && f.their_score != null;
     return `<div class="card fixture">
       <div class="fixture-top">
         <div class="fixture-vs"><span class="club-badge us">H</span>
           <div><h3>vs ${esc(f.opponent)}</h3><span class="tag">${esc(f.competition)} · ${f.home_away==='H'?'Home':'Away'} · ${fdate(f.date)}</span></div>
         </div>
         <div style="text-align:right">
-          <div class="score">${f.our_score}<span class="sep">–</span>${f.their_score}</div>
-          <span class="tag ${rc}">${f.result==="W"?"Win":f.result==="L"?"Loss":"Draw"}</span>
+          ${hasResult
+            ? `<div class="score">${f.our_score}<span class="sep">–</span>${f.their_score}</div><span class="tag ${rc}">${f.result==="W"?"Win":f.result==="L"?"Loss":"Draw"}</span>`
+            : `<span class="tag">Score to add</span>`}
         </div>
       </div>
       ${f.goals?.length ? `<div class="goal-list">${f.goals.map(g=>{
@@ -291,24 +302,73 @@
     }));
   }
 
-  /* ============================ TRAINING ============================ */
+  /* ============================ TRAINING (month calendar) ============================ */
+  const pad2 = n => String(n).padStart(2, "0");
+  const ymd = d => `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
+  function fmt12(t) {
+    if (!t) return ""; let [h,m] = t.split(":").map(Number);
+    const ap = h < 12 ? "am" : "pm"; h = h % 12 || 12;
+    return `${h}${m?":"+pad2(m):""}${ap}`;
+  }
+  function itemsOn(iso) {
+    const d = new Date(iso + "T00:00:00"); const out = [];
+    (S.state.trainingSchedule || window.HARRIS_DATA.trainingSchedule || []).forEach(r => {
+      if (d.getDay() === r.day && iso <= r.until) out.push({ kind:"training", start:r.start, end:r.end, location:r.location, label:r.label || "Training" });
+    });
+    (S.state.training || []).forEach(t => { if (t.date === iso) out.push({ kind:"training", start:t.start, end:t.end, location:t.location, label:t.focus || "Training", drills:t.drills }); });
+    (S.state.events || []).forEach(e => { if (e.date === iso) out.push({ kind:"event", title:e.title, location:e.location, time:e.time, desc:e.desc, link:e.link }); });
+    return out;
+  }
+
   function Training() {
-    view.innerHTML = `
-      <div class="section-head"><div><div class="eyebrow">Get better, every week</div><h2>Training</h2></div></div>
-      <p class="muted" style="margin-top:-.6rem;max-width:60ch">Two sessions a week at Harris Park. Every one has a clear focus, so you always know what we're working on — and why it matters.</p>
-      <div class="timeline" style="margin-top:1.4rem">
-        ${S.state.training.map(t => `
-          <div class="t-item"><div class="card">
-            <div class="fixture-top">
-              <div><h3 style="margin:0 0 .2rem">${esc(t.focus)}</h3>
-                <span class="tag gold">${fdateLong(t.date)}</span>
-                <span class="tag">${esc(t.start)}–${esc(t.end)}</span>
-                <span class="tag">📍 ${esc(t.location)}</span></div>
-            </div>
-            <div style="margin-top:.7rem"><div class="lbl" style="font-size:.74rem;color:var(--muted);font-weight:700;letter-spacing:1px">SESSION PLAN</div>
-              <div style="margin-top:.4rem">${t.drills.map(d=>`<span class="drill-chip">${esc(d)}</span>`).join("")}</div></div>
-          </div></div>`).join("")}
-      </div>`;
+    const today = new Date();
+    let cur = { y: today.getFullYear(), m: today.getMonth() };
+    let sel = ymd(today);
+
+    function render() {
+      const first = new Date(cur.y, cur.m, 1);
+      const startCol = (first.getDay() + 6) % 7;          // Monday-first
+      const monthName = first.toLocaleString("en-GB", { month:"long", year:"numeric" });
+      const dows = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+      let cells = "";
+      for (let i = 0; i < 42; i++) {
+        const date = new Date(cur.y, cur.m, 1 + (i - startCol));
+        const iso = ymd(date), out = date.getMonth() !== cur.m;
+        const items = itemsOn(iso);
+        const hasTrain = items.some(x => x.kind === "training");
+        const hasEvent = items.some(x => x.kind === "event");
+        cells += `<button class="cal-cell${out?' out':''}${iso===ymd(today)?' today':''}${iso===sel?' sel':''}" data-day="${iso}">
+          <span class="cal-num">${date.getDate()}</span>
+          <span class="cal-dots">${hasTrain?'<span class="cdot train"></span>':''}${hasEvent?'<span class="cdot event"></span>':''}</span>
+        </button>`;
+      }
+      const selItems = itemsOn(sel);
+      const selDate = new Date(sel + "T00:00:00");
+      view.innerHTML = `
+        <div class="section-head"><div><div class="eyebrow">What's on</div><h2>Training &amp; Calendar</h2></div></div>
+        <div class="cal-legend"><span><span class="cdot train"></span> Training</span><span><span class="cdot event"></span> Event</span></div>
+        <div class="card cal-wrap">
+          <div class="cal-head">
+            <button class="cal-nav" data-nav="-1" aria-label="Previous month">‹</button>
+            <strong>${monthName}</strong>
+            <button class="cal-nav" data-nav="1" aria-label="Next month">›</button>
+          </div>
+          <div class="cal-grid cal-dow">${dows.map(d=>`<span>${d}</span>`).join("")}</div>
+          <div class="cal-grid cal-body">${cells}</div>
+        </div>
+        <div class="card cal-detail" style="margin-top:1rem">
+          <h3 style="margin:0 0 .2rem;font-family:var(--display)">${selDate.toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long"})}</h3>
+          ${selItems.length ? selItems.map(it => it.kind==="training"
+            ? `<div class="cal-item"><span class="cdot train"></span><div><b>${esc(it.label)}</b><br><span class="muted">${fmt12(it.start)}–${fmt12(it.end)} · 📍 ${esc(it.location)}</span>${it.drills?`<br><span class="muted" style="font-size:.82rem">${it.drills.map(esc).join(" · ")}</span>`:""}</div></div>`
+            : `<div class="cal-item"><span class="cdot event"></span><div><b>${esc(it.title)}</b>${it.time?` <span class="tag gold">${esc(it.time)}</span>`:""}<br><span class="muted">📍 ${esc(it.location||"TBC")}</span>${it.desc?`<br><span class="muted" style="font-size:.85rem">${esc(it.desc)}</span>`:""}${it.link?`<br><a href="${esc(it.link)}" target="_blank" rel="noopener" style="color:var(--gold-bright)">Location &amp; prices ↗</a>`:""}</div></div>`
+          ).join("") : `<p class="muted" style="margin:.4rem 0 0">Nothing on this day. Tap a highlighted date to see what's happening.</p>`}
+        </div>`;
+      view.querySelectorAll("[data-nav]").forEach(b => b.addEventListener("click", () => {
+        cur.m += +b.dataset.nav; if (cur.m < 0) { cur.m = 11; cur.y--; } if (cur.m > 11) { cur.m = 0; cur.y++; } render();
+      }));
+      view.querySelectorAll("[data-day]").forEach(c => c.addEventListener("click", () => { sel = c.dataset.day; render(); }));
+    }
+    render();
   }
 
   /* ============================ EVENTS ============================ */
@@ -323,9 +383,10 @@
             <div style="display:flex;gap:.9rem;align-items:flex-start">
               <div class="club-badge" style="width:54px;height:54px;font-size:1.6rem">${EVICON[ev.img]||"📅"}</div>
               <div><h3 style="margin:0 0 .25rem">${esc(ev.title)}</h3>
-                <span class="tag gold">${fdateLong(ev.date)}</span><span class="tag">📍 ${esc(ev.location)}</span></div>
+                <span class="tag gold">${fdateLong(ev.date)}</span>${ev.time?`<span class="tag gold">${esc(ev.time)}</span>`:""}<span class="tag">📍 ${esc(ev.location)}</span></div>
             </div>
             <p style="margin:.9rem 0 .8rem;color:#d7d7cf">${esc(ev.desc)}</p>
+            ${ev.link?`<p style="margin:-.3rem 0 .8rem"><a href="${esc(ev.link)}" target="_blank" rel="noopener" style="color:var(--gold-bright)">Location &amp; prices ↗</a></p>`:""}
             <div class="lbl" style="font-size:.74rem;color:var(--muted);font-weight:700">GALLERY</div>
             <div class="gallery" data-media="ev${ev.id}" style="margin-top:.5rem">
               ${S.mediaFor(ev.id).map(m=>mediaTile(m)).join("")}
@@ -366,7 +427,7 @@
           <div class="fc-num">#${p.number}</div>
         </div>
         <div class="fc-photo"><div class="avatar">${esc(initials(p))}</div></div>
-        <div class="fc-name">${esc(p.name)}</div>
+        <div class="fc-name">${p.captain?'<span class="capt" title="Captain">C</span> ':''}${esc(p.name)}</div>
         <div class="fc-stats">
           <div><span>PAC</span>${p.pace}</div><div><span>DRI</span>${p.dribbling}</div>
           <div><span>SHO</span>${p.shooting}</div><div><span>DEF</span>${p.defending}</div>
@@ -389,7 +450,7 @@
           <div class="fc-card" style="max-width:230px;margin:0 auto">${fcCardInner(p)}</div>
         </div>
         <div>
-          <div class="eyebrow" style="color:var(--gold)">${esc(p.pos)} · Squad #${p.number}</div>
+          <div class="eyebrow" style="color:var(--gold)">${esc(p.pos)} · Squad #${p.number}${p.captain?' · Captain 🧢':''}</div>
           <h2 style="font-family:var(--display);font-size:2.2rem;margin:.1rem 0 1rem">${esc(p.name)}</h2>
           <div class="stat-strip" style="grid-template-columns:repeat(4,1fr)">
             <div class="stat"><div class="n">${p.games}</div><div class="l">Games</div></div>
@@ -637,16 +698,18 @@
 
   function AdmEvent() {
     $("#admin-body").innerHTML = `<div class="card pad-lg" style="max-width:620px">
-      ${F("Title",`<input id="e-title" placeholder="e.g. End of Season Presentation"/>`)}
-      <div class="grid cols-2">${F("Date",`<input type="date" id="e-date"/>`)}${F("Icon",`<select id="e-img"><option value="trophy">🏆 Trophy</option><option value="target">🎯 Fundraiser</option><option value="flag">🏁 Day out</option><option value="cone">🔶 Training/camp</option></select>`)}</div>
-      ${F("Location",`<input id="e-loc" placeholder="e.g. Harris Park Clubhouse"/>`)}
+      ${F("Title",`<input id="e-title" placeholder="e.g. Club Awards Afternoon"/>`)}
+      <div class="grid cols-2">${F("Date",`<input type="date" id="e-date"/>`)}${F("Start time (optional)",`<input id="e-time" placeholder="e.g. 11:00"/>`)}</div>
+      <div class="grid cols-2">${F("Location",`<input id="e-loc" placeholder="e.g. High Elms Golf Course"/>`)}${F("Icon",`<select id="e-img"><option value="trophy">🏆 Trophy</option><option value="target">🎯 Fundraiser</option><option value="flag">🏁 Day out</option><option value="cone">🔶 Training/camp</option></select>`)}</div>
+      ${F("Link (optional)",`<input id="e-link" placeholder="https://..."/>`)}
       ${F("Details",`<textarea id="e-desc" rows="4" placeholder="What's happening, who's invited, what to bring..."></textarea>`)}
       <button class="btn btn-gold btn-block" id="e-save">Add event</button>
     </div>`;
     $("#e-save").addEventListener("click", async () => {
       const title=$("#e-title").value.trim(), date=$("#e-date").value;
       if(!title||!date) return toast("Add a title and a date");
-      const res = await S.addEvent({ title, date, location:$("#e-loc").value.trim(), desc:$("#e-desc").value.trim(), description:$("#e-desc").value.trim(), img:$("#e-img").value, media:0 });
+      const res = await S.addEvent({ title, date, location:$("#e-loc").value.trim(), desc:$("#e-desc").value.trim(),
+        time:$("#e-time").value.trim(), link:$("#e-link").value.trim(), img:$("#e-img").value });
       if(res.ok){ toast("Event added ✓"); location.hash="#events"; } else toast("Error: "+res.msg);
     });
   }

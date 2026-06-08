@@ -120,6 +120,7 @@
         fixtures: fixtures.data || [],
         attendance: att,
         training: training.data || [],
+        trainingSchedule: window.HARRIS_DATA.trainingSchedule,
         events: (events.data || []).map(e => ({ ...e, desc: e.description, media_list: e.media, media: 0 })),
         gamePoints: (points.data || []).map(g => ({ ...g, playerId: g.player_id })),
         achievements: window.HARRIS_DATA.achievements,
@@ -236,12 +237,15 @@
     },
 
     async addEvent(ev) {
+      // ev: { title, date, location, desc, img, time, link }
       if (LIVE) {
-        const { data, error } = await this.sb.from("events").insert(ev).select().single();
+        const payload = { title:ev.title, description:ev.desc || null, location:ev.location || null,
+          date:ev.date, time:ev.time || null, link:ev.link || null, img:ev.img };
+        const { data, error } = await this.sb.from("events").insert(payload).select().single();
         if (error) return { ok:false, msg:error.message };
-        this.state.events.push(data);
+        this.state.events.push({ ...data, desc:data.description, media_list:[], media:0 });
       } else {
-        ev.id = this._nextId(this.state.events);
+        ev.id = this._nextId(this.state.events); ev.media = ev.media || 0;
         this.state.events.push(ev); this._persistContent();
       }
       return { ok:true };

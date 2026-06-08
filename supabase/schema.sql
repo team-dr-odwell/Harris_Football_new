@@ -24,6 +24,7 @@ create table if not exists players (
   clean_sheets int default 0,
   program      jsonb default '[]',      -- personal development plan (array of strings)
   init         text,                    -- initials fallback for the card avatar
+  captain      boolean default false,   -- team captain
   created_at   timestamptz default now()
 );
 
@@ -82,6 +83,8 @@ create table if not exists events (
   description text,
   location    text,
   date        date,
+  time        text,                     -- optional start time, e.g. '11:00'
+  link        text,                     -- optional external link (location/prices)
   img         text                      -- icon key or image URL
 );
 

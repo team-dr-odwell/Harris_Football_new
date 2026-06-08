@@ -8,34 +8,30 @@ window.HARRIS_DATA = {
 
   /* ---------------- SQUAD ---------------- */
   players: [
-    { id:1,  number:1,  name:"Oscar Bennett",  pos:"GK",  rating:78, pace:62, shooting:40, passing:70, dribbling:55, defending:80, physical:74, games:11, goals:0,  assists:1,  motm:2, clean_sheets:5, init:"OB",
-      program:["Distribution under pressure — roll-outs to full-backs","Shot-stopping: low dives both sides","Footwork ladder + quick set position","Communication: organise the back four"] },
-    { id:2,  number:2,  name:"Leo Carter",     pos:"RB",  rating:80, pace:84, shooting:55, passing:74, dribbling:72, defending:78, physical:70, games:12, goals:1,  assists:4,  motm:1, init:"LC",
-      program:["Overlapping runs & timing of the cross","1v1 defending — jockey & delay","Recovery sprints to the back post","Switching play with the outside foot"] },
-    { id:3,  number:3,  name:"Finn Walsh",     pos:"LB",  rating:77, pace:81, shooting:48, passing:71, dribbling:70, defending:75, physical:66, games:10, goals:0,  assists:3,  motm:1, init:"FW",
-      program:["Weak-foot crossing reps","Defensive body shape — show inside","Underlap into the half-space","First-touch out of the back"] },
-    { id:4,  number:4,  name:"Harry Dawson",   pos:"CB",  rating:81, pace:70, shooting:52, passing:76, dribbling:60, defending:85, physical:82, games:12, goals:2,  assists:0,  motm:3, init:"HD",
-      program:["Heading: attacking & defensive contact","Stepping in to intercept","Long diagonal switch","Defending the front post at set pieces"] },
-    { id:5,  number:5,  name:"Max Thompson",   pos:"CB",  rating:79, pace:72, shooting:46, passing:78, dribbling:63, defending:82, physical:78, games:11, goals:1,  assists:2,  motm:1, init:"MT",
-      program:["Playing out from the back — split the press","Aerial duels & second balls","Covering & sweeping behind","Timing the slide tackle"] },
-    { id:6,  number:6,  name:"Charlie Hughes",  pos:"CDM", rating:82, pace:74, shooting:64, passing:83, dribbling:75, defending:80, physical:79, games:12, goals:2,  assists:5,  motm:2, init:"CH",
-      program:["Screening the back four — scanning","Long & short range passing","Driving forward with the ball","Recovering the second ball"] },
-    { id:7,  number:7,  name:"Jack Morgan",    pos:"RW",  rating:84, pace:90, shooting:78, passing:76, dribbling:88, defending:55, physical:64, games:12, goals:9,  assists:6,  motm:4, init:"JM",
-      program:["Beating the full-back 1v1 — feints","Cutting in onto the left foot to shoot","End product: low driven crosses","High press triggers from the wing"] },
-    { id:8,  number:8,  name:"Noah Patel",     pos:"CM",  rating:80, pace:75, shooting:66, passing:84, dribbling:80, defending:68, physical:70, games:11, goals:3,  assists:7,  motm:2, init:"NP",
-      program:["Receiving on the half-turn","Through balls into the channels","Late runs into the box","Press & counter-press as a unit"] },
-    { id:9,  number:9,  name:"Freddie Clarke", pos:"ST",  rating:83, pace:82, shooting:86, passing:68, dribbling:78, defending:48, physical:76, games:12, goals:14, assists:3,  motm:5, init:"FC",
-      program:["Finishing: first time inside the box","Movement across the front defender","Hold-up play & link with midfield","Penalty technique & composure"] },
-    { id:10, number:10, name:"Alfie Reid",     pos:"CAM", rating:83, pace:78, shooting:74, passing:86, dribbling:85, defending:52, physical:66, games:12, goals:6,  assists:9,  motm:3, init:"AR",
-      program:["Playing between the lines — find pockets","Disguised through passes","Shooting from the edge of the box","Set-piece delivery"] },
-    { id:11, number:11, name:"Theo Murray",    pos:"LW",  rating:81, pace:88, shooting:70, passing:74, dribbling:84, defending:53, physical:62, games:10, goals:7,  assists:4,  motm:2, init:"TM",
-      program:["1v1 on the touchline — explosive first step","Right-foot finishes cutting inside","Tracking back to support the full-back","Counter-attack runs in behind"] },
-    { id:12, number:12, name:"Sam Doyle",      pos:"GK",  rating:74, pace:60, shooting:38, passing:66, dribbling:50, defending:76, physical:70, games:5,  goals:0,  assists:0,  motm:1, clean_sheets:2, init:"SD",
-      program:["Handling crosses with confidence","Set position & angles","Quick distribution to start attacks","Reaction saves — close range"] },
-    { id:14, number:14, name:"Riley Evans",    pos:"CM",  rating:78, pace:76, shooting:60, passing:79, dribbling:74, defending:66, physical:68, games:9,  goals:2,  assists:3,  motm:1, init:"RE",
-      program:["Box-to-box engine — repeated efforts","Tackling & winning it back","Forward passes that break lines","Arriving late in the box"] },
-    { id:15, number:15, name:"George Hill",    pos:"ST",  rating:77, pace:80, shooting:76, passing:62, dribbling:72, defending:46, physical:72, games:8,  goals:5,  assists:1,  motm:1, init:"GH",
-      program:["Finishing on the stretch","Pressing from the front","Running the channels","First touch with back to goal"] }
+    { id:1,  number:1,  name:"Sam Kirby",               pos:"GK", rating:82, pace:70, shooting:45, passing:72, dribbling:60, defending:85, physical:78, games:0, goals:0, assists:0, motm:0, captain:true, init:"SK",
+      program:["Shot-stopping — low and high saves","Distribution to a target, throws & kicks","Commanding the box and organising the defence","Quick feet and a strong set position"] },
+    { id:2,  number:2,  name:"Daniel O'Loughlin",       pos:"CB", rating:80, pace:74, shooting:50, passing:76, dribbling:64, defending:84, physical:80, games:0, goals:0, assists:0, motm:0, init:"DO",
+      program:["1v1 defending — jockey, delay, tackle","Heading at both ends of the pitch","Playing out from the back with composure","Communication and holding the line"] },
+    { id:3,  number:3,  name:"Diego Cappello-Spedding", pos:"RB", rating:80, pace:83, shooting:52, passing:74, dribbling:73, defending:80, physical:72, games:0, goals:0, assists:0, motm:0, init:"DC",
+      program:["Defending the wing 1v1","Overlapping runs and quality crosses","Recovery sprints to get back","First touch to start attacks"] },
+    { id:4,  number:4,  name:"Charlie Rodwell",         pos:"CM", rating:82, pace:76, shooting:68, passing:84, dribbling:80, defending:72, physical:74, games:0, goals:0, assists:0, motm:0, init:"CR",
+      program:["Receiving on the half-turn and scanning first","Range of passing — short and long","Driving forward with the ball","Pressing and winning the ball back"] },
+    { id:5,  number:5,  name:"Sebestian Wallace",       pos:"LM", rating:81, pace:85, shooting:64, passing:78, dribbling:83, defending:60, physical:66, games:0, goals:0, assists:0, motm:0, init:"SW",
+      program:["Beating your player 1v1","End product — crosses and shots","Tracking back to help your full-back","An explosive first step"] },
+    { id:6,  number:6,  name:"Duke Lands",              pos:"CB", rating:80, pace:72, shooting:50, passing:75, dribbling:62, defending:84, physical:80, games:0, goals:0, assists:0, motm:0, init:"DL",
+      program:["1v1 defending — jockey, delay, tackle","Heading at both ends of the pitch","Playing out from the back with composure","Communication and holding the line"] },
+    { id:7,  number:7,  name:"Jack Horrell",            pos:"ST", rating:83, pace:88, shooting:84, passing:72, dribbling:84, defending:52, physical:72, games:0, goals:0, assists:0, motm:0, init:"JH",
+      program:["Finishing first-time in the box","Movement to lose your marker","Hold-up play and linking with the team","Leading the press from the front"] },
+    { id:8,  number:8,  name:"Alex Biondini",           pos:"CM", rating:82, pace:76, shooting:70, passing:84, dribbling:80, defending:70, physical:72, games:0, goals:0, assists:0, motm:0, init:"AB",
+      program:["Receiving on the half-turn and scanning first","Range of passing — short and long","Driving forward with the ball","Pressing and winning the ball back"] },
+    { id:9,  number:9,  name:"Rio Ballin-Blagrove",     pos:"ST", rating:83, pace:86, shooting:84, passing:70, dribbling:82, defending:50, physical:74, games:0, goals:0, assists:0, motm:0, init:"RB",
+      program:["Finishing first-time in the box","Movement to lose your marker","Hold-up play and linking with the team","Leading the press from the front"] },
+    { id:10, number:10, name:"Archie Wyatt",            pos:"RM", rating:82, pace:86, shooting:68, passing:78, dribbling:84, defending:60, physical:66, games:0, goals:0, assists:0, motm:0, init:"AW",
+      program:["Beating your player 1v1","End product — crosses and shots","Tracking back to help your full-back","An explosive first step"] },
+    { id:11, number:11, name:"Sam Butcher",             pos:"CM", rating:80, pace:78, shooting:64, passing:80, dribbling:78, defending:68, physical:70, games:0, goals:0, assists:0, motm:0, init:"SB",
+      program:["Receiving on the half-turn and scanning first","Range of passing — short and long","Driving forward with the ball","Pressing and winning the ball back"] },
+    { id:14, number:14, name:"Lucci Verico",            pos:"CM", rating:80, pace:77, shooting:66, passing:82, dribbling:79, defending:70, physical:70, games:0, goals:0, assists:0, motm:0, init:"LV",
+      program:["Receiving on the half-turn and scanning first","Range of passing — short and long","Driving forward with the ball","Pressing and winning the ball back"] }
   ],
 
   /* ---------------- FIXTURES ---------------- */
@@ -102,47 +98,40 @@ window.HARRIS_DATA = {
     203: {}, 204: {}, 205: {}
   },
 
-  /* ---------------- TRAINING ---------------- */
-  training: [
-    { id:301, date:"2026-06-09", start:"18:00", end:"19:15", location:"Harris Park 3G Cage", focus:"Finishing & movement in the box",
-      drills:["Rondo warm-up 5v2","Crossing & finishing circuit","Small-sided 4v4 to mini-goals","Penalty shootout challenge"] },
-    { id:302, date:"2026-06-11", start:"18:00", end:"19:15", location:"Harris Park 3G Cage", focus:"Playing out from the back",
-      drills:["Passing diamond warm-up","Build-up patterns vs press","Defending 1v1 & 2v2","Conditioned game: 3 passes before shooting"] },
-    { id:303, date:"2026-06-16", start:"18:00", end:"19:15", location:"Harris Park 3G Cage", focus:"Pressing as a unit",
-      drills:["Reaction sprints","Press triggers & cover shadows","Transition 4v4+2","Match scenario: win it back in 6 seconds"] },
-    { id:304, date:"2026-06-18", start:"18:00", end:"19:15", location:"Harris Park 3G Cage", focus:"1v1 attacking & defending",
-      drills:["Footwork ladder","1v1 gates dribbling","Defending the duel — jockey & tackle","King of the ring tournament"] }
+  /* ---------------- TRAINING ----------------
+     Recurring weekly schedule (shown on the month calendar).
+     day: 0=Sun, 1=Mon ... 4=Thu, 6=Sat. */
+  trainingSchedule: [
+    { day:4, start:"18:00", end:"19:30", location:"Norman Park, Bromley", until:"2026-09-17", label:"Thursday Training" },
+    { day:6, start:"10:00", end:"11:30", location:"Norman Park, Bromley", until:"2027-05-22", label:"Saturday Training" }
   ],
+  /* one-off / extra sessions (managed in admin) appear on the calendar too */
+  training: [],
 
   /* ---------------- EVENTS ---------------- */
   events: [
-    { id:401, title:"End of Season Presentation Day", date:"2026-07-19", location:"Harris Park Clubhouse",
-      desc:"Trophies, medals, and our player-card reveal for every member of the squad. Families welcome — food and drinks provided. Let's celebrate a brilliant season together!", img:"trophy", media:6 },
-    { id:402, title:"Sponsored Penalty Shootout", date:"2026-06-28", location:"Harris Park, Pitch 3",
-      desc:"Our big fundraiser! Each player gets sponsored per penalty scored. All money goes towards new training kit and tournament entry fees. Sponsor forms in the team chat.", img:"target", media:0 },
-    { id:403, title:"Team Day Out — Go Karting", date:"2026-08-02", location:"Teesside Karting",
-      desc:"A well-earned team day out to round off the summer. A chance to let off steam and build friendships off the pitch.", img:"flag", media:0 },
-    { id:404, title:"Summer Skills Camp", date:"2026-08-11", location:"Harris Park",
-      desc:"Three-day skills camp run by our coaches. Technical work, fun competitions and plenty of football. Open to the whole squad.", img:"cone", media:0 }
+    { id:401, title:"Club Awards Afternoon", date:"2026-06-14", location:"TBC",
+      desc:"Our end-of-season celebration — trophies, medals and a big well done to every player for a brilliant season. Families welcome!", img:"trophy", media:0 },
+    { id:402, title:"FootGolf", date:"2026-06-27", location:"High Elms Golf Course", time:"11:00",
+      desc:"A fun team morning of FootGolf at High Elms. Kick-off 11:00am. Tap the link for location and prices.",
+      link:"https://www.mytimeactive.co.uk/locations/footgolf-high-elms-golf-course", img:"flag", media:0 }
   ],
 
   /* ---------------- GAMIFICATION ---------------- */
   /* points = training grades + attendance + quizzes + fun exercises */
   gamePoints: [
-    { playerId:7,  attendance:120, training:96,  quiz:80, exercise:60, badges:["streak10","quizace","motm4"] },
-    { playerId:9,  attendance:120, training:90,  quiz:60, exercise:55, badges:["topscorer","motm4","hattrick"] },
-    { playerId:6,  attendance:120, training:98,  quiz:70, exercise:50, badges:["streak10","captain"] },
-    { playerId:10, attendance:120, training:88,  quiz:75, exercise:45, badges:["playmaker","quizace"] },
-    { playerId:4,  attendance:120, training:92,  quiz:50, exercise:40, badges:["wall","streak10"] },
-    { playerId:8,  attendance:110, training:84,  quiz:65, exercise:50, badges:["playmaker"] },
-    { playerId:2,  attendance:120, training:80,  quiz:55, exercise:48, badges:["streak10"] },
-    { playerId:11, attendance:100, training:82,  quiz:45, exercise:42, badges:[] },
-    { playerId:5,  attendance:110, training:86,  quiz:40, exercise:38, badges:["wall"] },
-    { playerId:1,  attendance:110, training:90,  quiz:50, exercise:35, badges:["goldengloves"] },
-    { playerId:14, attendance:90,  training:78,  quiz:48, exercise:40, badges:[] },
-    { playerId:3,  attendance:100, training:80,  quiz:42, exercise:36, badges:[] },
-    { playerId:15, attendance:80,  training:74,  quiz:38, exercise:30, badges:[] },
-    { playerId:12, attendance:60,  training:70,  quiz:44, exercise:28, badges:["goldengloves"] }
+    { playerId:1,  attendance:0, training:0, quiz:0, exercise:0, badges:[] },
+    { playerId:2,  attendance:0, training:0, quiz:0, exercise:0, badges:[] },
+    { playerId:3,  attendance:0, training:0, quiz:0, exercise:0, badges:[] },
+    { playerId:4,  attendance:0, training:0, quiz:0, exercise:0, badges:[] },
+    { playerId:5,  attendance:0, training:0, quiz:0, exercise:0, badges:[] },
+    { playerId:6,  attendance:0, training:0, quiz:0, exercise:0, badges:[] },
+    { playerId:7,  attendance:0, training:0, quiz:0, exercise:0, badges:[] },
+    { playerId:8,  attendance:0, training:0, quiz:0, exercise:0, badges:[] },
+    { playerId:9,  attendance:0, training:0, quiz:0, exercise:0, badges:[] },
+    { playerId:10, attendance:0, training:0, quiz:0, exercise:0, badges:[] },
+    { playerId:11, attendance:0, training:0, quiz:0, exercise:0, badges:[] },
+    { playerId:14, attendance:0, training:0, quiz:0, exercise:0, badges:[] }
   ],
 
   achievements: [
