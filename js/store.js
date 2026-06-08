@@ -309,14 +309,26 @@
       return { ok:true };
     },
 
+    // Plan/update a session for a date (one per date). Attaches focus, drill
+    // activities and any videos chosen from the stock library.
     async addTraining(t) {
+      const fields = { date:t.date, start:t.start, end:t.end, location:t.location,
+        focus:t.focus, drills:t.drills || [], videos:t.videos || [] };
+      const existing = (this.state.training || []).find(x => x.date === t.date);
       if (LIVE) {
-        const { data, error } = await this.sb.from("training_sessions").insert(t).select().single();
-        if (error) return { ok:false, msg:error.message };
-        this.state.training.push(data);
+        if (existing) {
+          const { date, ...upd } = fields;
+          const { data, error } = await this.sb.from("training_sessions").update(upd).eq("id", existing.id).select().single();
+          if (error) return { ok:false, msg:error.message };
+          Object.assign(existing, data);
+        } else {
+          const { data, error } = await this.sb.from("training_sessions").insert(fields).select().single();
+          if (error) return { ok:false, msg:error.message };
+          this.state.training.push(data);
+        }
       } else {
-        t.id = this._nextId(this.state.training);
-        this.state.training.push(t);
+        if (existing) { Object.assign(existing, fields); }
+        else { fields.id = this._nextId(this.state.training); this.state.training.push(fields); }
         this.state.training.sort((a,b)=>a.date.localeCompare(b.date));
         this._persistContent();
       }
@@ -459,6 +471,15 @@
       } else {
         d.id = this._nextId(this.state.drills); this.state.drills.push(d); this._persistContent();
       }
+      return { ok: true };
+    },
+
+    async deleteDrill(id) {
+      this.state.drills = (this.state.drills || []).filter(d => d.id !== id);
+      if (LIVE) {
+        const { error } = await this.sb.from("drills").delete().eq("id", id);
+        if (error) return { ok: false, msg: error.message };
+      } else { this._persistContent(); }
       return { ok: true };
     }
   };

@@ -274,6 +274,12 @@ img{max-width:100%}
 .ag-cal{font-size:.8rem;color:var(--muted);margin-top:.4rem}
 .ag-cal a{color:var(--gold-bright)}
 .wa-share{display:inline-block;margin-top:.4rem;color:#7ee08b;font-weight:700;font-size:.82rem}
+.drill-plan{margin:.6rem 0 .2rem;padding:.7rem .8rem;border:1px solid var(--line);border-radius:12px;background:rgba(201,162,39,.05)}
+.drill-label{font-size:.72rem;font-weight:800;letter-spacing:.6px;color:var(--gold-bright);margin-bottom:.4rem}
+.drill-list{margin:.1rem 0 .2rem;padding-left:1.1rem}
+.drill-list li{font-size:.86rem;margin:.12rem 0}
+.drill-vids{display:grid;gap:.7rem;margin-top:.6rem}
+.drill-vid b{display:block;font-size:.85rem;margin-bottom:.35rem}
 @media (max-width:760px){
   .ag-row{flex-wrap:wrap}
   .ag-date{width:auto;display:flex;gap:.4rem;align-items:baseline}

@@ -362,10 +362,19 @@
   function itemsOn(iso) {
     if (!S.inSeason(iso)) return [];
     const d = new Date(iso + "T00:00:00"); const out = [];
-    (S.state.trainingSchedule || window.HARRIS_DATA.trainingSchedule || []).forEach(r => {
-      if (d.getDay() === r.day && iso <= r.until) out.push({ kind:"training", key:"t"+iso, start:r.start, end:r.end, location:r.location, label:r.label || "Training" });
-    });
-    (S.state.training || []).forEach(t => { if (t.date === iso) out.push({ kind:"training", key:"t"+iso, start:t.start, end:t.end, location:t.location, label:t.focus || "Training", drills:t.drills }); });
+    const schedule = (S.state.trainingSchedule || window.HARRIS_DATA.trainingSchedule || []);
+    const recur = schedule.find(r => d.getDay() === r.day && iso <= r.until);
+    const planned = (S.state.training || []).filter(t => t.date === iso);
+    if (planned.length) {
+      // A planned/edited session replaces the recurring slot for that date.
+      planned.forEach(t => out.push({ kind:"training", key:"t"+iso,
+        start:t.start || (recur && recur.start), end:t.end || (recur && recur.end),
+        location:t.location || (recur && recur.location),
+        label:t.focus || (recur && recur.label) || "Training",
+        drills:t.drills || [], videos:t.videos || [] }));
+    } else if (recur) {
+      out.push({ kind:"training", key:"t"+iso, start:recur.start, end:recur.end, location:recur.location, label:recur.label || "Training" });
+    }
     (S.state.fixtures || []).forEach(f => { if (f.date === iso) out.push({ kind:"match", key:"m"+f.id, title:"vs "+f.opponent, location:f.ground, start:f.kickoff, meetup:f.meetup, homeAway:f.home_away, competition:f.competition }); });
     (S.state.events || []).forEach(e => { if (e.date === iso) out.push({ kind:"event", key:"e"+e.id, title:e.title, location:e.location, time:e.time, desc:e.desc, link:e.link }); });
     return out;
@@ -393,19 +402,13 @@
 
   function Schedule() {
     const rows = buildAgenda(["training"], 28);
-    const drills = S.state.drills || [];
     view.innerHTML = `
       <div class="section-head"><div><div class="eyebrow">Next 4 weeks</div><h2>Training Schedule</h2></div>
         <a class="btn btn-ghost btn-sm" href="${weekShareUrl()}" target="_blank" rel="noopener">💬 Share week to WhatsApp</a></div>
-      <p class="muted" style="margin-top:-.6rem;max-width:64ch">Upcoming training sessions. Tap to tell us if ${esc(playerFirst())} is going — and whether they'll need a lift.</p>
+      <p class="muted" style="margin-top:-.6rem;max-width:64ch">Upcoming training sessions, with the drills we'll be working on. Tap to tell us if ${esc(playerFirst())} is going — and whether they'll need a lift.</p>
       <div class="agenda" style="margin-top:1.2rem">
         ${rows.length ? rows.map(agendaRow).join("") : `<div class="card"><p class="muted" style="margin:0">No training in the next four weeks.</p></div>`}
-      </div>
-      ${drills.length ? `
-        <div class="section-head" style="margin-top:1.8rem"><div><div class="eyebrow">Practise at home</div><h2>Training Drills</h2></div></div>
-        <div class="grid cols-2">
-          ${drills.map(dr => `<div class="card"><div class="ag-head" style="margin-bottom:.6rem">${dr.area?`<span class="tag t-train">${esc(dr.area)}</span>`:""}<b>${esc(dr.title)}</b></div>${videoEmbed(dr.url)}</div>`).join("")}
-        </div>` : ""}`;
+      </div>`;
     wireRsvp();
   }
 
@@ -471,6 +474,17 @@
     return waUrl("📅 OWFC Harris — the week ahead:\n" + (lines.join("\n") || "Nothing scheduled."));
   }
 
+  function drillBlock(it) {
+    if (it.kind !== "training") return "";
+    const drills = it.drills || [], videos = it.videos || [];
+    if (!drills.length && !videos.length) return "";
+    return `<div class="drill-plan">
+      <div class="drill-label">📋 This session</div>
+      ${drills.length ? `<ul class="drill-list">${drills.map(d=>`<li>${esc(d)}</li>`).join("")}</ul>` : ""}
+      ${videos.length ? `<div class="drill-vids">${videos.map(v=>`<div class="drill-vid"><b>${esc(v.title||"Drill")}</b>${v.area?` <span class="tag t-train">${esc(v.area)}</span>`:""}${videoEmbed(v.url)}</div>`).join("")}</div>` : ""}
+    </div>`;
+  }
+
   function agendaRow(it) {
     const me = (S.state.attendance[it.key] || {})[S.me];
     const tm = TYPE_META[it.kind];
@@ -487,6 +501,7 @@
         <div class="muted ag-meta">${time?`🕒 ${time}`:""}${it.location?`${time?" · ":""}📍 ${esc(it.location)}`:""}</div>
         ${it.desc?`<div class="muted" style="font-size:.85rem;margin-top:.25rem">${esc(it.desc)}</div>`:""}
         ${it.link?`<a href="${esc(it.link)}" target="_blank" rel="noopener" style="color:var(--gold-bright);font-size:.85rem">Location &amp; prices ↗</a>`:""}
+        ${drillBlock(it)}
         ${calLinks(it)}
         ${shareLink(it)}
       </div>
@@ -557,19 +572,37 @@
             ${targets.map(t=>`<div class="program-step"><div class="dot">★</div><div>${esc(t)}</div></div>`).join("")}
           </div>`:""}
 
-          <button class="btn btn-gold btn-sm" data-go="development" style="margin-top:1.2rem">My development plan &amp; videos →</button>
+          <button class="btn btn-gold btn-sm" data-go="development/${p.id}" style="margin-top:1.2rem">${p.id===S.me?"My":esc(p.name.split(" ")[0])+"'s"} development plan &amp; videos →</button>
         </div>
       </div>`;
     wireGo();
   }
 
   /* ============================ DEVELOPMENT ============================ */
-  function Development() {
-    const p = S.player(S.me);
+  function DevelopmentIndex() {
+    const players = S.roster(true).sort((a,b)=>a.number-b.number);
+    view.innerHTML = `
+      <div class="section-head"><div><div class="eyebrow">${esc(S.season)} · Coaches view</div><h2>Players' Development</h2></div></div>
+      <p class="muted" style="margin-top:-.6rem;max-width:62ch">You're an admin, so you can open any player to see and manage their plan, videos and progress.</p>
+      <div class="players-grid" style="margin-top:1.2rem;grid-template-columns:repeat(auto-fill,minmax(220px,1fr))">
+        ${players.map(p=>`<button class="card" data-go="development/${p.id}" style="cursor:pointer;display:flex;gap:.8rem;align-items:center;text-align:left">
+          <span class="club-badge us" style="flex:none">${esc(initials(p))}</span>
+          <span><b style="display:block">${esc(p.name)}</b><span class="muted" style="font-size:.82rem">#${p.number} · ${esc(p.pos)}${p.signed===false?' · pending':''}</span></span>
+        </button>`).join("") || `<div class="card"><p class="muted" style="margin:0">No players in ${esc(S.season)} yet.</p></div>`}
+      </div>`;
+    wireGo();
+  }
+
+  function Development(id) {
+    if (!id && S.isAdmin) return DevelopmentIndex();
+    const p = id ? S.player(+id) : S.player(S.me);
     if (!p) { view.innerHTML = `<div class="card pad-lg"><h2 style="font-family:var(--display)">Development</h2><p class="muted">Choose which player is yours from the top bar to see their development plan.</p></div>`; return; }
+    const mine = p.id === S.me;
     const program = p.program || []; const videos = p.videos || [];
     view.innerHTML = `
-      <div class="section-head"><div><div class="eyebrow">${esc(p.name)}</div><h2>My Development</h2></div></div>
+      ${S.isAdmin ? `<button class="btn btn-ghost btn-sm" data-go="development" style="margin-bottom:1rem">← All players</button>`
+        : (id && !mine ? `<button class="btn btn-ghost btn-sm" data-go="players/${p.id}" style="margin-bottom:1rem">← ${esc(p.name.split(" ")[0])}'s card</button>` : "")}
+      <div class="section-head"><div><div class="eyebrow">${esc(p.name)}</div><h2>${mine?"My":esc(p.name.split(" ")[0])+"'s"} Development</h2></div></div>
       <p class="muted" style="margin-top:-.6rem;max-width:64ch">Your personal plan, videos the coaches have picked for you, and this week's quiz.</p>
 
       <div class="card pad-lg" style="margin-top:1.2rem">
@@ -694,7 +727,7 @@
   function Admin(sub) {
     if (!S.isAdmin) { view.innerHTML = `<div class="card pad-lg"><h2 style="font-family:var(--display)">Admins only</h2><p class="muted">This area is for team coaches/admins. Ask the team admin to grant you access.</p></div>`; return; }
     sub = sub || "fixtures";
-    const tabs = [["fixtures","Add fixture"],["result","Enter result"],["stats","Player stats"],["academy","Development"],["drills","Drill videos"],["contacts","Contacts"],["roster","Roster"],["players","Add player"],["training","Add training"],["events","Add event"]];
+    const tabs = [["fixtures","Add fixture"],["result","Enter result"],["stats","Player stats"],["academy","Development"],["drills","Drill library"],["contacts","Contacts"],["roster","Roster"],["players","Add player"],["training","Plan training"],["events","Add event"]];
     view.innerHTML = `
       <div class="section-head"><div><div class="eyebrow">Coaches only</div><h2>Admin Panel</h2></div></div>
       <p class="muted" style="margin-top:-.6rem;max-width:62ch">Manage everything from here — no spreadsheets. ${S.MODE==='preview'?'<b>Preview mode:</b> changes save to this browser so you can try it. Connect Supabase to save for everyone.':'Changes save to your database and appear for everyone straight away.'}</p>
@@ -851,18 +884,22 @@
     const body = $("#admin-body");
     const drills = S.state.drills || [];
     body.innerHTML = `<div class="card pad-lg" style="max-width:620px">
-      <p class="muted" style="margin-top:0">Add training-exercise videos (YouTube/Vimeo links) for the Schedule "Training Drills" library.</p>
+      <p class="muted" style="margin-top:0">Your reusable <b>stock library</b> of drill videos (YouTube/Vimeo). Build it up once, then attach any of these to a session on the <b>Plan training</b> tab — they show on that session in the Schedule.</p>
       ${F("Title",`<input id="dr-title" placeholder="e.g. Cone dribbling warm-up"/>`)}
       <div class="grid cols-2">${F("Skill area",`<select id="dr-area"><option value="">—</option>${DEV_AREAS.map(([,l])=>`<option>${l}</option>`).join("")}</select>`)}${F("Video link",`<input id="dr-url" placeholder="https://youtu.be/..."/>`)}</div>
-      <button class="btn btn-gold btn-block" id="dr-save">Add drill video</button>
-      ${drills.length?`<div class="lbl" style="font-size:.74rem;color:var(--muted);font-weight:700;margin:1rem 0 .4rem">CURRENT (${drills.length})</div>${drills.map(d=>`<div class="ach" style="margin-bottom:.4rem"><span class="em">🎬</span><div><b>${esc(d.title)}</b>${d.area?` <span class="tag">${esc(d.area)}</span>`:""}</div></div>`).join("")}`:""}
+      <button class="btn btn-gold btn-block" id="dr-save">Add to library</button>
+      ${drills.length?`<div class="lbl" style="font-size:.74rem;color:var(--muted);font-weight:700;margin:1rem 0 .4rem">STOCK LIBRARY (${drills.length})</div>${drills.map(d=>`<div class="ach" style="margin-bottom:.4rem;justify-content:space-between"><div style="display:flex;gap:.6rem;align-items:center"><span class="em">🎬</span><div><b>${esc(d.title)}</b>${d.area?` <span class="tag">${esc(d.area)}</span>`:""}</div></div><button class="btn btn-ghost btn-sm" data-del-drill="${d.id}">✕</button></div>`).join("")}`:`<p class="muted" style="margin-top:1rem">Library is empty — add your first drill video above.</p>`}
     </div>`;
     $("#dr-save").addEventListener("click", async () => {
       const title=$("#dr-title").value.trim(), url=$("#dr-url").value.trim();
       if(!title||!url) return toast("Add a title and a video link");
       const res = await S.addDrill({ title, area:$("#dr-area").value, url });
-      if(res.ok){ toast("Drill added ✓"); Admin("drills"); } else toast("Error: "+res.msg);
+      if(res.ok){ toast("Added to library ✓"); Admin("drills"); } else toast("Error: "+res.msg);
     });
+    body.querySelectorAll("[data-del-drill]").forEach(b => b.addEventListener("click", async () => {
+      const res = await S.deleteDrill(+b.dataset.delDrill);
+      if(res.ok){ toast("Removed"); Admin("drills"); } else toast("Error: "+res.msg);
+    }));
   }
 
   function AdmRoster() {
@@ -913,22 +950,75 @@
     });
   }
 
+  // Next training dates in the current season (from the recurring schedule + any planned ones)
+  function upcomingTrainingDates(n) {
+    const out = []; const today = new Date();
+    for (let i = 0; i < 140 && out.length < n; i++) {
+      const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() + i);
+      const iso = ymd(d);
+      if (!S.inSeason(iso)) continue;
+      if (itemsOn(iso).some(x => x.kind === "training")) out.push(iso);
+    }
+    return out;
+  }
+  function recurFor(iso) {
+    const d = new Date(iso + "T00:00:00");
+    return (S.state.trainingSchedule || window.HARRIS_DATA.trainingSchedule || []).find(r => d.getDay() === r.day && iso <= r.until) || {};
+  }
+
   function AdmTraining() {
-    $("#admin-body").innerHTML = `<div class="card pad-lg" style="max-width:620px">
-      ${F("Date",`<input type="date" id="t-date"/>`)}
-      <div class="grid cols-2">${F("Start",`<input type="time" id="t-start" value="18:00"/>`)}${F("End",`<input type="time" id="t-end" value="19:15"/>`)}</div>
-      ${F("Location",`<input id="t-loc" placeholder="e.g. Harris Park 3G Cage"/>`)}
-      ${F("Session focus",`<input id="t-focus" placeholder="e.g. Finishing & movement in the box"/>`)}
-      ${F("Drills (one per line)",`<textarea id="t-drills" rows="4" placeholder="Rondo warm-up&#10;Crossing & finishing circuit&#10;Small-sided 4v4"></textarea>`)}
-      <button class="btn btn-gold btn-block" id="t-save">Add training session</button>
+    const body = $("#admin-body");
+    const lib = S.state.drills || [];
+    const dates = upcomingTrainingDates(10);
+
+    function planFor(iso) { return (S.state.training || []).find(t => t.date === iso); }
+
+    function fields(iso) {
+      const base = recurFor(iso), plan = planFor(iso) || {};
+      const checked = new Set((plan.videos || []).map(v => v.url));
+      $("#t-fields").innerHTML = `
+        <div class="grid cols-2">${F("Start",`<input type="time" id="t-start" value="${esc(plan.start||base.start||"18:00")}"/>`)}${F("End",`<input type="time" id="t-end" value="${esc(plan.end||base.end||"19:30")}"/>`)}</div>
+        ${F("Location",`<input id="t-loc" value="${esc(plan.location||base.location||"")}" placeholder="e.g. Norman Park, Bromley"/>`)}
+        ${F("Session focus",`<input id="t-focus" value="${esc(plan.focus||"")}" placeholder="e.g. Finishing & movement in the box"/>`)}
+        ${F("Drill activities (one per line)",`<textarea id="t-drills" rows="3" placeholder="Rondo warm-up&#10;Crossing & finishing circuit&#10;Small-sided 4v4">${esc((plan.drills||[]).join("\n"))}</textarea>`)}
+        <div class="lbl" style="font-size:.74rem;color:var(--muted);font-weight:700;letter-spacing:1px;margin:.8rem 0 .4rem">ATTACH VIDEOS FROM THE STOCK LIBRARY</div>
+        ${lib.length ? lib.map(dr => `<label class="field" style="flex-direction:row;align-items:center;gap:.6rem;margin-bottom:.35rem">
+            <input type="checkbox" class="t-vid" value="${dr.id}" ${checked.has(dr.url)?"checked":""} style="width:auto"/>
+            <span style="margin:0">🎬 ${esc(dr.title)}${dr.area?` <span class="tag t-train">${esc(dr.area)}</span>`:""}</span></label>`).join("")
+          : `<p class="muted" style="margin:.2rem 0">No stock videos yet — add some on the <b>Drill library</b> tab first.</p>`}
+        <button class="btn btn-gold btn-block" id="t-save" style="margin-top:1rem">Save session plan</button>`;
+      $("#t-save").addEventListener("click", save);
+    }
+
+    async function save() {
+      const iso = $("#t-when").value === "__other" ? $("#t-other").value : $("#t-when").value;
+      if (!iso) return toast("Pick or enter a date");
+      const drills = $("#t-drills").value.split("\n").map(s=>s.trim()).filter(Boolean);
+      const ids = [...body.querySelectorAll(".t-vid:checked")].map(c => +c.value);
+      const videos = lib.filter(d => ids.includes(d.id)).map(d => ({ title:d.title, url:d.url, area:d.area }));
+      const res = await S.addTraining({ date:iso, start:$("#t-start").value, end:$("#t-end").value,
+        location:$("#t-loc").value.trim(), focus:$("#t-focus").value.trim(), drills, videos });
+      if (res.ok) { toast("Session plan saved ✓"); location.hash = "#training"; } else toast("Error: "+res.msg);
+    }
+
+    body.innerHTML = `<div class="card pad-lg" style="max-width:640px">
+      <p class="muted" style="margin-top:0">Plan an upcoming <b>${esc(S.season)}</b> session: pick the date, set the focus and drills, and tick which stock videos to show the team beforehand. It appears on that session's row in the Schedule.</p>
+      ${F("Which session?",`<select id="t-when">
+        ${dates.map(iso=>`<option value="${iso}">${fdateLong(iso)}${planFor(iso)?" ✓ planned":""}</option>`).join("")}
+        <option value="__other">Other date…</option>
+      </select>`)}
+      <div id="t-other-wrap" class="hidden">${F("Date",`<input type="date" id="t-other"/>`)}</div>
+      <div id="t-fields"></div>
     </div>`;
-    $("#t-save").addEventListener("click", async () => {
-      const focus=$("#t-focus").value.trim(), date=$("#t-date").value;
-      if(!date||!focus) return toast("Add a date and a focus");
-      const drills=$("#t-drills").value.split("\n").map(s=>s.trim()).filter(Boolean);
-      const res = await S.addTraining({ date, start:$("#t-start").value, end:$("#t-end").value, location:$("#t-loc").value.trim(), focus, drills });
-      if(res.ok){ toast("Session added ✓"); location.hash="#training"; } else toast("Error: "+res.msg);
+    const whenSel = $("#t-when");
+    whenSel.addEventListener("change", () => {
+      const other = whenSel.value === "__other";
+      $("#t-other-wrap").classList.toggle("hidden", other);
+      fields(other ? "" : whenSel.value);
     });
+    $("#t-other")?.addEventListener("change", e => fields(e.target.value));
+    if (whenSel.value === "__other") $("#t-other-wrap").classList.remove("hidden");
+    fields(dates[0] || "");
   }
 
   function AdmEvent() {
