@@ -32,7 +32,8 @@
     $("#season-pill").textContent = cfg.CURRENT_SEASON;
     await S.load();
     $("#nav-admin").classList.toggle("hidden", !S.isAdmin);
-    if (!S.hasLinkedPlayer()) { showChildPicker(false); return; }
+    if (S.needsOnboarding()) { showOnboarding(); return; }
+    if (!S.hasLinkedPlayer() && !S.isAdmin) { showChildPicker(false); return; }
     if (!location.hash) location.hash = "#home";
     route();
   }
@@ -66,6 +67,47 @@
     else { chip.classList.add("hidden"); }
   }
 
+  function showOnboarding() {
+    $("#nav").classList.remove("open");
+    const players = [...S.state.players].sort((a,b)=>a.number-b.number);
+    const linked = S.linkedPlayer;
+    const relOpts = ["Mum","Dad","Guardian","Parent"].map(r=>`<option>${r}</option>`).join("");
+    view.innerHTML = `
+      <section class="hero" style="text-align:center">
+        <div class="hero-tag">Welcome 👋</div>
+        <h1>Set up your <span>family</span></h1>
+        <p style="margin-inline:auto">Add your contact details so the coaches can reach you, then choose your child.</p>
+      </section>
+      <div class="card pad-lg" style="max-width:620px;margin:0 auto">
+        <h3 style="margin:0 0 .6rem;font-family:var(--display)">Parent / guardian 1</h3>
+        <div class="grid cols-2">${F("Relation",`<select id="p1-rel">${relOpts}</select>`)}${F("Full name",`<input id="p1-name" placeholder="e.g. David Kirby"/>`)}</div>
+        <div class="grid cols-2">${F("Email",`<input type="email" id="p1-email" placeholder="you@email.com"/>`)}${F("Mobile number",`<input id="p1-phone" placeholder="07…"/>`)}</div>
+        <div id="p2-wrap" class="hidden">
+          <h3 style="margin:1rem 0 .6rem;font-family:var(--display)">Parent / guardian 2 <span class="muted" style="font-size:.78rem">(optional)</span></h3>
+          <div class="grid cols-2">${F("Relation",`<select id="p2-rel">${relOpts}</select>`)}${F("Full name",`<input id="p2-name"/>`)}</div>
+          <div class="grid cols-2">${F("Email",`<input type="email" id="p2-email"/>`)}${F("Mobile number",`<input id="p2-phone"/>`)}</div>
+        </div>
+        <button class="btn btn-ghost btn-sm" id="add-p2" style="margin:.2rem 0 1rem">+ Add another parent</button>
+        ${F("Your child",`<select id="ob-child">${players.map(p=>`<option value="${p.id}" ${linked===p.id?'selected':''}>${esc(p.name)} (#${p.number})</option>`).join("")}</select>`)}
+        <p class="gate-hint" id="ob-hint">We'll only use this to contact you about the team.</p>
+        <button class="btn btn-gold btn-block" id="ob-save">Save &amp; continue</button>
+      </div>`;
+    $("#add-p2").addEventListener("click", () => { $("#p2-wrap").classList.remove("hidden"); $("#add-p2").classList.add("hidden"); });
+    $("#ob-save").addEventListener("click", async () => {
+      const p1 = { relation:$("#p1-rel").value, name:$("#p1-name").value.trim(), email:$("#p1-email").value.trim(), phone:$("#p1-phone").value.trim() };
+      const h = $("#ob-hint");
+      if (!p1.name || !p1.email || !p1.phone) { h.textContent = "Please add parent 1's name, email and mobile number."; h.classList.add("error"); return; }
+      const parents = [p1];
+      if (!$("#p2-wrap").classList.contains("hidden")) {
+        const p2 = { relation:$("#p2-rel").value, name:$("#p2-name").value.trim(), email:$("#p2-email").value.trim(), phone:$("#p2-phone").value.trim() };
+        if (p2.name) parents.push(p2);
+      }
+      const res = await S.saveProfile({ parents, playerId: +$("#ob-child").value });
+      if (res.ok) { updateMyPlayerChip(); location.hash = "#home"; route(); }
+      else { h.textContent = "Error: " + res.msg; h.classList.add("error"); }
+    });
+  }
+
   function showChildPicker(changing) {
     $("#nav").classList.remove("open");
     updateMyPlayerChip();
@@ -80,7 +122,7 @@
         ${[...S.state.players].sort((a,b)=>a.number-b.number).map(p=>`
           <button class="card" data-pick="${p.id}" style="cursor:pointer;display:flex;gap:.8rem;align-items:center;text-align:left">
             <span class="club-badge us" style="flex:none">${esc(initials(p))}</span>
-            <span><b>${esc(p.name)}</b><br><span class="muted" style="font-size:.82rem">#${p.number} · ${esc(p.pos)}</span></span>
+            <span><b style="font-size:1.05rem;display:block">${esc(p.name)}</b><span class="muted" style="font-size:.82rem">Squad #${p.number} · ${esc(p.pos)}</span></span>
           </button>`).join("")}
       </div>
       ${changing ? `<div style="margin-top:1.2rem"><button class="btn btn-ghost btn-sm" data-go="home">← Cancel</button></div>` : ""}`;
@@ -205,6 +247,7 @@
   function upcomingCard(f) {
     const key = "m" + f.id;
     const mine = (S.state.attendance[key] || {})[S.me];
+    const fit = { kind:"match", key, dateObj:new Date(f.date+"T00:00:00"), start:f.kickoff, meetup:f.meetup, title:"vs "+f.opponent, location:f.ground, competition:f.competition, homeAway:f.home_away };
     const mapsUrl = "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(f.address);
     return `<div class="card fixture">
       <div class="fixture-top">
@@ -220,6 +263,7 @@
         <span class="mi"><b>Kit</b> <span class="kit-chip"><span class="kit-dot kit-${f.kit}"></span>${KITNAME[f.kit]}</span></span>
         <span class="mi" style="grid-column:1/-1"><b>Address</b> <a href="${mapsUrl}" target="_blank" rel="noopener" style="color:var(--gold-bright)">${esc(f.address)} ↗</a></span>
       </div>
+      ${calLinks(fit)}${shareLink(fit)}
       <div class="attend ag-rsvp" data-key="${key}">
         <span class="lbl">Will ${esc(playerFirst())} be there?</span>
         <button class="att-btn yes ${mine==='yes'?'on':''}" data-s="yes">✓ Going</button>
@@ -342,7 +386,8 @@
     const rows = buildAgenda(["training"], 28);
     const drills = S.state.drills || [];
     view.innerHTML = `
-      <div class="section-head"><div><div class="eyebrow">Next 4 weeks</div><h2>Training Schedule</h2></div></div>
+      <div class="section-head"><div><div class="eyebrow">Next 4 weeks</div><h2>Training Schedule</h2></div>
+        <a class="btn btn-ghost btn-sm" href="${weekShareUrl()}" target="_blank" rel="noopener">💬 Share week to WhatsApp</a></div>
       <p class="muted" style="margin-top:-.6rem;max-width:64ch">Upcoming training sessions. Tap to tell us if ${esc(playerFirst())} is going — and whether they'll need a lift.</p>
       <div class="agenda" style="margin-top:1.2rem">
         ${rows.length ? rows.map(agendaRow).join("") : `<div class="card"><p class="muted" style="margin:0">No training in the next four weeks.</p></div>`}
@@ -353,6 +398,68 @@
           ${drills.map(dr => `<div class="card"><div class="ag-head" style="margin-bottom:.6rem">${dr.area?`<span class="tag t-train">${esc(dr.area)}</span>`:""}<b>${esc(dr.title)}</b></div>${videoEmbed(dr.url)}</div>`).join("")}
         </div>` : ""}`;
     wireRsvp();
+  }
+
+  function toCal(it) {
+    const d = it.dateObj;
+    const ymdStr = `${d.getFullYear()}${pad2(d.getMonth()+1)}${pad2(d.getDate())}`;
+    const dt = (t, addMin = 0) => {
+      let [h, m] = (t || "00:00").split(":").map(Number);
+      let tot = h * 60 + m + addMin; h = Math.floor(tot / 60) % 24; m = tot % 60;
+      return `${ymdStr}T${pad2(h)}${pad2(m)}00`;
+    };
+    let start, end, allDay = false;
+    if (it.kind === "training") { start = dt(it.start); end = dt(it.end); }
+    else if (it.kind === "match") { start = dt(it.start); end = dt(it.start, 90); }
+    else if (it.time) { start = dt(it.time); end = dt(it.time, 90); }
+    else allDay = true;
+    const title = it.kind === "match" ? "OWFC Harris " + it.title : (it.title || it.label);
+    const details = it.kind === "match" ? `${it.competition || ""} · ${it.homeAway === "H" ? "Home" : "Away"}` : (it.desc || "");
+    return { ymdStr, start, end, allDay, title, location: it.location || "", details };
+  }
+  function gcalUrl(it) {
+    const c = toCal(it);
+    const dates = c.allDay ? `${c.ymdStr}/${c.ymdStr}` : `${c.start}/${c.end}`;
+    const q = new URLSearchParams({ action:"TEMPLATE", text:c.title, dates, location:c.location, details:c.details, ctz:"Europe/London" });
+    return "https://calendar.google.com/calendar/render?" + q.toString();
+  }
+  function icsUrl(it) {
+    const c = toCal(it);
+    const s = c.allDay ? `;VALUE=DATE:${c.ymdStr}` : `:${c.start}`;
+    const e = c.allDay ? `;VALUE=DATE:${c.ymdStr}` : `:${c.end}`;
+    const ics = ["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//OWFC Harris//EN","BEGIN:VEVENT",
+      "UID:" + it.key + "@harris.football", "DTSTART" + s, "DTEND" + e,
+      "SUMMARY:" + c.title, "LOCATION:" + c.location, "DESCRIPTION:" + c.details,
+      "END:VEVENT","END:VCALENDAR"].join("\r\n");
+    return "data:text/calendar;charset=utf-8," + encodeURIComponent(ics);
+  }
+  function calLinks(it) {
+    return `<div class="ag-cal">📅 Add to calendar:
+      <a href="${gcalUrl(it)}" target="_blank" rel="noopener">Google</a> ·
+      <a href="${icsUrl(it)}" download="harris-${it.key}.ics">Apple / Outlook</a></div>`;
+  }
+
+  const fdateShort = d => `${DAYS[d.getDay()]} ${d.getDate()} ${MON[d.getMonth()]}`;
+  function waText(it) {
+    const when = fdateShort(it.dateObj);
+    if (it.kind === "training")
+      return `⚽ OWFC Harris training — ${when}, ${fmt12(it.start)}–${fmt12(it.end)} at ${it.location}. See you there! Please reply in the group if your child can't make it.`;
+    if (it.kind === "match")
+      return `⚽ OWFC Harris ${it.homeAway === "H" ? "(Home)" : "(Away)"} vs ${(it.title||"").replace(/^vs /,"")} — ${when}, kick-off ${fmt12(it.start)}${it.meetup ? `, meet ${fmt12(it.meetup)}` : ""} at ${it.location}. Come and support the lads! 🦁`;
+    return `📅 ${it.title} — ${when}${it.time ? `, ${fmt12(it.time)}` : ""}${it.location ? ` at ${it.location}` : ""}.${it.desc ? ` ${it.desc}` : ""}`;
+  }
+  const waUrl = text => "https://wa.me/?text=" + encodeURIComponent(text);
+  function shareLink(it) {
+    return `<a class="wa-share" href="${waUrl(waText(it))}" target="_blank" rel="noopener">💬 Share to WhatsApp</a>`;
+  }
+  function weekShareUrl() {
+    const items = buildAgenda(["training","match","event"], 8);
+    const lines = items.map(it => {
+      const t = it.kind === "match" ? `KO ${fmt12(it.start)}` : it.kind === "event" ? (it.time ? fmt12(it.time) : "") : `${fmt12(it.start)}–${fmt12(it.end)}`;
+      const name = it.kind === "match" ? `Match ${it.title}` : it.kind === "event" ? it.title : "Training";
+      return `• ${fdateShort(it.dateObj)}${t ? ` ${t}` : ""} — ${name}${it.location ? ` @ ${it.location}` : ""}`;
+    });
+    return waUrl("📅 OWFC Harris — the week ahead:\n" + (lines.join("\n") || "Nothing scheduled."));
   }
 
   function agendaRow(it) {
@@ -371,6 +478,8 @@
         <div class="muted ag-meta">${time?`🕒 ${time}`:""}${it.location?`${time?" · ":""}📍 ${esc(it.location)}`:""}</div>
         ${it.desc?`<div class="muted" style="font-size:.85rem;margin-top:.25rem">${esc(it.desc)}</div>`:""}
         ${it.link?`<a href="${esc(it.link)}" target="_blank" rel="noopener" style="color:var(--gold-bright);font-size:.85rem">Location &amp; prices ↗</a>`:""}
+        ${calLinks(it)}
+        ${shareLink(it)}
       </div>
       <div class="ag-rsvp" data-key="${it.key}">
         <div class="ag-btns">
@@ -576,7 +685,7 @@
   function Admin(sub) {
     if (!S.isAdmin) { view.innerHTML = `<div class="card pad-lg"><h2 style="font-family:var(--display)">Admins only</h2><p class="muted">This area is for team coaches/admins. Ask the team admin to grant you access.</p></div>`; return; }
     sub = sub || "fixtures";
-    const tabs = [["fixtures","Add fixture"],["result","Enter result"],["stats","Player stats"],["academy","Development"],["drills","Drill videos"],["players","Add player"],["training","Add training"],["events","Add event"]];
+    const tabs = [["fixtures","Add fixture"],["result","Enter result"],["stats","Player stats"],["academy","Development"],["drills","Drill videos"],["contacts","Contacts"],["players","Add player"],["training","Add training"],["events","Add event"]];
     view.innerHTML = `
       <div class="section-head"><div><div class="eyebrow">Coaches only</div><h2>Admin Panel</h2></div></div>
       <p class="muted" style="margin-top:-.6rem;max-width:62ch">Manage everything from here — no spreadsheets. ${S.MODE==='preview'?'<b>Preview mode:</b> changes save to this browser so you can try it. Connect Supabase to save for everyone.':'Changes save to your database and appear for everyone straight away.'}</p>
@@ -585,7 +694,7 @@
       </div>
       <div id="admin-body"></div>`;
     view.querySelectorAll("[data-atab]").forEach(b => b.addEventListener("click", () => location.hash = "#admin/"+b.dataset.atab));
-    ({ fixtures:AdmFixture, result:AdmResult, stats:AdmStats, academy:AdmAcademy, drills:AdmDrills, players:AdmPlayer, training:AdmTraining, events:AdmEvent }[sub] || AdmFixture)();
+    ({ fixtures:AdmFixture, result:AdmResult, stats:AdmStats, academy:AdmAcademy, drills:AdmDrills, contacts:AdmContacts, players:AdmPlayer, training:AdmTraining, events:AdmEvent }[sub] || AdmFixture)();
   }
 
   function toast(msg) {
@@ -707,6 +816,24 @@
     </div>`;
     body.querySelector("#ac-player").addEventListener("change", e => load(+e.target.value));
     load(players[0].id);
+  }
+
+  function AdmContacts() {
+    const profs = (S.state.profiles || []).filter(pr => pr.parents && pr.parents.length);
+    const rows = profs.flatMap(pr => {
+      const child = S.player(pr.player_id);
+      return pr.parents.map(par => `<tr>
+        <td>${child ? esc(child.name) : "—"}</td>
+        <td>${esc(par.name||"")}${par.relation?` <span class="muted">(${esc(par.relation)})</span>`:""}</td>
+        <td>${par.email?`<a href="mailto:${esc(par.email)}" style="color:var(--gold-bright)">${esc(par.email)}</a>`:""}</td>
+        <td>${esc(par.phone||"")}</td></tr>`);
+    }).join("");
+    $("#admin-body").innerHTML = `<div class="card pad-lg">
+      <p class="muted" style="margin-top:0">Parent contact details from family sign-ups (${profs.length} ${profs.length===1?"family":"families"}).</p>
+      ${rows ? `<div class="table-wrap"><table class="league-table">
+        <thead><tr><th>Child</th><th>Parent</th><th>Email</th><th>Mobile</th></tr></thead>
+        <tbody>${rows}</tbody></table></div>` : `<p class="muted">No families have completed sign-up yet.</p>`}
+    </div>`;
   }
 
   function AdmDrills() {

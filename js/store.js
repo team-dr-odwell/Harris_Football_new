@@ -17,6 +17,7 @@
     linkedPlayer: null,   // the player (child) this account is linked to
     userId: null,
     displayName: "",
+    parents: [],          // [{name, relation, email, phone}]
 
     // Turn a typed name into a stable hidden login id, e.g. "David Kirby" -> "david.kirby@harris.team"
     nameToEmail(name) {
@@ -85,6 +86,7 @@
       const myp = localStorage.getItem("harris_my_player");
       if (myp) { this.me = +myp; this.linkedPlayer = +myp; }
       this.displayName = localStorage.getItem("harris_name") || this.displayName;
+      this.parents = JSON.parse(localStorage.getItem("harris_parents") || "[]");
       this.state = base;
       return base;
     },
@@ -106,6 +108,7 @@
       let drills = [];
       try { const { data } = await sb.from("drills").select("*").order("id"); drills = data || []; } catch (e) { /* drills table not created yet */ }
       // who am I, and am I an admin?
+      let allProfiles = [];
       try {
         const { data: { user } } = await sb.auth.getUser();
         if (user) {
@@ -115,7 +118,9 @@
             this.isAdmin = !!prof.is_admin;
             if (prof.parent_name) this.displayName = prof.parent_name;
             if (prof.player_id) { this.me = prof.player_id; this.linkedPlayer = prof.player_id; }
+            this.parents = prof.parents || [];
           }
+          if (this.isAdmin) { try { const { data } = await sb.from("profiles").select("*"); allProfiles = data || []; } catch (e) {} }
         }
       } catch (e) { /* ignore */ }
       this.state = {
@@ -125,7 +130,7 @@
         attendance: att,
         training: training.data || [],
         trainingSchedule: window.HARRIS_DATA.trainingSchedule,
-        drills,
+        drills, profiles: allProfiles,
         events: (events.data || []).map(e => ({ ...e, desc: e.description, media_list: e.media, media: 0 })),
         gamePoints: (points.data || []).map(g => ({ ...g, playerId: g.player_id })),
         achievements: window.HARRIS_DATA.achievements,
@@ -262,6 +267,28 @@
     },
 
     resetPreview() { localStorage.removeItem(LS_CONTENT); localStorage.removeItem(LS_KEY); },
+
+    /* ---------- parent profile (contact details + child) ---------- */
+    needsOnboarding() {
+      if (this.isAdmin) return false;
+      return LIVE ? !(this.parents && this.parents.length) : !localStorage.getItem("harris_parents");
+    },
+    async saveProfile({ parents, playerId }) {
+      this.parents = parents;
+      this.me = playerId; this.linkedPlayer = playerId;
+      this.displayName = (parents[0] && parents[0].name) || this.displayName;
+      if (LIVE) {
+        const { error } = await this.sb.from("profiles").upsert(
+          { id: this.userId, parents, player_id: playerId, parent_name: this.displayName || null },
+          { onConflict: "id" });
+        if (error) return { ok: false, msg: error.message };
+      } else {
+        localStorage.setItem("harris_parents", JSON.stringify(parents));
+        localStorage.setItem("harris_my_player", String(playerId));
+        if (this.displayName) localStorage.setItem("harris_name", this.displayName);
+      }
+      return { ok: true };
+    },
 
     /* ---------- which child is this account linked to ---------- */
     hasLinkedPlayer() { return LIVE ? !!this.linkedPlayer : !!localStorage.getItem("harris_my_player"); },
