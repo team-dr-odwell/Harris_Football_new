@@ -253,6 +253,32 @@ img{max-width:100%}
   .cal-cell{border-radius:8px}
 }
 
+/* ---------- Agenda (schedule list) ---------- */
+.agenda{display:flex;flex-direction:column;gap:.7rem}
+.ag-row{display:flex;align-items:center;gap:1rem;padding:.9rem 1.1rem}
+.ag-date{flex:none;width:54px;text-align:center;line-height:1}
+.ag-date .ag-dow{display:block;font-size:.68rem;text-transform:uppercase;letter-spacing:1px;color:var(--muted);font-weight:700}
+.ag-date .ag-day{display:block;font-family:var(--display);font-size:1.7rem;color:var(--gold-bright)}
+.ag-date .ag-mon{display:block;font-size:.68rem;text-transform:uppercase;letter-spacing:1px;color:var(--muted);font-weight:700}
+.ag-main{flex:1;min-width:0}
+.ag-head{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
+.ag-head b{font-size:1.02rem}
+.ag-meta{font-size:.85rem;margin-top:.2rem}
+.tag.t-train{background:var(--gold-soft);border-color:rgba(201,162,39,.35);color:var(--gold-bright)}
+.tag.t-match{background:rgba(63,185,80,.16);border-color:rgba(63,185,80,.4);color:#7ee08b}
+.tag.t-event{background:rgba(90,169,230,.16);border-color:rgba(90,169,230,.45);color:#9fd0f5}
+.ag-rsvp{flex:none;display:flex;flex-direction:column;align-items:flex-end;gap:.35rem}
+.ag-btns{display:flex;gap:.4rem}
+.att-btn.lift.on{background:rgba(90,169,230,.2);border-color:#5aa9e6;color:#bfe0fb}
+@media (max-width:760px){
+  .ag-row{flex-wrap:wrap}
+  .ag-date{width:auto;display:flex;gap:.4rem;align-items:baseline}
+  .ag-date .ag-day{font-size:1.1rem}
+  .ag-rsvp{width:100%;align-items:stretch;border-top:1px dashed var(--line);padding-top:.6rem}
+  .ag-btns{justify-content:space-between}
+  .ag-btns .att-btn{flex:1}
+}
+
 /* ---------- League / gamification ---------- */
 .league-table{width:100%;border-collapse:collapse;font-size:.92rem}
 .league-table th,.league-table td{padding:.7rem .6rem;text-align:left;border-bottom:1px solid var(--line)}

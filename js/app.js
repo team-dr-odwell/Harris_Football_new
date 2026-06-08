@@ -97,7 +97,7 @@
     document.querySelectorAll(".nav-link").forEach(l => l.classList.toggle("active", l.dataset.route === r[0]));
     updateMyPlayerChip();
     window.scrollTo(0, 0);
-    ({ home:Home, fixtures:Fixtures, training:Training, events:Events, players:Players, league:League, admin:Admin }[r[0]] || Home)(r[1]);
+    ({ home:Home, fixtures:Fixtures, training:Agenda, events:Events, players:Players, league:League, admin:Admin }[r[0]] || Home)(r[1]);
   }
 
   /* ============================ HOME ============================ */
@@ -199,12 +199,12 @@
       <div class="grid ${tab==='past'?'cols-1':'cols-2'}">${list.map(f => tab==="upcoming"?upcomingCard(f):resultCard(f)).join("")}</div>
     `;
     view.querySelectorAll("[data-tab]").forEach(b => b.addEventListener("click", () => location.hash = "#fixtures/"+b.dataset.tab));
-    wireAttendance(); wireMedia(); wireGo();
+    wireRsvp(); wireMedia(); wireGo();
   }
 
   function upcomingCard(f) {
-    const a = S.state.attendance[f.id] || {};
-    const mine = a[S.me];
+    const key = "m" + f.id;
+    const mine = (S.state.attendance[key] || {})[S.me];
     const mapsUrl = "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(f.address);
     return `<div class="card fixture">
       <div class="fixture-top">
@@ -220,12 +220,12 @@
         <span class="mi"><b>Kit</b> <span class="kit-chip"><span class="kit-dot kit-${f.kit}"></span>${KITNAME[f.kit]}</span></span>
         <span class="mi" style="grid-column:1/-1"><b>Address</b> <a href="${mapsUrl}" target="_blank" rel="noopener" style="color:var(--gold-bright)">${esc(f.address)} ↗</a></span>
       </div>
-      <div class="attend" data-fix="${f.id}">
+      <div class="attend ag-rsvp" data-key="${key}">
         <span class="lbl">Will ${esc(playerFirst())} be there?</span>
         <button class="att-btn yes ${mine==='yes'?'on':''}" data-s="yes">✓ Going</button>
-        <button class="att-btn maybe ${mine==='maybe'?'on':''}" data-s="maybe">? Maybe</button>
+        <button class="att-btn lift ${mine==='lift'?'on':''}" data-s="lift">🚗 Lift</button>
         <button class="att-btn no ${mine==='no'?'on':''}" data-s="no">✕ Can't</button>
-        <span class="att-count">${attLabel(f.id)}</span>
+        <span class="att-count">${rsvpLabel(key)}</span>
       </div>
     </div>`;
   }
@@ -265,22 +265,19 @@
   }
 
   function playerFirst() { return S.player(S.me)?.name.split(" ")[0] || "your child"; }
-  function attLabel(fid) {
-    const a = S.state.attendance[fid] || {};
-    const vals = Object.values(a);
-    const yes = vals.filter(v=>v==="yes").length, maybe = vals.filter(v=>v==="maybe").length;
-    return `${yes} going${maybe?` · ${maybe} maybe`:""}`;
+  function rsvpLabel(key) {
+    const c = S.rsvpCount(key);
+    return `${c.going} going${c.lifts ? ` · ${c.lifts} need a lift` : ""}`;
   }
-
-  function wireAttendance() {
-    view.querySelectorAll(".attend").forEach(box => {
+  function wireRsvp() {
+    view.querySelectorAll(".ag-rsvp").forEach(box => {
       box.querySelectorAll(".att-btn").forEach(btn => btn.addEventListener("click", async () => {
-        const fix = +box.dataset.fix, status = btn.dataset.s;
-        const current = (S.state.attendance[fix]||{})[S.me];
+        const key = box.dataset.key, status = btn.dataset.s;
+        const current = (S.state.attendance[key] || {})[S.me];
         const next = current === status ? null : status;
-        await S.setAttendance(fix, S.me, next);
+        await S.setAttendance(key, S.me, next);
         box.querySelectorAll(".att-btn").forEach(b => b.classList.toggle("on", b.dataset.s === next));
-        box.querySelector(".att-count").textContent = attLabel(fix);
+        box.querySelector(".att-count").textContent = rsvpLabel(key);
       }));
     });
   }
@@ -313,67 +310,57 @@
   function itemsOn(iso) {
     const d = new Date(iso + "T00:00:00"); const out = [];
     (S.state.trainingSchedule || window.HARRIS_DATA.trainingSchedule || []).forEach(r => {
-      if (d.getDay() === r.day && iso <= r.until) out.push({ kind:"training", start:r.start, end:r.end, location:r.location, label:r.label || "Training" });
+      if (d.getDay() === r.day && iso <= r.until) out.push({ kind:"training", key:"t"+iso, start:r.start, end:r.end, location:r.location, label:r.label || "Training" });
     });
-    (S.state.training || []).forEach(t => { if (t.date === iso) out.push({ kind:"training", start:t.start, end:t.end, location:t.location, label:t.focus || "Training", drills:t.drills }); });
-    (S.state.events || []).forEach(e => { if (e.date === iso) out.push({ kind:"event", title:e.title, location:e.location, time:e.time, desc:e.desc, link:e.link }); });
+    (S.state.training || []).forEach(t => { if (t.date === iso) out.push({ kind:"training", key:"t"+iso, start:t.start, end:t.end, location:t.location, label:t.focus || "Training", drills:t.drills }); });
+    (S.state.fixtures || []).forEach(f => { if (f.date === iso) out.push({ kind:"match", key:"m"+f.id, title:"vs "+f.opponent, location:f.ground, start:f.kickoff, meetup:f.meetup, homeAway:f.home_away, competition:f.competition }); });
+    (S.state.events || []).forEach(e => { if (e.date === iso) out.push({ kind:"event", key:"e"+e.id, title:e.title, location:e.location, time:e.time, desc:e.desc, link:e.link }); });
     return out;
   }
 
-  function Training() {
-    const today = new Date();
-    // open on the next day that has training or an event (so it's never an empty-looking page)
-    let sel = ymd(today);
-    for (let i = 0; i < 21; i++) {
-      const dd = new Date(today.getFullYear(), today.getMonth(), today.getDate() + i);
-      if (itemsOn(ymd(dd)).length) { sel = ymd(dd); break; }
-    }
-    let cur = { y: +sel.slice(0,4), m: +sel.slice(5,7) - 1 };
+  const TYPE_META = { training:{label:"Training",cls:"t-train"}, match:{label:"Match",cls:"t-match"}, event:{label:"Event",cls:"t-event"} };
 
-    function render() {
-      const first = new Date(cur.y, cur.m, 1);
-      const startCol = (first.getDay() + 6) % 7;          // Monday-first
-      const monthName = first.toLocaleString("en-GB", { month:"long", year:"numeric" });
-      const dows = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
-      let cells = "";
-      for (let i = 0; i < 42; i++) {
-        const date = new Date(cur.y, cur.m, 1 + (i - startCol));
-        const iso = ymd(date), out = date.getMonth() !== cur.m;
-        const items = itemsOn(iso);
-        const hasTrain = items.some(x => x.kind === "training");
-        const hasEvent = items.some(x => x.kind === "event");
-        cells += `<button class="cal-cell${out?' out':''}${iso===ymd(today)?' today':''}${iso===sel?' sel':''}" data-day="${iso}">
-          <span class="cal-num">${date.getDate()}</span>
-          <span class="cal-dots">${hasTrain?'<span class="cdot train"></span>':''}${hasEvent?'<span class="cdot event"></span>':''}</span>
-        </button>`;
-      }
-      const selItems = itemsOn(sel);
-      const selDate = new Date(sel + "T00:00:00");
-      view.innerHTML = `
-        <div class="section-head"><div><div class="eyebrow">What's on</div><h2>Training &amp; Calendar</h2></div></div>
-        <div class="cal-legend"><span><span class="cdot train"></span> Training</span><span><span class="cdot event"></span> Event</span></div>
-        <div class="card cal-wrap">
-          <div class="cal-head">
-            <button class="cal-nav" data-nav="-1" aria-label="Previous month">‹</button>
-            <strong>${monthName}</strong>
-            <button class="cal-nav" data-nav="1" aria-label="Next month">›</button>
-          </div>
-          <div class="cal-grid cal-dow">${dows.map(d=>`<span>${d}</span>`).join("")}</div>
-          <div class="cal-grid cal-body">${cells}</div>
-        </div>
-        <div class="card cal-detail" style="margin-top:1rem">
-          <h3 style="margin:0 0 .2rem;font-family:var(--display)">${selDate.toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long"})}</h3>
-          ${selItems.length ? selItems.map(it => it.kind==="training"
-            ? `<div class="cal-item"><span class="cdot train"></span><div><b>${esc(it.label)}</b><br><span class="muted">${fmt12(it.start)}–${fmt12(it.end)} · 📍 ${esc(it.location)}</span>${it.drills?`<br><span class="muted" style="font-size:.82rem">${it.drills.map(esc).join(" · ")}</span>`:""}</div></div>`
-            : `<div class="cal-item"><span class="cdot event"></span><div><b>${esc(it.title)}</b>${it.time?` <span class="tag gold">${esc(it.time)}</span>`:""}<br><span class="muted">📍 ${esc(it.location||"TBC")}</span>${it.desc?`<br><span class="muted" style="font-size:.85rem">${esc(it.desc)}</span>`:""}${it.link?`<br><a href="${esc(it.link)}" target="_blank" rel="noopener" style="color:var(--gold-bright)">Location &amp; prices ↗</a>`:""}</div></div>`
-          ).join("") : `<p class="muted" style="margin:.4rem 0 0">Nothing on this day. Tap a highlighted date to see what's happening.</p>`}
-        </div>`;
-      view.querySelectorAll("[data-nav]").forEach(b => b.addEventListener("click", () => {
-        cur.m += +b.dataset.nav; if (cur.m < 0) { cur.m = 11; cur.y--; } if (cur.m > 11) { cur.m = 0; cur.y++; } render();
-      }));
-      view.querySelectorAll("[data-day]").forEach(c => c.addEventListener("click", () => { sel = c.dataset.day; render(); }));
+  function Agenda() {
+    const today = new Date();
+    const rows = [];
+    for (let i = 0; i < 140; i++) {           // look ~20 weeks ahead
+      const dd = new Date(today.getFullYear(), today.getMonth(), today.getDate() + i);
+      itemsOn(ymd(dd)).forEach(it => rows.push({ ...it, dateObj: dd }));
     }
-    render();
+    view.innerHTML = `
+      <div class="section-head"><div><div class="eyebrow">What's coming up</div><h2>Schedule</h2></div></div>
+      <p class="muted" style="margin-top:-.6rem;max-width:64ch">Training, matches and events coming up. Tap to tell us if ${esc(playerFirst())} is going — and whether they'll need a lift.</p>
+      <div class="agenda" style="margin-top:1.2rem">
+        ${rows.length ? rows.map(agendaRow).join("") : `<div class="card"><p class="muted" style="margin:0">Nothing scheduled in the coming weeks — check back soon!</p></div>`}
+      </div>`;
+    wireRsvp();
+  }
+
+  function agendaRow(it) {
+    const me = (S.state.attendance[it.key] || {})[S.me];
+    const tm = TYPE_META[it.kind];
+    const time = it.kind === "match"
+      ? `KO ${fmt12(it.start)}${it.meetup ? ` · meet ${fmt12(it.meetup)}` : ""}`
+      : it.kind === "event"
+      ? (it.time ? fmt12(it.time) : "")
+      : `${fmt12(it.start)}–${fmt12(it.end)}`;
+    const d = it.dateObj;
+    return `<div class="card ag-row">
+      <div class="ag-date"><span class="ag-dow">${DAYS[d.getDay()]}</span><span class="ag-day">${d.getDate()}</span><span class="ag-mon">${MON[d.getMonth()]}</span></div>
+      <div class="ag-main">
+        <div class="ag-head"><span class="tag ${tm.cls}">${tm.label}</span><b>${esc(it.title || it.label)}</b>${it.kind==="match"?`<span class="tag">${it.homeAway==='H'?'Home':'Away'}</span>`:""}</div>
+        <div class="muted ag-meta">${time?`🕒 ${time}`:""}${it.location?`${time?" · ":""}📍 ${esc(it.location)}`:""}</div>
+        ${it.link?`<a href="${esc(it.link)}" target="_blank" rel="noopener" style="color:var(--gold-bright);font-size:.85rem">Location &amp; prices ↗</a>`:""}
+      </div>
+      <div class="ag-rsvp" data-key="${it.key}">
+        <div class="ag-btns">
+          <button class="att-btn yes ${me==='yes'?'on':''}" data-s="yes">✓ Going</button>
+          <button class="att-btn lift ${me==='lift'?'on':''}" data-s="lift">🚗 Lift</button>
+          <button class="att-btn no ${me==='no'?'on':''}" data-s="no">✕ Can't</button>
+        </div>
+        <span class="att-count">${rsvpLabel(it.key)}</span>
+      </div>
+    </div>`;
   }
 
   /* ============================ EVENTS ============================ */

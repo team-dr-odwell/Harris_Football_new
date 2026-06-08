@@ -91,16 +91,18 @@
 
     async _loadLive() {
       const sb = this.sb;
-      const [players, fixtures, attendance, training, events, points] = await Promise.all([
+      const [players, fixtures, training, events, points] = await Promise.all([
         sb.from("players").select("*").order("number"),
         sb.from("fixtures").select("*, goals(*), media(*)").order("date"),
-        sb.from("attendance").select("*"),
         sb.from("training_sessions").select("*").order("date"),
         sb.from("events").select("*, media(*)").order("date"),
         sb.from("game_points").select("*")
       ]);
       const att = {};
-      (attendance.data || []).forEach(r => { (att[r.fixture_id] ||= {})[r.player_id] = r.status; });
+      try {
+        const { data: rsvpRows } = await sb.from("rsvp").select("*");
+        (rsvpRows || []).forEach(r => { (att[r.activity_key] ||= {})[r.player_id] = r.status; });
+      } catch (e) { /* rsvp table not created yet */ }
       // who am I, and am I an admin?
       try {
         const { data: { user } } = await sb.auth.getUser();
@@ -141,11 +143,15 @@
     },
 
     /* ---------- mutations ---------- */
-    async setAttendance(fixtureId, playerId, status) {
-      (this.state.attendance[fixtureId] ||= {})[playerId] = status;
+    async setAttendance(key, playerId, status) {
+      const m = (this.state.attendance[key] ||= {});
+      if (status === null) delete m[playerId]; else m[playerId] = status;
       if (LIVE) {
-        await this.sb.from("attendance")
-          .upsert({ fixture_id: fixtureId, player_id: playerId, status }, { onConflict: "fixture_id,player_id" });
+        if (status === null) {
+          await this.sb.from("rsvp").delete().eq("activity_key", key).eq("player_id", playerId);
+        } else {
+          await this.sb.from("rsvp").upsert({ activity_key: key, player_id: playerId, status }, { onConflict: "activity_key,player_id" });
+        }
       } else {
         this._persistPreview();
       }
@@ -282,9 +288,9 @@
       return [...seed, ...added];
     },
 
-    attendCount(fixtureId) {
-      const a = this.state.attendance[fixtureId] || {};
-      return Object.values(a).filter(v => v === "yes").length;
+    rsvpCount(key) {
+      const v = Object.values(this.state.attendance[key] || {});
+      return { going: v.filter(x => x === "yes" || x === "lift").length, lifts: v.filter(x => x === "lift").length };
     },
 
     /* league table: rank players by their league points */
