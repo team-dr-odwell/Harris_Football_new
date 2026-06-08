@@ -71,7 +71,7 @@
       const base = structuredClone(window.HARRIS_DATA);
       const content = JSON.parse(localStorage.getItem(LS_CONTENT) || "null");
       if (content) {
-        ["fixtures","players","training","events","gamePoints"].forEach(k => { if (content[k]) base[k] = content[k]; });
+        ["fixtures","players","training","events","gamePoints","drills"].forEach(k => { if (content[k]) base[k] = content[k]; });
       }
       const saved = JSON.parse(localStorage.getItem(LS_KEY) || "null");
       if (saved) {
@@ -103,6 +103,8 @@
         const { data: rsvpRows } = await sb.from("rsvp").select("*");
         (rsvpRows || []).forEach(r => { (att[r.activity_key] ||= {})[r.player_id] = r.status; });
       } catch (e) { /* rsvp table not created yet */ }
+      let drills = [];
+      try { const { data } = await sb.from("drills").select("*").order("id"); drills = data || []; } catch (e) { /* drills table not created yet */ }
       // who am I, and am I an admin?
       try {
         const { data: { user } } = await sb.auth.getUser();
@@ -123,6 +125,7 @@
         attendance: att,
         training: training.data || [],
         trainingSchedule: window.HARRIS_DATA.trainingSchedule,
+        drills,
         events: (events.data || []).map(e => ({ ...e, desc: e.description, media_list: e.media, media: 0 })),
         gamePoints: (points.data || []).map(g => ({ ...g, playerId: g.player_id })),
         achievements: window.HARRIS_DATA.achievements,
@@ -177,7 +180,8 @@
     _persistContent() {
       localStorage.setItem(LS_CONTENT, JSON.stringify({
         fixtures: this.state.fixtures, players: this.state.players,
-        training: this.state.training, events: this.state.events, gamePoints: this.state.gamePoints
+        training: this.state.training, events: this.state.events,
+        gamePoints: this.state.gamePoints, drills: this.state.drills
       }));
     },
     _nextId(list) { return list.reduce((m, x) => Math.max(m, x.id || 0), 0) + 1; },
@@ -309,6 +313,30 @@
         const { error } = await this.sb.from("players").update(s).eq("id", id);
         if (error) return { ok: false, msg: error.message };
       } else { this._persistContent(); }
+      return { ok: true };
+    },
+
+    /* admin: set a player's development (dev %, targets, plan, videos) */
+    async updatePlayerAcademy(id, a) {
+      const p = this.player(id); if (!p) return { ok: false, msg: "Player not found" };
+      Object.assign(p, a);
+      if (LIVE) {
+        const { error } = await this.sb.from("players").update(a).eq("id", id);
+        if (error) return { ok: false, msg: error.message };
+      } else { this._persistContent(); }
+      return { ok: true };
+    },
+
+    /* admin: training-exercise video library */
+    async addDrill(d) {
+      this.state.drills = this.state.drills || [];
+      if (LIVE) {
+        const { data, error } = await this.sb.from("drills").insert(d).select().single();
+        if (error) return { ok: false, msg: error.message };
+        this.state.drills.push(data);
+      } else {
+        d.id = this._nextId(this.state.drills); this.state.drills.push(d); this._persistContent();
+      }
       return { ok: true };
     }
   };

@@ -21,6 +21,9 @@ window.HARRIS_DATA = {
     { id:6,  number:6,  name:"Duke Lands",              pos:"CB", rating:80, pace:72, shooting:50, passing:75, dribbling:62, defending:84, physical:80, games:0, goals:0, assists:0, motm:0, init:"DL",
       program:["1v1 defending — jockey, delay, tackle","Heading at both ends of the pitch","Playing out from the back with composure","Communication and holding the line"] },
     { id:7,  number:7,  name:"Jack Horrell",            pos:"ST", rating:83, pace:88, shooting:84, passing:72, dribbling:84, defending:52, physical:72, games:0, goals:0, assists:0, motm:0, init:"JH",
+      dev:{ passing:60, shooting:75, dribbling:70, defending:45, fitness:65, teamwork:80 },
+      targets:["Score with your weaker foot in a match","Win the ball back within 6 seconds of losing it"],
+      videos:[{ title:"Finishing inside the box", url:"https://www.youtube.com/watch?v=dQw4w9WgXcQ" }],
       program:["Finishing first-time in the box","Movement to lose your marker","Hold-up play and linking with the team","Leading the press from the front"] },
     { id:8,  number:8,  name:"Alex Biondini",           pos:"CM", rating:82, pace:76, shooting:70, passing:84, dribbling:80, defending:70, physical:72, games:0, goals:0, assists:0, motm:0, init:"AB",
       program:["Receiving on the half-turn and scanning first","Range of passing — short and long","Driving forward with the ball","Pressing and winning the ball back"] },
@@ -107,6 +110,12 @@ window.HARRIS_DATA = {
   ],
   /* one-off / extra sessions (managed in admin) appear on the calendar too */
   training: [],
+
+  /* training-exercise video library (coach-managed; paste YouTube/Vimeo links) */
+  drills: [
+    { id:1, title:"Cone dribbling warm-up", area:"Dribbling", url:"https://www.youtube.com/watch?v=dQw4w9WgXcQ" },
+    { id:2, title:"Passing diamond drill", area:"Passing", url:"https://www.youtube.com/watch?v=8r0Z0u8aQ1A" }
+  ],
 
   /* ---------------- EVENTS ---------------- */
   events: [

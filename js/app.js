@@ -97,7 +97,7 @@
     document.querySelectorAll(".nav-link").forEach(l => l.classList.toggle("active", l.dataset.route === r[0]));
     updateMyPlayerChip();
     window.scrollTo(0, 0);
-    ({ home:Home, fixtures:Fixtures, training:Agenda, events:Events, players:Players, league:League, admin:Admin }[r[0]] || Home)(r[1]);
+    ({ home:Home, fixtures:Fixtures, training:Schedule, events:Events, players:Players, development:Development, league:League, admin:Admin }[r[0]] || Home)(r[1]);
   }
 
   /* ============================ HOME ============================ */
@@ -320,19 +320,38 @@
 
   const TYPE_META = { training:{label:"Training",cls:"t-train"}, match:{label:"Match",cls:"t-match"}, event:{label:"Event",cls:"t-event"} };
 
-  function Agenda() {
-    const today = new Date();
-    const rows = [];
-    for (let i = 0; i < 140; i++) {           // look ~20 weeks ahead
+  function videoEmbed(url) {
+    if (!url) return "";
+    const yt = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([\w-]{11})/);
+    const vm = url.match(/vimeo\.com\/(\d+)/);
+    const src = yt ? "https://www.youtube.com/embed/" + yt[1] : vm ? "https://player.vimeo.com/video/" + vm[1] : null;
+    if (!src) return `<a href="${esc(url)}" target="_blank" rel="noopener" style="color:var(--gold-bright)">Watch video ↗</a>`;
+    return `<div class="video"><iframe src="${src}" loading="lazy" allow="fullscreen; picture-in-picture" allowfullscreen></iframe></div>`;
+  }
+
+  function buildAgenda(kinds, horizonDays) {
+    const today = new Date(); const rows = [];
+    for (let i = 0; i < horizonDays; i++) {
       const dd = new Date(today.getFullYear(), today.getMonth(), today.getDate() + i);
-      itemsOn(ymd(dd)).forEach(it => rows.push({ ...it, dateObj: dd }));
+      itemsOn(ymd(dd)).forEach(it => { if (kinds.includes(it.kind)) rows.push({ ...it, dateObj: dd }); });
     }
+    return rows;
+  }
+
+  function Schedule() {
+    const rows = buildAgenda(["training"], 28);
+    const drills = S.state.drills || [];
     view.innerHTML = `
-      <div class="section-head"><div><div class="eyebrow">What's coming up</div><h2>Schedule</h2></div></div>
-      <p class="muted" style="margin-top:-.6rem;max-width:64ch">Training, matches and events coming up. Tap to tell us if ${esc(playerFirst())} is going — and whether they'll need a lift.</p>
+      <div class="section-head"><div><div class="eyebrow">Next 4 weeks</div><h2>Training Schedule</h2></div></div>
+      <p class="muted" style="margin-top:-.6rem;max-width:64ch">Upcoming training sessions. Tap to tell us if ${esc(playerFirst())} is going — and whether they'll need a lift.</p>
       <div class="agenda" style="margin-top:1.2rem">
-        ${rows.length ? rows.map(agendaRow).join("") : `<div class="card"><p class="muted" style="margin:0">Nothing scheduled in the coming weeks — check back soon!</p></div>`}
-      </div>`;
+        ${rows.length ? rows.map(agendaRow).join("") : `<div class="card"><p class="muted" style="margin:0">No training in the next four weeks.</p></div>`}
+      </div>
+      ${drills.length ? `
+        <div class="section-head" style="margin-top:1.8rem"><div><div class="eyebrow">Practise at home</div><h2>Training Drills</h2></div></div>
+        <div class="grid cols-2">
+          ${drills.map(dr => `<div class="card"><div class="ag-head" style="margin-bottom:.6rem">${dr.area?`<span class="tag t-train">${esc(dr.area)}</span>`:""}<b>${esc(dr.title)}</b></div>${videoEmbed(dr.url)}</div>`).join("")}
+        </div>` : ""}`;
     wireRsvp();
   }
 
@@ -350,6 +369,7 @@
       <div class="ag-main">
         <div class="ag-head"><span class="tag ${tm.cls}">${tm.label}</span><b>${esc(it.title || it.label)}</b>${it.kind==="match"?`<span class="tag">${it.homeAway==='H'?'Home':'Away'}</span>`:""}</div>
         <div class="muted ag-meta">${time?`🕒 ${time}`:""}${it.location?`${time?" · ":""}📍 ${esc(it.location)}`:""}</div>
+        ${it.desc?`<div class="muted" style="font-size:.85rem;margin-top:.25rem">${esc(it.desc)}</div>`:""}
         ${it.link?`<a href="${esc(it.link)}" target="_blank" rel="noopener" style="color:var(--gold-bright);font-size:.85rem">Location &amp; prices ↗</a>`:""}
       </div>
       <div class="ag-rsvp" data-key="${it.key}">
@@ -363,50 +383,28 @@
     </div>`;
   }
 
-  /* ============================ EVENTS ============================ */
-  const EVICON = { trophy:"🏆", target:"🎯", flag:"🏁", cone:"🔶" };
+  /* ============================ EVENTS (rows) ============================ */
   function Events() {
+    const rows = buildAgenda(["event"], 220);
     view.innerHTML = `
       <div class="section-head"><div><div class="eyebrow">Beyond the pitch</div><h2>Events</h2></div></div>
-      <p class="muted" style="margin-top:-.6rem;max-width:60ch">Fundraisers, days out and big celebrations. This is where a squad becomes a family.</p>
-      <div class="grid cols-2" style="margin-top:1.2rem">
-        ${S.state.events.map(ev => `
-          <div class="card">
-            <div style="display:flex;gap:.9rem;align-items:flex-start">
-              <div class="club-badge" style="width:54px;height:54px;font-size:1.6rem">${EVICON[ev.img]||"📅"}</div>
-              <div><h3 style="margin:0 0 .25rem">${esc(ev.title)}</h3>
-                <span class="tag gold">${fdateLong(ev.date)}</span>${ev.time?`<span class="tag gold">${esc(ev.time)}</span>`:""}<span class="tag">📍 ${esc(ev.location)}</span></div>
-            </div>
-            <p style="margin:.9rem 0 .8rem;color:#d7d7cf">${esc(ev.desc)}</p>
-            ${ev.link?`<p style="margin:-.3rem 0 .8rem"><a href="${esc(ev.link)}" target="_blank" rel="noopener" style="color:var(--gold-bright)">Location &amp; prices ↗</a></p>`:""}
-            <div class="lbl" style="font-size:.74rem;color:var(--muted);font-weight:700">GALLERY</div>
-            <div class="gallery" data-media="ev${ev.id}" style="margin-top:.5rem">
-              ${S.mediaFor(ev.id).map(m=>mediaTile(m)).join("")}
-              ${Array.from({length:Math.max(0,(ev.media||0))}).map(()=>`<div class="ph"><div><div class="ic">📷</div>Photo</div></div>`).join("")}
-              <div class="ph add" data-add="ev${ev.id}"><div><div class="ic">＋</div>Add</div></div>
-            </div>
-          </div>`).join("")}
+      <p class="muted" style="margin-top:-.6rem;max-width:62ch">Fundraisers, days out and celebrations. Tap to let us know if ${esc(playerFirst())} is coming.</p>
+      <div class="agenda" style="margin-top:1.2rem">
+        ${rows.length ? rows.map(agendaRow).join("") : `<div class="card"><p class="muted" style="margin:0">No events coming up just yet — watch this space!</p></div>`}
       </div>`;
-    // event media uses string keys
-    view.querySelectorAll("[data-add]").forEach(add => add.addEventListener("click", () => {
-      openModal("Add to gallery", `
-        <label class="field"><span>Caption</span><input id="m-cap" placeholder="Add a caption"/></label>
-        <label class="field"><span>File</span><input type="file" id="m-file" accept="image/*,video/*"/></label>
-        <button class="btn btn-gold btn-block" id="m-save">Upload</button>`,
-        () => $("#m-save").addEventListener("click", () => {
-          S.addMedia(add.dataset.add, { type:"photo", caption:$("#m-cap").value||"Photo" }); closeModal(); route();
-        }));
-    }));
+    wireRsvp();
   }
 
-  /* ============================ PLAYERS ============================ */
+  /* ============================ ACADEMY ============================ */
+  const DEV_AREAS = [["passing","Passing"],["shooting","Shooting"],["dribbling","Dribbling"],["defending","Defending"],["fitness","Fitness"],["teamwork","Teamwork"]];
+
   function Players(id) {
-    if (id) return PlayerDetail(+id);
+    if (id) return AcademyProfile(+id);
     view.innerHTML = `
-      <div class="section-head"><div><div class="eyebrow">${esc(cfg.CURRENT_SEASON)} Squad</div><h2>Player Cards</h2></div></div>
-      <p class="muted" style="margin-top:-.6rem;max-width:62ch">Every player gets their own card and academy profile. Tap a card to see this season's stats and your own development plan.</p>
+      <div class="section-head"><div><div class="eyebrow">${esc(cfg.CURRENT_SEASON)} Squad</div><h2>The Academy</h2></div></div>
+      <p class="muted" style="margin-top:-.6rem;max-width:62ch">Every player has a card and an academy profile. Tap a card for season stats, development progress and their goals to achieve.</p>
       <div class="players-grid" style="margin-top:1.3rem">
-        ${[...S.state.players].sort((a,b)=>b.rating-a.rating).map(fcCard).join("")}
+        ${[...S.state.players].sort((a,b)=>a.number-b.number).map(fcCard).join("")}
       </div>`;
     view.querySelectorAll("[data-player]").forEach(c => c.addEventListener("click", () => location.hash = "#players/"+c.dataset.player));
   }
@@ -415,15 +413,14 @@
     return `<div class="fc-card" data-player="${p.id}">${fcCardInner(p)}</div>`;
   }
 
-  function PlayerDetail(id) {
+  function AcademyProfile(id) {
     const p = S.player(id); if (!p) return Players();
     const stats = [["Goals",p.goals||0],["Assists",p.assists||0],["MOTM",p.motm||0],["Training",p.sessions||0],["Points",p.points||0]];
+    const dev = p.dev || {}; const targets = p.targets || [];
     view.innerHTML = `
-      <button class="btn btn-ghost btn-sm" data-go="players" style="margin-bottom:1rem">← All players</button>
+      <button class="btn btn-ghost btn-sm" data-go="players" style="margin-bottom:1rem">← Academy</button>
       <div class="player-detail">
-        <div>
-          <div class="fc-card" style="max-width:230px;margin:0 auto">${fcCardInner(p)}</div>
-        </div>
+        <div><div class="fc-card" style="max-width:230px;margin:0 auto">${fcCardInner(p)}</div></div>
         <div>
           <div class="eyebrow" style="color:var(--gold)">${esc(p.pos)} · Squad #${p.number}${p.captain?' · Captain 🧢':''}</div>
           <h2 style="font-family:var(--display);font-size:2.2rem;margin:.1rem 0 1rem">${esc(p.name)}</h2>
@@ -432,18 +429,46 @@
           </div>
 
           <div class="card pad-lg" style="margin-top:1.2rem">
-            <h3 style="margin:0 0 .3rem;font-family:var(--display)">Personal Development Plan</h3>
-            <p class="muted" style="margin:0 0 .6rem">${esc(p.name.split(" ")[0])}'s focus areas this block:</p>
-            ${p.program.map((s,i)=>`<div class="program-step"><div class="dot">${i+1}</div><div>${esc(s)}</div></div>`).join("")}
+            <h3 style="margin:0 0 .2rem;font-family:var(--display)">Development progress</h3>
+            <p class="muted" style="margin:0 0 .9rem;font-size:.86rem">How ${esc(p.name.split(" ")[0])} is progressing toward their own targets — set by the coaches.</p>
+            ${DEV_AREAS.map(([k,label])=>{const v=dev[k]||0;return `<div class="attr-bar"><div class="row"><span>${label}</span><span style="color:var(--gold-bright)">${v}%</span></div><div class="track"><div class="fill" style="width:${v}%"></div></div></div>`;}).join("")}
           </div>
 
-          <div class="card pad-lg" style="margin-top:1.2rem;border-style:dashed">
-            <h3 style="margin:0 0 .3rem;font-family:var(--display)">Season Tracker</h3>
-            <p class="muted" style="margin:0">Goals, assists, Man of the Match awards, training sessions and league points all build up across the season — so you can see your progress in black and white.</p>
-          </div>
+          ${targets.length?`<div class="card pad-lg" style="margin-top:1.2rem">
+            <h3 style="margin:0 0 .6rem;font-family:var(--display)">Goals to achieve</h3>
+            ${targets.map(t=>`<div class="program-step"><div class="dot">★</div><div>${esc(t)}</div></div>`).join("")}
+          </div>`:""}
+
+          <button class="btn btn-gold btn-sm" data-go="development" style="margin-top:1.2rem">My development plan &amp; videos →</button>
         </div>
       </div>`;
     wireGo();
+  }
+
+  /* ============================ DEVELOPMENT ============================ */
+  function Development() {
+    const p = S.player(S.me);
+    if (!p) { view.innerHTML = `<div class="card pad-lg"><h2 style="font-family:var(--display)">Development</h2><p class="muted">Choose which player is yours from the top bar to see their development plan.</p></div>`; return; }
+    const program = p.program || []; const videos = p.videos || [];
+    view.innerHTML = `
+      <div class="section-head"><div><div class="eyebrow">${esc(p.name)}</div><h2>My Development</h2></div></div>
+      <p class="muted" style="margin-top:-.6rem;max-width:64ch">Your personal plan, videos the coaches have picked for you, and this week's quiz.</p>
+
+      <div class="card pad-lg" style="margin-top:1.2rem">
+        <h3 style="margin:0 0 .5rem;font-family:var(--display)">Personal development plan</h3>
+        ${program.length?program.map((s,i)=>`<div class="program-step"><div class="dot">${i+1}</div><div>${esc(s)}</div></div>`).join("")
+          :`<p class="muted" style="margin:0">Your coach will add your plan here soon.</p>`}
+      </div>
+
+      <div class="section-head" style="margin-top:1.6rem"><div><div class="eyebrow">Picked for you</div><h2>My Videos</h2></div></div>
+      ${videos.length?`<div class="grid cols-2">${videos.map(v=>`<div class="card"><b style="display:block;margin-bottom:.6rem">${esc(v.title||"Video")}</b>${videoEmbed(v.url)}</div>`).join("")}</div>`
+        :`<div class="card"><p class="muted" style="margin:0">No videos yet — your coach will add some skills to work on.</p></div>`}
+
+      <div class="section-head" style="margin-top:1.6rem"><div><div class="eyebrow">+${S.state.quiz.points} pts · test yourself</div><h2>Weekly Quiz</h2></div>
+        ${S.state.quizScore!=null?`<span class="tag green">Last score ${S.state.quizScore}/${S.state.quiz.questions.length}</span>`:""}</div>
+      <div class="card pad-lg"><div id="quiz-host"><button class="btn btn-gold" id="start-quiz">Start the quiz</button></div></div>`;
+    wireGo();
+    const start = $("#start-quiz"); if (start) start.addEventListener("click", runQuiz);
   }
   function fcCardInner(p){ return `<div class="fc-inner">
       <div class="fc-top">
@@ -551,7 +576,7 @@
   function Admin(sub) {
     if (!S.isAdmin) { view.innerHTML = `<div class="card pad-lg"><h2 style="font-family:var(--display)">Admins only</h2><p class="muted">This area is for team coaches/admins. Ask the team admin to grant you access.</p></div>`; return; }
     sub = sub || "fixtures";
-    const tabs = [["fixtures","Add fixture"],["result","Enter result"],["stats","Player stats"],["players","Add player"],["training","Add training"],["events","Add event"]];
+    const tabs = [["fixtures","Add fixture"],["result","Enter result"],["stats","Player stats"],["academy","Development"],["drills","Drill videos"],["players","Add player"],["training","Add training"],["events","Add event"]];
     view.innerHTML = `
       <div class="section-head"><div><div class="eyebrow">Coaches only</div><h2>Admin Panel</h2></div></div>
       <p class="muted" style="margin-top:-.6rem;max-width:62ch">Manage everything from here — no spreadsheets. ${S.MODE==='preview'?'<b>Preview mode:</b> changes save to this browser so you can try it. Connect Supabase to save for everyone.':'Changes save to your database and appear for everyone straight away.'}</p>
@@ -560,7 +585,7 @@
       </div>
       <div id="admin-body"></div>`;
     view.querySelectorAll("[data-atab]").forEach(b => b.addEventListener("click", () => location.hash = "#admin/"+b.dataset.atab));
-    ({ fixtures:AdmFixture, result:AdmResult, stats:AdmStats, players:AdmPlayer, training:AdmTraining, events:AdmEvent }[sub] || AdmFixture)();
+    ({ fixtures:AdmFixture, result:AdmResult, stats:AdmStats, academy:AdmAcademy, drills:AdmDrills, players:AdmPlayer, training:AdmTraining, events:AdmEvent }[sub] || AdmFixture)();
   }
 
   function toast(msg) {
@@ -649,6 +674,57 @@
     </div>`;
     body.querySelector("#st-player").addEventListener("change", e => load(+e.target.value));
     load(players[0].id);
+  }
+
+  function AdmAcademy() {
+    const body = $("#admin-body");
+    const players = [...S.state.players].sort((a,b)=>a.number-b.number);
+    function load(id) {
+      const p = S.player(id); if (!p) return;
+      const dev = p.dev || {};
+      body.querySelector("#ac-fields").innerHTML = `
+        <div class="lbl" style="font-size:.74rem;color:var(--muted);font-weight:700;letter-spacing:1px;margin:.6rem 0 .3rem">DEVELOPMENT PROGRESS (%)</div>
+        <div class="grid cols-3">${DEV_AREAS.map(([k,label])=>F(label,`<input type="number" min="0" max="100" id="ac-${k}" value="${dev[k]||0}"/>`)).join("")}</div>
+        ${F("Goals to achieve (one per line)",`<textarea id="ac-targets" rows="3">${esc((p.targets||[]).join("\n"))}</textarea>`)}
+        ${F("Development plan (one step per line)",`<textarea id="ac-plan" rows="4">${esc((p.program||[]).join("\n"))}</textarea>`)}
+        ${F("Videos — one per line as: Title | https://link",`<textarea id="ac-videos" rows="3">${esc((p.videos||[]).map(v=>`${v.title} | ${v.url}`).join("\n"))}</textarea>`)}
+        <button class="btn btn-gold btn-block" id="ac-save">Save ${esc(p.name)}'s development</button>`;
+      body.querySelector("#ac-save").addEventListener("click", async () => {
+        const devObj = {}; DEV_AREAS.forEach(([k]) => devObj[k] = Math.max(0, Math.min(100, +$("#ac-"+k).value || 0)));
+        const targets = $("#ac-targets").value.split("\n").map(s=>s.trim()).filter(Boolean);
+        const program = $("#ac-plan").value.split("\n").map(s=>s.trim()).filter(Boolean);
+        const videos = $("#ac-videos").value.split("\n").map(s=>s.trim()).filter(Boolean).map(line => {
+          const [title, url] = line.split("|").map(x=>x.trim()); return { title: title||"Video", url: url||"" };
+        });
+        const res = await S.updatePlayerAcademy(id, { dev: devObj, targets, program, videos });
+        if (res.ok) toast("Development saved ✓"); else toast("Error: "+res.msg);
+      });
+    }
+    body.innerHTML = `<div class="card pad-lg" style="max-width:640px">
+      <p class="muted" style="margin-top:0">Set each player's development progress, targets, plan and personalised videos. Shown on their Academy profile and Development page.</p>
+      ${F("Player",`<select id="ac-player">${players.map(p=>`<option value="${p.id}">#${p.number} ${esc(p.name)}</option>`).join("")}</select>`)}
+      <div id="ac-fields"></div>
+    </div>`;
+    body.querySelector("#ac-player").addEventListener("change", e => load(+e.target.value));
+    load(players[0].id);
+  }
+
+  function AdmDrills() {
+    const body = $("#admin-body");
+    const drills = S.state.drills || [];
+    body.innerHTML = `<div class="card pad-lg" style="max-width:620px">
+      <p class="muted" style="margin-top:0">Add training-exercise videos (YouTube/Vimeo links) for the Schedule "Training Drills" library.</p>
+      ${F("Title",`<input id="dr-title" placeholder="e.g. Cone dribbling warm-up"/>`)}
+      <div class="grid cols-2">${F("Skill area",`<select id="dr-area"><option value="">—</option>${DEV_AREAS.map(([,l])=>`<option>${l}</option>`).join("")}</select>`)}${F("Video link",`<input id="dr-url" placeholder="https://youtu.be/..."/>`)}</div>
+      <button class="btn btn-gold btn-block" id="dr-save">Add drill video</button>
+      ${drills.length?`<div class="lbl" style="font-size:.74rem;color:var(--muted);font-weight:700;margin:1rem 0 .4rem">CURRENT (${drills.length})</div>${drills.map(d=>`<div class="ach" style="margin-bottom:.4rem"><span class="em">🎬</span><div><b>${esc(d.title)}</b>${d.area?` <span class="tag">${esc(d.area)}</span>`:""}</div></div>`).join("")}`:""}
+    </div>`;
+    $("#dr-save").addEventListener("click", async () => {
+      const title=$("#dr-title").value.trim(), url=$("#dr-url").value.trim();
+      if(!title||!url) return toast("Add a title and a video link");
+      const res = await S.addDrill({ title, area:$("#dr-area").value, url });
+      if(res.ok){ toast("Drill added ✓"); Admin("drills"); } else toast("Error: "+res.msg);
+    });
   }
 
   function AdmPlayer() {
