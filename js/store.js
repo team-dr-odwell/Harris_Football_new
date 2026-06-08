@@ -267,7 +267,13 @@
     /* ---------- selectors ---------- */
     player(id) { return this.state.players.find(p => p.id === id); },
 
-    fixtures(status) { return this.state.fixtures.filter(f => f.status === status); },
+    fixtures(status) {
+      const today = new Date().toISOString().slice(0, 10);
+      return this.state.fixtures.filter(f => {
+        const isPast = f.status === "past" || (f.date && f.date < today);
+        return status === "past" ? isPast : !isPast;
+      });
+    },
 
     mediaFor(key) {
       const seed = (this.state.fixtures.find(f => f.id === key)?.media)

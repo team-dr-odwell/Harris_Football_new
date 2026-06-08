@@ -12,7 +12,7 @@ alter table players add column if not exists captain boolean default false;
 delete from goals;
 delete from attendance;
 delete from game_points;
-update fixtures set status='upcoming', our_score=null, their_score=null, result=null, motm=null;
+-- (fixtures are managed by migrate-fixtures.sql — don't change their status here)
 
 -- 3. swap in the real squad (season stats start at 0)
 delete from players;
