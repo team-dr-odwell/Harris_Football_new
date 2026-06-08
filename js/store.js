@@ -7,6 +7,7 @@
   const LIVE = !!(cfg.SUPABASE_URL && cfg.SUPABASE_ANON_KEY);
   const LS_KEY = "harris_preview_state_v1";
   const LS_CONTENT = "harris_preview_content_v1";
+  const LS_LEDGER = "harris_ledger_v1";
 
   const Store = {
     MODE: LIVE ? "live" : "preview",
@@ -71,6 +72,7 @@
       this._initSeason();
       this._normalizePlayers();
       this._applySeason();
+      this._applyPoints();
       return this.state;
     },
 
@@ -88,6 +90,7 @@
       this.season = id;
       localStorage.setItem("harris_season", id);
       this._applySeason();
+      this._applyPoints();
     },
     seasonRange(id) { return (cfg.SEASONS || []).find(s => s.id === (id || this.season)); },
     inSeason(iso) {
@@ -146,6 +149,7 @@
       }
       base.media = base.media || {};
       base.completedExercises = base.completedExercises || [];
+      base.ledger = JSON.parse(localStorage.getItem(LS_LEDGER) || "[]");
       const myp = localStorage.getItem("harris_my_player");
       if (myp) { this.me = +myp; this.linkedPlayer = +myp; }
       this.displayName = localStorage.getItem("harris_name") || this.displayName;
@@ -170,6 +174,8 @@
       } catch (e) { /* rsvp table not created yet */ }
       let drills = [];
       try { const { data } = await sb.from("drills").select("*").order("id"); drills = data || []; } catch (e) { /* drills table not created yet */ }
+      let ledger = [];
+      try { const { data } = await sb.from("point_events").select("*"); ledger = data || []; } catch (e) { /* point_events not created yet */ }
       // who am I, and am I an admin?
       let allProfiles = [];
       try {
@@ -193,7 +199,7 @@
         attendance: att,
         training: training.data || [],
         trainingSchedule: window.HARRIS_DATA.trainingSchedule,
-        drills, profiles: allProfiles,
+        drills, profiles: allProfiles, ledger,
         events: (events.data || []).map(e => ({ ...e, desc: e.description, media_list: e.media, media: 0 })),
         gamePoints: (points.data || []).map(g => ({ ...g, playerId: g.player_id })),
         achievements: window.HARRIS_DATA.achievements,
@@ -267,9 +273,42 @@
       return { ok:true };
     },
 
+    async updateFixture(id, f) {
+      const fx = this.state.fixtures.find(x => x.id === id); if (!fx) return { ok:false, msg:"Fixture not found" };
+      Object.assign(fx, f);
+      if (LIVE) { const { error } = await this.sb.from("fixtures").update(f).eq("id", id); if (error) return { ok:false, msg:error.message }; }
+      else this._persistContent();
+      return { ok:true };
+    },
+
+    async deleteFixture(id) {
+      this.state.fixtures = this.state.fixtures.filter(x => x.id !== id);
+      this.state.ledger = (this.state.ledger || []).filter(e => !(e.ref && e.ref.startsWith(`match:${id}:`)));
+      if (LIVE) {
+        await this.sb.from("point_events").delete().like("ref", `match:${id}:%`);
+        const { error } = await this.sb.from("fixtures").delete().eq("id", id);
+        if (error) return { ok:false, msg:error.message };
+      } else { this._persistContent(); this._persistLedger(); }
+      this._applyPoints();
+      return { ok:true };
+    },
+
     async saveResult(fixtureId, r) {
-      // r: { our_score, their_score, motm, goals:[{scorer,assist}] }
+      // r: { our_score, their_score, motm, goals:[{scorer,assist}], cleanSheets:[playerId] }
       const result = r.our_score > r.their_score ? "W" : r.our_score < r.their_score ? "L" : "D";
+      const fx = this.state.fixtures.find(x => x.id === fixtureId);
+      const season = this._seasonForDate(fx ? fx.date : this.season);
+      const opp = fx ? fx.opponent : "";
+      const SC = cfg.SCORING || {};
+      // Build the match's point events (regenerated each save).
+      const events = [];
+      (r.goals || []).forEach((g, i) => {
+        if (g.scorer) events.push({ player_id: g.scorer, season, category: "goal", points: SC.goal, note: "Goal vs " + opp, ref: `match:${fixtureId}:g${i}:scorer` });
+        if (g.assist) events.push({ player_id: g.assist, season, category: "assist", points: SC.assist, note: "Assist vs " + opp, ref: `match:${fixtureId}:g${i}:assist` });
+      });
+      if (r.motm) events.push({ player_id: r.motm, season, category: "motm", points: SC.motm, note: "Man of the Match vs " + opp, ref: `match:${fixtureId}:motm` });
+      (r.cleanSheets || []).forEach(pid => events.push({ player_id: pid, season, category: "cleansheet", points: SC.cleanSheet, note: "Clean sheet vs " + opp, ref: `match:${fixtureId}:cs${pid}` }));
+
       if (LIVE) {
         const { error } = await this.sb.from("fixtures")
           .update({ status:"past", our_score:r.our_score, their_score:r.their_score, result, motm:r.motm })
@@ -277,11 +316,12 @@
         if (error) return { ok:false, msg:error.message };
         await this.sb.from("goals").delete().eq("fixture_id", fixtureId);
         if (r.goals.length) await this.sb.from("goals").insert(r.goals.map(g => ({ fixture_id:fixtureId, scorer:g.scorer, assist:g.assist })));
+        await this.replacePoints(`match:${fixtureId}:`, events);
         await this.load();
       } else {
-        const f = this.state.fixtures.find(x => x.id === fixtureId);
-        Object.assign(f, { status:"past", our_score:r.our_score, their_score:r.their_score, result, motm:r.motm, goals:r.goals });
+        Object.assign(fx, { status:"past", our_score:r.our_score, their_score:r.their_score, result, motm:r.motm, goals:r.goals });
         this._persistContent();
+        await this.replacePoints(`match:${fixtureId}:`, events);
       }
       return { ok:true };
     },
@@ -417,19 +457,6 @@
       })).sort((a, b) => b.total - a.total);
     },
 
-    /* admin: set a player's stats for the CURRENTLY-SELECTED season */
-    async updatePlayerStats(id, s) {
-      const p = this.player(id); if (!p) return { ok: false, msg: "Player not found" };
-      if (!p.stats) p.stats = {};
-      p.stats[this.season] = { ...(p.stats[this.season] || {}), ...s };
-      Object.assign(p, s); // reflect immediately on the projected flat fields
-      if (LIVE) {
-        const { error } = await this.sb.from("players").update({ stats: p.stats }).eq("id", id);
-        if (error) return { ok: false, msg: error.message };
-      } else { this._persistContent(); }
-      return { ok: true };
-    },
-
     /* admin: set a player's development (dev %, targets, plan, videos) for the selected season */
     async updatePlayerAcademy(id, a) {
       const p = this.player(id); if (!p) return { ok: false, msg: "Player not found" };
@@ -480,6 +507,184 @@
         const { error } = await this.sb.from("drills").delete().eq("id", id);
         if (error) return { ok: false, msg: error.message };
       } else { this._persistContent(); }
+      return { ok: true };
+    },
+
+    /* ================= POINTS LEDGER ================= */
+    _persistLedger() { localStorage.setItem(LS_LEDGER, JSON.stringify(this.state.ledger || [])); },
+
+    // ISO week id like "2026-W23" — used to key weekly things (quiz, make-your-bed).
+    weekId(dateLike) {
+      const d = dateLike ? new Date(dateLike) : new Date();
+      const dt = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+      const day = dt.getUTCDay() || 7;
+      dt.setUTCDate(dt.getUTCDate() + 4 - day);
+      const yearStart = new Date(Date.UTC(dt.getUTCFullYear(), 0, 1));
+      const week = Math.ceil((((dt - yearStart) / 86400000) + 1) / 7);
+      return dt.getUTCFullYear() + "-W" + String(week).padStart(2, "0");
+    },
+    _seasonForDate(iso) {
+      const f = (cfg.SEASONS || []).find(s => iso >= s.from && iso <= s.to);
+      return (f && f.id) || this.season;
+    },
+    // The real, live season today falls in (NOT the season being viewed) — so a
+    // child earning quiz/video/challenge points always banks them in the right season.
+    currentSeason() { return this._seasonForDate(new Date().toISOString().slice(0, 10)); },
+    _urlKey(url) { return String(url || "").replace(/[^a-z0-9]/gi, "").slice(-24); },
+
+    ledgerFor(playerId, season) {
+      season = season || this.season;
+      return (this.state.ledger || []).filter(e => e.player_id === playerId && e.season === season);
+    },
+    ledgerSum(playerId, season) { return this.ledgerFor(playerId, season).reduce((n, e) => n + (e.points || 0), 0); },
+    countCat(playerId, category, season) {
+      return this.ledgerFor(playerId, season).filter(e => e.category === category).length;
+    },
+    catPoints(playerId, category, season) {
+      return this.ledgerFor(playerId, season).filter(e => e.category === category).reduce((n, e) => n + (e.points || 0), 0);
+    },
+    quizPoints(playerId, season) { return this.catPoints(playerId, "quiz", season); },
+    trainingPoints(playerId, season) { return this.catPoints(playerId, "attendance", season) + this.catPoints(playerId, "performance", season); },
+    videoWatches(playerId, season) { return this.countCat(playerId, "video", season); },
+
+    // Achievements/badges earned, computed from the ledger (no manual marking).
+    earnedAchievements(playerId, season) {
+      season = season || this.season;
+      const out = [], p = this.player(playerId); if (!p) return out;
+      const goals = this.countCat(playerId, "goal", season);
+      const motm = this.countCat(playerId, "motm", season);
+      const max = Math.max(0, ...this.roster(true).map(x => this.countCat(x.id, "goal", season)));
+      if (goals > 0 && goals === max) out.push("topscorer");
+      if (motm >= 4) out.push("motm4");
+      const byMatch = {};
+      this.ledgerFor(playerId, season).filter(e => e.category === "goal" && e.ref).forEach(e => {
+        const m = e.ref.split(":").slice(0, 2).join(":"); byMatch[m] = (byMatch[m] || 0) + 1;
+      });
+      if (Object.values(byMatch).some(c => c >= 3)) out.push("hattrick");
+      const total = (this.state.quiz && this.state.quiz.questions.length) || 0;
+      if (total && this.ledgerFor(playerId, season).some(e => e.category === "quiz" && e.points === total)) out.push("quizace");
+      if (this.ledgerFor(playerId, season).some(e => e.category === "manual" && /perfect month/i.test(e.note || ""))) out.push("perfect");
+      return out;
+    },
+    ledgerHas(ref) { return !!ref && (this.state.ledger || []).some(e => e.ref === ref); },
+
+    // Recompute each player's headline numbers from the ledger (current season).
+    _applyPoints() {
+      (this.state.players || []).forEach(p => {
+        p.points   = this.ledgerSum(p.id);
+        p.goals    = this.countCat(p.id, "goal");
+        p.assists  = this.countCat(p.id, "assist");
+        p.motm     = this.countCat(p.id, "motm");
+        p.sessions = this.countCat(p.id, "attendance");
+      });
+    },
+
+    async addPoints(ev) {
+      this.state.ledger = this.state.ledger || [];
+      if (this.ledgerHas(ev.ref)) return { ok: true, dup: true };
+      const row = { player_id: ev.player_id, season: ev.season || this.season,
+        category: ev.category, points: ev.points || 0, note: ev.note || null, ref: ev.ref || null };
+      if (LIVE) {
+        const { data, error } = await this.sb.from("point_events").insert(row).select().single();
+        if (error) return { ok: false, msg: error.message };
+        this.state.ledger.push(data);
+      } else { row.id = this._nextId(this.state.ledger); this.state.ledger.push(row); this._persistLedger(); }
+      this._applyPoints();
+      return { ok: true };
+    },
+
+    // Delete every row whose ref starts with prefix, then add the new set. Used so
+    // re-entering a result / register cleanly replaces its points (no double-count).
+    async replacePoints(refPrefix, events) {
+      this.state.ledger = this.state.ledger || [];
+      if (LIVE) { await this.sb.from("point_events").delete().like("ref", refPrefix + "%"); }
+      this.state.ledger = this.state.ledger.filter(e => !(e.ref && e.ref.startsWith(refPrefix)));
+      for (const ev of events) {
+        const row = { player_id: ev.player_id, season: ev.season || this.season,
+          category: ev.category, points: ev.points || 0, note: ev.note || null, ref: ev.ref || null };
+        if (LIVE) {
+          const { data, error } = await this.sb.from("point_events").insert(row).select().single();
+          if (error) return { ok: false, msg: error.message };
+          this.state.ledger.push(data);
+        } else { row.id = this._nextId(this.state.ledger); this.state.ledger.push(row); }
+      }
+      if (!LIVE) this._persistLedger();
+      this._applyPoints();
+      return { ok: true };
+    },
+
+    // Training register: entries = [{playerId, attended, perf:"good"|"poor"|""}]
+    async saveRegister(date, entries) {
+      const season = this._seasonForDate(date), SC = cfg.SCORING || {}, events = [];
+      entries.forEach(en => {
+        if (en.attended) events.push({ player_id: en.playerId, season, category: "attendance",
+          points: SC.trainingAttendance, note: "Training " + date, ref: `train:${date}:${en.playerId}:att` });
+        if (en.perf === "good") events.push({ player_id: en.playerId, season, category: "performance",
+          points: SC.trainingPerformanceGood, note: "Good performance " + date, ref: `train:${date}:${en.playerId}:perf` });
+        if (en.perf === "poor") events.push({ player_id: en.playerId, season, category: "performance",
+          points: SC.trainingPerformancePoor, note: "Poor performance " + date, ref: `train:${date}:${en.playerId}:perf` });
+      });
+      return this.replacePoints(`train:${date}:`, events);
+    },
+    registerState(date) {
+      const out = {};
+      (this.state.ledger || []).filter(e => e.ref && e.ref.startsWith(`train:${date}:`)).forEach(e => {
+        const st = (out[e.player_id] = out[e.player_id] || { attended: false, perf: "" });
+        if (e.ref.endsWith(":att")) st.attended = true;
+        if (e.ref.endsWith(":perf")) st.perf = e.points >= 0 ? "good" : "poor";
+      });
+      return out;
+    },
+
+    // Weekly quiz result (1 point per correct). One per child per week, banked in the live season.
+    async recordQuiz(playerId, correct) {
+      const cs = this.currentSeason(), wk = this.weekId();
+      return this.addPoints({ player_id: playerId, season: cs, category: "quiz",
+        points: correct, note: "Quiz " + wk, ref: `quiz:${cs}:${wk}:${playerId}` });
+    },
+    quizDoneThisWeek(playerId) { return this.ledgerHas(`quiz:${this.currentSeason()}:${this.weekId()}:${playerId}`); },
+    quizResults(week) {
+      week = week || this.weekId();
+      const map = {};
+      (this.state.ledger || []).filter(e => e.category === "quiz" && e.season === this.season && e.ref && e.ref.includes(`:${week}:`))
+        .forEach(e => { map[e.player_id] = e.points; });
+      return map;
+    },
+
+    // Video watch: 2 points first full watch, +1 each rewatch.
+    async recordVideoWatch(playerId, url) {
+      const key = this._urlKey(url);
+      const prior = (this.state.ledger || []).filter(e => e.category === "video" &&
+        e.ref && e.ref.startsWith(`video:${playerId}:${key}:`)).length;
+      const SC = cfg.SCORING || {};
+      const points = prior === 0 ? SC.videoFirstWatch : SC.videoRewatch;
+      return this.addPoints({ player_id: playerId, season: this.currentSeason(), category: "video",
+        points, note: "Watched a coach's video", ref: `video:${playerId}:${key}:${prior + 1}` });
+    },
+
+    // Challenge tick (honesty). Weekly challenges (make-your-bed) key by ISO week.
+    async tickChallenge(playerId, ex) {
+      const period = ex.weekly ? this.weekId() : "once";
+      return this.addPoints({ player_id: playerId, season: this.currentSeason(), category: "challenge",
+        points: ex.points, note: ex.name, ref: `chal:${playerId}:${ex.id}:${period}` });
+    },
+    challengeDone(playerId, ex) {
+      const period = ex.weekly ? this.weekId() : "once";
+      return this.ledgerHas(`chal:${playerId}:${ex.id}:${period}`);
+    },
+
+    // Coach manual adjustment (perfect month, bottom-of-league challenge, corrections).
+    async addManual(playerId, points, note) {
+      return this.addPoints({ player_id: playerId, season: this.season, category: "manual",
+        points, note: note || "Coach adjustment", ref: `manual:${Date.now()}:${playerId}` });
+    },
+
+    // Undo any single ledger entry (fix a mistake without touching SQL).
+    async deletePointEvent(id) {
+      this.state.ledger = (this.state.ledger || []).filter(e => e.id !== id);
+      if (LIVE) { const { error } = await this.sb.from("point_events").delete().eq("id", id); if (error) return { ok: false, msg: error.message }; }
+      else this._persistLedger();
+      this._applyPoints();
       return { ok: true };
     }
   };

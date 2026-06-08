@@ -153,26 +153,47 @@ window.HARRIS_DATA = {
     { key:"captain",      emoji:"🧢", name:"Leader",         desc:"Led the team as captain" },
     { key:"wall",         emoji:"🧱", name:"The Wall",       desc:"The defensive rock of the season" },
     { key:"goldengloves", emoji:"🧤", name:"Golden Gloves",  desc:"Kept a clean sheet — nothing got past!" },
-    { key:"perfect",      emoji:"💯", name:"100% Club",      desc:"Never missed training", locked:true }
+    { key:"perfect",      emoji:"💯", name:"100% Club",      desc:"Attended every session in a month (+20)", locked:true }
   ],
 
   quiz: {
-    title:"Weekly Footy Quiz",
+    title:"Weekly Quiz — Skills, Brains & Football",
     points:20,
     questions:[
-      { q:"How many players are on the pitch for each team in our U11 games?", opts:["7","9","11","5"], answer:1 },
-      { q:"What should you shout to tell a team-mate they have space and time?", opts:["\"Man on!\"","\"Time!\"","\"Get rid!\"","\"Offside!\""], answer:1 },
-      { q:"When we 'press', what are we trying to do?", opts:["Win the ball back quickly","Run back to our goal","Take a throw-in","Waste time"], answer:0 },
-      { q:"Which part of the foot gives the most accurate short pass?", opts:["Toe","Inside of the foot","Heel","Studs"], answer:1 },
-      { q:"What's the FIRST thing a great player does before they receive the ball?", opts:["Close their eyes","Look around / scan","Shout","Stop running"], answer:1 }
+      /* --- Skills & development (5) --- */
+      { q:"To keep the ball away from a defender, the best thing to do is…", opts:["Shield it with your body","Kick it as hard as you can","Stop and stand still","Pick it up"], answer:0 },
+      { q:"What's the best way to get better at a football skill?", opts:["Only play matches","Watch TV","Practise it regularly","Never try it"], answer:2 },
+      { q:"To strike a powerful shot, you usually hit the ball with…", opts:["Your toe","Your heel","Your knee","The laces of your boot"], answer:3 },
+      { q:"A good first touch helps you to…", opts:["Lose the ball","Control the ball and keep possession","Give away a foul","Waste time"], answer:1 },
+      { q:"When defending one-against-one, you should…", opts:["Dive in straight away","Turn your back","Stay on your feet and jockey","Stop watching the ball"], answer:2 },
+
+      /* --- General knowledge, age 11 (5) --- */
+      { q:"What is the capital city of France?", opts:["Paris","London","Rome","Madrid"], answer:0 },
+      { q:"Which planet is known as the Red Planet?", opts:["Venus","Mars","Jupiter","Saturn"], answer:1 },
+      { q:"How many sides does a hexagon have?", opts:["5","7","8","6"], answer:3 },
+      { q:"Animals that eat only plants are called…", opts:["Carnivores","Herbivores","Omnivores","Predators"], answer:1 },
+      { q:"How many minutes are there in one hour?", opts:["30","45","60","90"], answer:2 },
+
+      /* --- Football, 2020 onwards (10) --- */
+      { q:"Which country won the 2022 World Cup in Qatar?", opts:["Argentina","France","Brazil","England"], answer:0 },
+      { q:"Spain beat which country 2–1 to win Euro 2024?", opts:["France","England","Germany","Italy"], answer:1 },
+      { q:"Which club won the 2024 Champions League — a record 15th title?", opts:["Borussia Dortmund","Manchester City","Liverpool","Real Madrid"], answer:3 },
+      { q:"Who won the 2024 Ballon d'Or (best men's player)?", opts:["Vinícius Júnior","Kylian Mbappé","Rodri","Jude Bellingham"], answer:2 },
+      { q:"England's Lionesses won which trophy in 2022?", opts:["The Women's World Cup","The Women's Euros","Olympic gold","The Champions League"], answer:1 },
+      { q:"Which country won the 2023 Women's World Cup?", opts:["Spain","England","USA","Australia"], answer:0 },
+      { q:"Erling Haaland broke the Premier League goal-scoring record in 2022/23. Which club does he play for?", opts:["Arsenal","Manchester United","Chelsea","Manchester City"], answer:3 },
+      { q:"Lionel Messi joined which American club in 2023?", opts:["LA Galaxy","Inter Miami","New York City","Toronto FC"], answer:1 },
+      { q:"Italy beat England in the Euro 2020 final. How was the winner decided?", opts:["A last-minute goal","On penalties","4–0","Golden goal"], answer:1 },
+      { q:"Which club won the 2023/24 Premier League — four titles in a row?", opts:["Manchester City","Arsenal","Liverpool","Manchester United"], answer:0 }
     ]
   },
 
   /* fun off-pitch challenges that earn league points */
   exercises: [
-    { id:1, name:"Keepy-Uppy Challenge", desc:"Film your best keepy-uppy streak and post it in the team chat.", points:15, icon:"🤹" },
-    { id:2, name:"Wall Pass Reps", desc:"100 two-footed passes against a wall — tick it off when you're done!", points:10, icon:"🧱" },
-    { id:3, name:"Skill of the Week", desc:"Learn this week's skill move (the Cruyff turn) and show a coach.", points:20, icon:"✨" },
-    { id:4, name:"Daily Mile", desc:"Run or jog a mile to build your engine. Log every one!", points:5, icon:"🏃" }
+    { id:1, name:"Make Your Bed", desc:"Make your bed every morning, Monday to Sunday. Small habits build responsible young men — a full week earns the points.", points:5, icon:"🛏️", weekly:true },
+    { id:2, name:"Keepy-Uppy Challenge", desc:"Film your best keepy-uppy streak and post it in the team chat.", points:10, icon:"🤹" },
+    { id:3, name:"Wall Pass Reps", desc:"100 two-footed passes against a wall — tick it off when you're done!", points:10, icon:"🧱" },
+    { id:4, name:"Skill of the Week", desc:"Learn this week's skill move and show a coach at training.", points:10, icon:"✨" },
+    { id:5, name:"Daily Mile", desc:"Run or jog a mile to build your engine. Log every one!", points:10, icon:"🏃" }
   ]
 };

@@ -6,6 +6,28 @@ The complete reference for the OWFC Harris team website: what it is, how it's bu
 
 ---
 
+## 0. Mission & doctrine
+
+**Mission:** build a website where the children of the team can **learn, develop and monitor their own progress** — and where dedication and achievement are rewarded, while poor behaviour and performance carry a cost, all through a structured, transparent league system.
+
+The site is also the team's **communication and information portal** for parents.
+
+Every decision is measured against these principles:
+
+1. **Develop the player.** Help each child learn, improve and see their own progress over a season.
+2. **Reward dedication and achievement.** Effort, attendance, learning and good behaviour earn points.
+3. **Hold standards.** Poor performance or behaviour costs points — fairly and openly.
+4. **One structured league.** A single, consistent points system is the backbone that ties it all together.
+5. **Serve the parents.** Be the clear, single source of information and communication for families.
+6. **Make development fun.** Kids should *want* to learn and climb the league.
+7. **Make coaching easy.** Admins manage, monitor and develop the squad with minimal effort and no spreadsheets.
+8. **Keep the UI/UX simple.** Clarity over cleverness, on every screen, for kids, parents and coaches.
+9. **Automate communication.** Reach families proactively, using best-in-class tooling wherever possible.
+
+This doctrine is the reference point for prioritisation, design reviews and new features.
+
+---
+
 ## 1. What it is
 
 A private, members-only website for the **OWFC Harris Under-11s** football team. Families log in with a name + password to see:
@@ -258,6 +280,21 @@ Run in **Supabase → SQL Editor**. On a brand-new project, run `schema.sql` fir
 | `migrate-rsvp.sql` | Creates the `rsvp` table for schedule attendance + lifts | **Run this** to save RSVPs for everyone |
 | `migrate-parent-profiles.sql` | Adds `profiles.parents` (contact details collected at first login) | **Run this** for parent onboarding |
 | `migrate-seasons.sql` | Adds `players.seasons`, `players.signed`, `players.stats` (per-season squad + stats); carries all players into 2026/27; backfills 25/26 stats | **Run this** for the season switcher |
+| `migrate-training-videos.sql` | Adds `training_sessions.videos` (pin stock drill videos to a session) | **Run this** for session drills |
+| `migrate-points.sql` | Creates `point_events` (the league points ledger) + RLS | **Run this** for the scoring system |
+
+### League scoring (points ledger)
+
+All point values live in `config.js → SCORING`. Every point a player earns is one row in `point_events`; a player's league total is the **sum** of their rows for the season (`ref` keeps it idempotent so nothing is double-counted). Sources:
+
+- **Matches** (Admin → Enter result): goal +3, assist +5, MOTM +10, clean sheet +5 (defenders/GK ticked at result entry). Re-saving a result cleanly replaces that game's points.
+- **Training register** (Admin → Register): attendance +3, good performance +3, poor −3.
+- **Quiz** (auto-marked, 1 per correct): one attempt per child per ISO week; not done by Sunday = 0. See Admin → Quiz results.
+- **Videos** (a child watching their *own* development videos): +2 first full watch, +1 each rewatch — auto-detected via the YouTube player.
+- **Challenges** (League page, parent/child ticks): fun home challenge +10, make-your-bed +5/week (weekly reset), coach challenge +10.
+- **Manual** (Admin → Points & league): perfect month +20, bottom-of-league big challenge +20, or any correction.
+
+Goals/assists/MOTM/training counts shown on cards & the league are now derived from the ledger, per season.
 
 > Tip: if past fixtures ever show under "Upcoming", run: `update fixtures set status='past' where date < current_date;`
 

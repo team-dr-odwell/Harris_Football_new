@@ -390,6 +390,32 @@
     if (!src) return `<a href="${esc(url)}" target="_blank" rel="noopener" style="color:var(--gold-bright)">Watch video ↗</a>`;
     return `<div class="video"><iframe src="${src}" loading="lazy" allow="fullscreen; picture-in-picture" allowfullscreen></iframe></div>`;
   }
+  function ytId(url) { const m = String(url||"").match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([\w-]{11})/); return m ? m[1] : null; }
+
+  // YouTube IFrame API — award points when a child watches their own video to the end.
+  let _ytCbs = [];
+  function onYTReady(cb) {
+    if (window.YT && window.YT.Player) return cb();
+    _ytCbs.push(cb);
+    if (!window._ytLoading) {
+      window._ytLoading = true;
+      window.onYouTubeIframeAPIReady = () => { const cbs = _ytCbs; _ytCbs = []; cbs.forEach(f => f()); };
+      const s = document.createElement("script"); s.src = "https://www.youtube.com/iframe_api"; document.head.appendChild(s);
+    }
+  }
+  function trackYouTube(playerId, items) {
+    if (!items.length) return;
+    onYTReady(() => items.forEach(it => {
+      try {
+        new window.YT.Player(it.domId, { events: { onStateChange: async (e) => {
+          if (e.data === window.YT.PlayerState.ENDED) {
+            const res = await S.recordVideoWatch(playerId, it.url);
+            if (res && res.ok && !res.dup) toast("🎬 Nice — points added for watching!");
+          }
+        } } });
+      } catch (err) { /* ignore */ }
+    }));
+  }
 
   function buildAgenda(kinds, horizonDays) {
     const today = new Date(); const rows = [];
@@ -530,6 +556,7 @@
 
   /* ============================ ACADEMY ============================ */
   const DEV_AREAS = [["passing","Passing"],["shooting","Shooting"],["dribbling","Dribbling"],["defending","Defending"],["fitness","Fitness"],["teamwork","Teamwork"]];
+  const DEF_POS = ["GK","CB","LB","RB","RWB","LWB","CDM"];
 
   function Players(id) {
     if (id) return AcademyProfile(+id);
@@ -548,7 +575,7 @@
 
   function AcademyProfile(id) {
     const p = S.player(id); if (!p) return Players();
-    const stats = [["Goals",p.goals||0],["Assists",p.assists||0],["MOTM",p.motm||0],["Training",p.sessions||0],["Points",p.points||0]];
+    const stats = [["Points",p.points||0],["Quiz",S.quizPoints(p.id)],["Training pts",S.trainingPoints(p.id)],["Video watches",S.videoWatches(p.id)],["Achievements",S.earnedAchievements(p.id).length]];
     const dev = p.dev || {}; const targets = p.targets || [];
     view.innerHTML = `
       <button class="btn btn-ghost btn-sm" data-go="players" style="margin-bottom:1rem">← Academy</button>
@@ -598,7 +625,9 @@
     const p = id ? S.player(+id) : S.player(S.me);
     if (!p) { view.innerHTML = `<div class="card pad-lg"><h2 style="font-family:var(--display)">Development</h2><p class="muted">Choose which player is yours from the top bar to see their development plan.</p></div>`; return; }
     const mine = p.id === S.me;
-    const program = p.program || []; const videos = p.videos || [];
+    const track = mine && !S.isAdmin;   // only the child earns points, on their own videos
+    const program = p.program || [];
+    const videos = (p.videos || []).map((v,i)=>({ ...v, domId:`devvid-${p.id}-${i}`, yt:ytId(v.url) }));
     view.innerHTML = `
       ${S.isAdmin ? `<button class="btn btn-ghost btn-sm" data-go="development" style="margin-bottom:1rem">← All players</button>`
         : (id && !mine ? `<button class="btn btn-ghost btn-sm" data-go="players/${p.id}" style="margin-bottom:1rem">← ${esc(p.name.split(" ")[0])}'s card</button>` : "")}
@@ -612,7 +641,7 @@
       </div>
 
       <div class="section-head" style="margin-top:1.6rem"><div><div class="eyebrow">Picked for you</div><h2>My Videos</h2></div></div>
-      ${videos.length?`<div class="grid cols-2">${videos.map(v=>`<div class="card"><b style="display:block;margin-bottom:.6rem">${esc(v.title||"Video")}</b>${videoEmbed(v.url)}</div>`).join("")}</div>`
+      ${videos.length?`<div class="grid cols-2">${videos.map(v=>`<div class="card"><b style="display:block;margin-bottom:.6rem">${esc(v.title||"Video")}</b>${(track && v.yt)?`<div class="video"><iframe id="${v.domId}" src="https://www.youtube.com/embed/${v.yt}?enablejsapi=1" loading="lazy" allow="fullscreen; picture-in-picture" allowfullscreen></iframe></div>`:videoEmbed(v.url)}${track?`<div class="muted" style="font-size:.74rem;margin-top:.4rem">${v.yt?`+${(cfg.SCORING||{}).videoFirstWatch} for watching it fully, +${(cfg.SCORING||{}).videoRewatch} each rewatch 🎬`:`Auto-points only work for YouTube links`}</div>`:""}</div>`).join("")}</div>`
         :`<div class="card"><p class="muted" style="margin:0">No videos yet — your coach will add some skills to work on.</p></div>`}
 
       <div class="section-head" style="margin-top:1.6rem"><div><div class="eyebrow">+${S.state.quiz.points} pts · test yourself</div><h2>Weekly Quiz</h2></div>
@@ -620,6 +649,7 @@
       <div class="card pad-lg"><div id="quiz-host"><button class="btn btn-gold" id="start-quiz">Start the quiz</button></div></div>`;
     wireGo();
     const start = $("#start-quiz"); if (start) start.addEventListener("click", runQuiz);
+    if (track) trackYouTube(p.id, videos.filter(v=>v.yt).map(v=>({ domId:v.domId, url:v.url })));
   }
   function fcCardInner(p){ return `<div class="fc-inner">
       <div class="fc-top">
@@ -635,6 +665,27 @@
       <img class="fc-crest" src="assets/crest.svg" alt=""/></div>`; }
 
   /* ============================ LEAGUE / GAMIFICATION ============================ */
+  function pointsRules() {
+    const s = cfg.SCORING || {};
+    const pm = n => (n > 0 ? "+" + n : "" + n);
+    return [
+      { em:"⚽", label:"Goal in a game", pts:pm(s.goal) },
+      { em:"🅰️", label:"Assist", pts:pm(s.assist) },
+      { em:"⭐", label:"Man of the Match", pts:pm(s.motm) },
+      { em:"🧤", label:"Clean sheet (defenders &amp; GK)", pts:pm(s.cleanSheet) },
+      { em:"✅", label:"Training attendance", pts:pm(s.trainingAttendance) },
+      { em:"🏋️", label:"Good training performance", pts:pm(s.trainingPerformanceGood) },
+      { em:"⚠️", label:"Poor training performance", pts:pm(s.trainingPerformancePoor) },
+      { em:"🧠", label:"Quiz — per correct answer", pts:pm(s.quizPerCorrect) },
+      { em:"🎬", label:"Watch a coach's video fully", pts:pm(s.videoFirstWatch)+" then "+pm(s.videoRewatch)+" each rewatch" },
+      { em:"🛏️", label:"Make-your-bed (full week)", pts:pm(s.makeYourBedPerWeek) },
+      { em:"🤹", label:"Fun home challenge", pts:pm(s.funHomeChallenge) },
+      { em:"🎯", label:"Coach challenge", pts:pm(s.challenge) },
+      { em:"💯", label:"Every session in a month", pts:pm(s.perfectMonth) },
+      { em:"🏅", label:"Bottom of league — big challenge", pts:pm(s.bottomOfLeagueChallenge) }
+    ];
+  }
+
   function League() {
     const rows = S.leagueRows();
     const myScore = S.state.quizScore;
@@ -657,11 +708,7 @@
           <div class="card" style="text-align:center">
             <div class="lbl" style="color:var(--muted);font-weight:700;font-size:.74rem;letter-spacing:1px">HOW POINTS WORK</div>
             <div class="badge-row" style="flex-direction:column;margin-top:.7rem;text-align:left">
-              <div class="ach"><span class="em">🏋️</span><div>Training effort grade <span class="muted">each session</span></div></div>
-              <div class="ach"><span class="em">✅</span><div>Match &amp; training attendance</div></div>
-              <div class="ach"><span class="em">🧠</span><div>Weekly quiz score</div></div>
-              <div class="ach"><span class="em">🤹</span><div>Fun home challenges</div></div>
-              <div class="ach"><span class="em">🏅</span><div>Achievement badges <span class="muted">+10 each</span></div></div>
+              ${pointsRules().map(r=>`<div class="ach"><span class="em">${r.em}</span><div>${r.label} <span class="muted" style="font-weight:800;color:var(--gold-bright)">${r.pts}</span></div></div>`).join("")}
             </div>
           </div>
         </div>
@@ -676,9 +723,9 @@
         <div class="card pad-lg">
           <div class="section-head" style="margin-bottom:.6rem"><div><div class="eyebrow">Earn extra points</div><h2 style="font-size:1.5rem">Fun Challenges</h2></div></div>
           ${S.state.exercises.map(x=>{
-            const done = S.state.completedExercises.includes(x.id);
+            const done = S.challengeDone(S.me, x);
             return `<div class="ach" style="margin-bottom:.6rem;justify-content:space-between">
-              <div style="display:flex;gap:.6rem;align-items:center"><span class="em">${x.icon}</span><div><b>${esc(x.name)}</b><br><span class="muted" style="font-size:.78rem">${esc(x.desc)}</span></div></div>
+              <div style="display:flex;gap:.6rem;align-items:center"><span class="em">${x.icon}</span><div><b>${esc(x.name)}</b>${x.weekly?` <span class="tag">this week</span>`:""}<br><span class="muted" style="font-size:.78rem">${esc(x.desc)}</span></div></div>
               <button class="btn ${done?'btn-ghost':'btn-dark'} btn-sm" data-ex="${x.id}" ${done?'disabled':''}>${done?'✓ Done':'+'+x.points}</button>
             </div>`;
           }).join("")}
@@ -686,19 +733,30 @@
       </div>
       <div class="section-head" style="margin-top:1.6rem"><div><div class="eyebrow">Unlock them all</div><h2>Badges</h2></div></div>
       <div class="card"><div class="badge-row">
-        ${S.state.achievements.map(a=>`<div class="ach ${a.locked?'locked':''}"><span class="em">${a.emoji}</span><div><b>${esc(a.name)}</b><br><span class="muted" style="font-size:.74rem">${esc(a.desc)}</span></div></div>`).join("")}
+        ${(()=>{ const earned=S.earnedAchievements(S.me); return S.state.achievements.map(a=>{const got=earned.includes(a.key);return `<div class="ach ${got?'':'locked'}"><span class="em">${a.emoji}</span><div><b>${esc(a.name)}</b>${got?' <span class="tag green">Earned</span>':''}<br><span class="muted" style="font-size:.74rem">${esc(a.desc)}</span></div></div>`;}).join("");})()}
       </div></div>`;
 
-    view.querySelectorAll("[data-ex]").forEach(b => b.addEventListener("click", () => { S.completeExercise(+b.dataset.ex); League(); }));
+    view.querySelectorAll("[data-ex]").forEach(b => b.addEventListener("click", async () => {
+      if (S.isAdmin) return toast("Admins don't earn league points");
+      const ex = S.state.exercises.find(e => e.id === +b.dataset.ex);
+      const res = await S.tickChallenge(S.me, ex);
+      if (res.ok) { toast(res.dup ? "Already done this " + (ex.weekly ? "week" : "season") : "+" + ex.points + " points! 🎉"); League(); }
+      else toast("Error: " + res.msg);
+    }));
     const start = $("#start-quiz"); if (start) start.addEventListener("click", runQuiz);
   }
 
   function runQuiz() {
     const qz = S.state.quiz; let idx = 0, score = 0;
     const host = $("#quiz-host");
+    if (S.quizDoneThisWeek(S.me)) {
+      host.innerHTML = `<div style="text-align:center;padding:1rem"><div class="tag green">Done this week ✓</div><p class="muted" style="margin-top:.6rem">You've already completed this week's quiz — your points are in the league. A fresh quiz lands next week!</p></div>`;
+      return;
+    }
     function render() {
       if (idx >= qz.questions.length) {
         S.setQuizScore(score);
+        if (!S.isAdmin) S.recordQuiz(S.me, score);
         host.innerHTML = `<div style="text-align:center;padding:1rem">
           <div class="progress-ring" style="--p:${Math.round(score/qz.questions.length*100)};margin:0 auto 1rem"><div class="inner">${score}/${qz.questions.length}</div></div>
           <h3 style="font-family:var(--display);margin:.2rem 0">${score===qz.questions.length?'Perfect! 🧠':score>=3?'Great work! ⚽':'Nice try — you\'ll smash it next time! 💪'}</h3>
@@ -727,7 +785,7 @@
   function Admin(sub) {
     if (!S.isAdmin) { view.innerHTML = `<div class="card pad-lg"><h2 style="font-family:var(--display)">Admins only</h2><p class="muted">This area is for team coaches/admins. Ask the team admin to grant you access.</p></div>`; return; }
     sub = sub || "fixtures";
-    const tabs = [["fixtures","Add fixture"],["result","Enter result"],["stats","Player stats"],["academy","Development"],["drills","Drill library"],["contacts","Contacts"],["roster","Roster"],["players","Add player"],["training","Plan training"],["events","Add event"]];
+    const tabs = [["fixtures","Add fixture"],["result","Enter result"],["register","Register"],["points","Points & league"],["quizresults","Quiz results"],["academy","Development"],["drills","Drill library"],["contacts","Contacts"],["roster","Roster"],["players","Add player"],["training","Plan training"],["events","Add event"]];
     view.innerHTML = `
       <div class="section-head"><div><div class="eyebrow">Coaches only</div><h2>Admin Panel</h2></div></div>
       <p class="muted" style="margin-top:-.6rem;max-width:62ch">Manage everything from here — no spreadsheets. ${S.MODE==='preview'?'<b>Preview mode:</b> changes save to this browser so you can try it. Connect Supabase to save for everyone.':'Changes save to your database and appear for everyone straight away.'}</p>
@@ -736,7 +794,8 @@
       </div>
       <div id="admin-body"></div>`;
     view.querySelectorAll("[data-atab]").forEach(b => b.addEventListener("click", () => location.hash = "#admin/"+b.dataset.atab));
-    ({ fixtures:AdmFixture, result:AdmResult, stats:AdmStats, academy:AdmAcademy, drills:AdmDrills, contacts:AdmContacts, roster:AdmRoster, players:AdmPlayer, training:AdmTraining, events:AdmEvent }[sub] || AdmFixture)();
+    const sub2 = (location.hash.replace("#","").split("/"))[2];
+    ({ fixtures:AdmFixture, result:AdmResult, register:AdmRegister, points:AdmPoints, quizresults:AdmQuizResults, academy:AdmAcademy, drills:AdmDrills, contacts:AdmContacts, roster:AdmRoster, players:AdmPlayer, training:AdmTraining, events:AdmEvent }[sub] || AdmFixture)(sub2);
   }
 
   function toast(msg) {
@@ -748,84 +807,226 @@
   const playerOpts = (sel) => S.roster(true).sort((a,b)=>a.number-b.number).map(p=>`<option value="${p.id}" ${sel===p.id?'selected':''}>#${p.number} ${esc(p.name)}</option>`).join("");
   const F = (label, inner) => `<label class="field"><span>${label}</span>${inner}</label>`;
 
-  function AdmFixture() {
-    $("#admin-body").innerHTML = `<div class="card pad-lg" style="max-width:620px">
-      ${F("Opponent",`<input id="f-opp" placeholder="e.g. Wallsend Boys Club"/>`)}
-      <div class="grid cols-2">${F("Date",`<input type="date" id="f-date"/>`)}${F("Competition",`<select id="f-comp"><option>League</option><option>Cup</option><option>Friendly</option></select>`)}</div>
-      <div class="grid cols-2">${F("Kick-off",`<input type="time" id="f-ko" value="10:00"/>`)}${F("Meet-up time",`<input type="time" id="f-meet" value="09:30"/>`)}</div>
-      <div class="grid cols-2">${F("Home or away",`<select id="f-ha"><option value="H">Home</option><option value="A">Away</option></select>`)}${F("Kit",`<select id="f-kit"><option value="gold">Gold (home)</option><option value="black">Black (away)</option><option value="white">White (third)</option></select>`)}</div>
-      ${F("Ground",`<input id="f-ground" placeholder="e.g. Harris Park, Pitch 3"/>`)}
-      ${F("Full address (for maps)",`<input id="f-addr" placeholder="Street, Town, Postcode"/>`)}
-      <button class="btn btn-gold btn-block" id="f-save">Add fixture</button>
+  function AdmFixture(editId) {
+    const body = $("#admin-body");
+    const ed = editId ? S.state.fixtures.find(f=>f.id===+editId) : null;
+    const v = (x,d)=> ed && ed[x]!=null ? ed[x] : (d||"");
+    const seasonFix = [...S.state.fixtures].filter(f=>S.inSeason(f.date)).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+    const optSel = (val,opts)=>opts.map(([k,l])=>`<option value="${k}" ${v("__"+k)===k||val===k?'selected':''}>${l}</option>`).join("");
+    body.innerHTML = `<div class="card pad-lg" style="max-width:620px">
+      <h3 style="margin:0 0 .6rem;font-family:var(--display)">${ed?`Edit fixture — vs ${esc(ed.opponent)}`:"Add a fixture"}</h3>
+      ${F("Opponent",`<input id="f-opp" value="${esc(v("opponent"))}" placeholder="e.g. Wallsend Boys Club"/>`)}
+      <div class="grid cols-2">${F("Date",`<input type="date" id="f-date" value="${esc(v("date"))}"/>`)}${F("Competition",`<select id="f-comp">${["League","Cup","Friendly","U10 Ladder","Spring Vase","Autumn Vase"].map(c=>`<option ${v("competition")===c?'selected':''}>${c}</option>`).join("")}</select>`)}</div>
+      <div class="grid cols-2">${F("Kick-off",`<input type="time" id="f-ko" value="${esc(v("kickoff","10:00"))}"/>`)}${F("Meet-up time",`<input type="time" id="f-meet" value="${esc(v("meetup","09:30"))}"/>`)}</div>
+      <div class="grid cols-2">${F("Home or away",`<select id="f-ha"><option value="H" ${v("home_away")==="H"?'selected':''}>Home</option><option value="A" ${v("home_away")==="A"?'selected':''}>Away</option></select>`)}${F("Kit",`<select id="f-kit"><option value="gold" ${v("kit")==="gold"?'selected':''}>Gold (home)</option><option value="black" ${v("kit")==="black"?'selected':''}>Black (away)</option><option value="white" ${v("kit")==="white"?'selected':''}>White (third)</option></select>`)}</div>
+      ${F("Ground",`<input id="f-ground" value="${esc(v("ground"))}" placeholder="e.g. Harris Park, Pitch 3"/>`)}
+      ${F("Full address (for maps)",`<input id="f-addr" value="${esc(v("address"))}" placeholder="Street, Town, Postcode"/>`)}
+      <button class="btn btn-gold btn-block" id="f-save">${ed?"Save changes":"Add fixture"}</button>
+      ${ed?`<button class="btn btn-ghost btn-sm btn-block" id="f-cancel" style="margin-top:.5rem">Cancel</button>`:""}
+      <p class="muted" style="font-size:.8rem;margin:.8rem 0 0">Goals, assists and Man of the Match are added per game on the <b>Enter result</b> tab — anytime, even after the score's in.</p>
+      <div class="lbl" style="font-size:.74rem;color:var(--muted);font-weight:700;letter-spacing:1px;margin:1.2rem 0 .4rem">${esc(S.season)} FIXTURES</div>
+      ${seasonFix.map(f=>`<div class="ach" style="margin-bottom:.35rem;justify-content:space-between"><div>${f.our_score!=null?`<span class="tag ${f.result==='W'?'win':f.result==='L'?'loss':'draw'}">${f.our_score}-${f.their_score}</span> `:''}${fdate(f.date)} <b>vs ${esc(f.opponent)}</b> <span class="muted">${f.home_away==='H'?'(H)':'(A)'}</span></div><div style="display:flex;gap:.4rem"><button class="btn btn-ghost btn-sm" data-edit-fix="${f.id}">Edit</button><button class="btn btn-ghost btn-sm" data-del-fix="${f.id}">✕</button></div></div>`).join("") || `<p class="muted">No fixtures in ${esc(S.season)} yet.</p>`}
     </div>`;
+    const collect = () => ({ opponent:$("#f-opp").value.trim(), date:$("#f-date").value, kickoff:$("#f-ko").value, meetup:$("#f-meet").value,
+      home_away:$("#f-ha").value, kit:$("#f-kit").value, competition:$("#f-comp").value,
+      ground:$("#f-ground").value.trim(), address:$("#f-addr").value.trim() });
     $("#f-save").addEventListener("click", async () => {
-      const opp = $("#f-opp").value.trim(), date = $("#f-date").value;
-      if (!opp || !date) return toast("Add an opponent and a date");
-      const res = await S.addFixture({ opponent:opp, date, kickoff:$("#f-ko").value, meetup:$("#f-meet").value,
-        home_away:$("#f-ha").value, kit:$("#f-kit").value, competition:$("#f-comp").value,
-        ground:$("#f-ground").value.trim(), address:$("#f-addr").value.trim() });
-      if (res.ok) { toast("Fixture added ✓"); location.hash = "#fixtures/upcoming"; }
-      else toast("Error: "+res.msg);
+      const data = collect();
+      if (!data.opponent || !data.date) return toast("Add an opponent and a date");
+      const res = ed ? await S.updateFixture(ed.id, data) : await S.addFixture(data);
+      if (res.ok) { toast(ed?"Fixture updated ✓":"Fixture added ✓"); Admin("fixtures"); } else toast("Error: "+res.msg);
     });
+    if (ed) $("#f-cancel").addEventListener("click", ()=>location.hash="#admin/fixtures");
+    body.querySelectorAll("[data-edit-fix]").forEach(b=>b.addEventListener("click", ()=>location.hash="#admin/fixtures/"+b.dataset.editFix));
+    body.querySelectorAll("[data-del-fix]").forEach(b=>b.addEventListener("click", async ()=>{
+      const f = S.state.fixtures.find(x=>x.id===+b.dataset.delFix);
+      if (!window.confirm(`Delete the fixture vs ${f.opponent} on ${fdate(f.date)}? This also removes its match points.`)) return;
+      const res = await S.deleteFixture(+b.dataset.delFix);
+      if (res.ok){ toast("Fixture deleted"); Admin("fixtures"); } else toast("Error: "+res.msg);
+    }));
   }
 
   function AdmResult() {
-    const played = S.state.fixtures; // allow upcoming -> result, or edit past
-    let goals = [{scorer:null,assist:null}];
+    const played = [...S.state.fixtures].sort((a,b)=>(b.date||"").localeCompare(a.date||"")); // newest first
+    const defGk = S.roster(true).filter(p=>DEF_POS.includes(p.pos)).sort((a,b)=>a.number-b.number);
     const body = $("#admin-body");
-    function render() {
-      body.innerHTML = `<div class="card pad-lg" style="max-width:620px">
-        ${F("Which fixture?",`<select id="r-fix">${played.map(f=>`<option value="${f.id}">${f.status==='past'?'✓ ':''}${fdate(f.date)} — vs ${esc(f.opponent)}</option>`).join("")}</select>`)}
-        <div class="grid cols-2">${F("Our score",`<input type="number" min="0" id="r-us" value="0"/>`)}${F("Their score",`<input type="number" min="0" id="r-them" value="0"/>`)}</div>
-        ${F("Man of the Match",`<select id="r-motm">${playerOpts()}</select>`)}
-        <div class="lbl" style="font-size:.74rem;color:var(--muted);font-weight:700;letter-spacing:1px;margin:.4rem 0">GOALSCORERS</div>
-        <div id="goal-rows">${goals.map((g,i)=>goalRow(g,i)).join("")}</div>
-        <button class="btn btn-dark btn-sm" id="add-goal" style="margin:.3rem 0 1rem">+ Add goal</button>
-        <button class="btn btn-gold btn-block" id="r-save">Save result</button>
-      </div>`;
-      body.querySelector("#add-goal").addEventListener("click", () => { goals.push({scorer:null,assist:null}); render(); });
-      body.querySelectorAll("[data-del]").forEach(b=>b.addEventListener("click",()=>{ goals.splice(+b.dataset.del,1); if(!goals.length)goals=[{scorer:null,assist:null}]; render(); }));
-      body.querySelector("#r-save").addEventListener("click", saveIt);
+    if (!played.length) { body.innerHTML = `<div class="card pad-lg"><p class="muted" style="margin:0">No fixtures yet — add one on the <b>Add fixture</b> tab.</p></div>`; return; }
+    // default to the most recent fixture that's already in the past and unscored, else newest
+    const today = new Date().toISOString().slice(0,10);
+    let curId = (played.find(f => f.date <= today && f.our_score == null) || played[0]).id;
+    const motmOpts = sel => `<option value="">— none —</option>` + playerOpts(sel);
+    let st = blankState();
+
+    function blankState(){ return { our:0, them:0, motm:null, goals:[{scorer:null,assist:null}], cs:new Set() }; }
+    function loadFixture(id){
+      const fx = played.find(f=>f.id===id) || {};
+      const csIds = (S.state.ledger||[]).filter(e=>e.ref && e.ref.startsWith(`match:${id}:cs`)).map(e=>e.player_id);
+      st = {
+        our: fx.our_score!=null?fx.our_score:0,
+        them: fx.their_score!=null?fx.their_score:0,
+        motm: fx.motm!=null?fx.motm:null,
+        goals: (fx.goals && fx.goals.length) ? fx.goals.map(g=>({scorer:g.scorer??null, assist:g.assist??null})) : [{scorer:null,assist:null}],
+        cs: new Set(csIds)
+      };
+    }
+    function syncFromDom(){
+      if (!body.querySelector("#r-us")) return;
+      st.our = +body.querySelector("#r-us").value||0;
+      st.them = +body.querySelector("#r-them").value||0;
+      const m = body.querySelector("#r-motm").value; st.motm = m ? +m : null;
+      body.querySelectorAll("[data-g]").forEach(sel=>{ const i=+sel.dataset.i; st.goals[i]=st.goals[i]||{scorer:null,assist:null}; st.goals[i][sel.dataset.g]= sel.value? +sel.value : null; });
+      st.cs = new Set([...body.querySelectorAll(".cs:checked")].map(c=>+c.value));
     }
     function goalRow(g,i){ return `<div class="grid" style="grid-template-columns:1fr 1fr auto;gap:.5rem;margin-bottom:.5rem;align-items:end">
       ${F("Scorer",`<select data-g="scorer" data-i="${i}">${playerOpts(g.scorer)}</select>`)}
       ${F("Assist (optional)",`<select data-g="assist" data-i="${i}"><option value="">— none —</option>${playerOpts(g.assist)}</select>`)}
       <button class="btn btn-ghost btn-sm" data-del="${i}" style="min-height:44px">✕</button></div>`; }
+    function render() {
+      const fx = played.find(f=>f.id===curId) || {};
+      body.innerHTML = `<div class="card pad-lg" style="max-width:620px">
+        ${F("Which fixture?",`<select id="r-fix">${played.map(f=>`<option value="${f.id}" ${f.id===curId?'selected':''}>${f.our_score!=null?'✓ ':''}${fdate(f.date)} — vs ${esc(f.opponent)}</option>`).join("")}</select>`)}
+        ${fx.our_score!=null?`<p class="muted" style="margin:.2rem 0 .6rem;font-size:.82rem">Editing a saved result — its points will be recalculated from what you save here.</p>`:""}
+        <div class="grid cols-2">${F("Our score",`<input type="number" min="0" id="r-us" value="${st.our}"/>`)}${F("Their score",`<input type="number" min="0" id="r-them" value="${st.them}"/>`)}</div>
+        ${F("Man of the Match",`<select id="r-motm">${motmOpts(st.motm)}</select>`)}
+        <div class="lbl" style="font-size:.74rem;color:var(--muted);font-weight:700;letter-spacing:1px;margin:.4rem 0">GOALSCORERS</div>
+        <div id="goal-rows">${st.goals.map((g,i)=>goalRow(g,i)).join("")}</div>
+        <button class="btn btn-dark btn-sm" id="add-goal" style="margin:.3rem 0 1rem">+ Add goal</button>
+        <div class="lbl" style="font-size:.74rem;color:var(--muted);font-weight:700;letter-spacing:1px;margin:.4rem 0">CLEAN SHEET <span class="muted" style="font-weight:500;text-transform:none;letter-spacing:0">— tick defenders &amp; GK who kept it (+${(cfg.SCORING||{}).cleanSheet})</span></div>
+        <div id="cs-list">${defGk.map(p=>`<label class="field" style="flex-direction:row;align-items:center;gap:.5rem;margin-bottom:.3rem"><input type="checkbox" class="cs" value="${p.id}" ${st.cs.has(p.id)?'checked':''} style="width:auto"/> <span style="margin:0">#${p.number} ${esc(p.name)} <span class="muted">${esc(p.pos)}</span></span></label>`).join("") || `<p class="muted" style="margin:.2rem 0">No defenders/keepers in the ${esc(S.season)} squad.</p>`}</div>
+        <button class="btn btn-gold btn-block" id="r-save" style="margin-top:1rem">Save result</button>
+      </div>`;
+      body.querySelector("#r-fix").addEventListener("change", e => { curId = +e.target.value; loadFixture(curId); render(); });
+      body.querySelector("#add-goal").addEventListener("click", () => { syncFromDom(); st.goals.push({scorer:null,assist:null}); render(); });
+      body.querySelectorAll("[data-del]").forEach(b=>b.addEventListener("click",()=>{ syncFromDom(); st.goals.splice(+b.dataset.del,1); if(!st.goals.length)st.goals=[{scorer:null,assist:null}]; render(); }));
+      body.querySelector("#r-save").addEventListener("click", saveIt);
+    }
     async function saveIt(){
-      body.querySelectorAll("[data-g]").forEach(sel=>{ const i=+sel.dataset.i; goals[i][sel.dataset.g]= sel.value? +sel.value : null; });
-      const res = await S.saveResult(+body.querySelector("#r-fix").value, {
-        our_score:+body.querySelector("#r-us").value, their_score:+body.querySelector("#r-them").value,
-        motm:+body.querySelector("#r-motm").value, goals:goals.filter(g=>g.scorer) });
+      syncFromDom();
+      const fx = played.find(f=>f.id===curId) || {};
+      if (fx.date > today && !window.confirm("This fixture is in the future — save a result anyway?")) return;
+      const res = await S.saveResult(curId, {
+        our_score:st.our, their_score:st.them, motm:st.motm,
+        goals:st.goals.filter(g=>g.scorer), cleanSheets:[...st.cs] });
       if (res.ok){ toast("Result saved ✓"); location.hash="#fixtures/past"; } else toast("Error: "+res.msg);
     }
+    loadFixture(curId);
     render();
   }
 
-  function AdmStats() {
+  // ---- Training register: attendance + good/poor performance ----
+  function AdmRegister() {
     const body = $("#admin-body");
-    const num = (id,v)=>`<input type="number" min="0" id="${id}" value="${v}"/>`;
-    function load(id) {
-      const p = S.player(id); if (!p) return;
-      body.querySelector("#st-fields").innerHTML = `
-        <div class="grid cols-3">${F("Goals",num("st-goals",p.goals||0))}${F("Assists",num("st-assists",p.assists||0))}${F("Man of Match",num("st-motm",p.motm||0))}</div>
-        <div class="grid cols-2">${F("Training sessions",num("st-sessions",p.sessions||0))}${F("League points",num("st-points",p.points||0))}</div>
-        <button class="btn btn-gold btn-block" id="st-save">Save ${esc(p.name)}'s stats</button>`;
-      body.querySelector("#st-save").addEventListener("click", async () => {
-        const res = await S.updatePlayerStats(id, {
-          goals:+$("#st-goals").value, assists:+$("#st-assists").value, motm:+$("#st-motm").value,
-          sessions:+$("#st-sessions").value, points:+$("#st-points").value });
-        if (res.ok) toast("Stats saved ✓"); else toast("Error: "+res.msg);
-      });
+    const roster = S.roster(true).sort((a,b)=>a.number-b.number);
+    if (!roster.length) { body.innerHTML = `<div class="card pad-lg"><p class="muted" style="margin:0">No players in the ${esc(S.season)} squad yet.</p></div>`; return; }
+    const dates = upcomingTrainingDates(6);
+    // also offer recent past session dates so you can register after the session (8 weeks back)
+    const past = []; const today = new Date();
+    for (let i=1;i<=56 && past.length<10;i++){ const d=new Date(today.getFullYear(),today.getMonth(),today.getDate()-i); const iso=ymd(d); if(S.inSeason(iso)&&itemsOn(iso).some(x=>x.kind==="training")) past.push(iso); }
+    const allDates = [...past.reverse(), ...dates];
+
+    // RSVP "going" for a training date = the parent said yes/lift; used to PREFILL only.
+    function rsvpGoing(iso) {
+      const m = S.state.attendance["t"+iso] || {};
+      return new Set(Object.entries(m).filter(([,v])=>v==="yes"||v==="lift").map(([k])=>+k));
     }
-    const players = S.roster(true).sort((a,b)=>a.number-b.number);
-    if (!players.length) { body.innerHTML = `<div class="card pad-lg"><p class="muted" style="margin:0">No players in the ${esc(S.season)} squad yet. Add them on the <b>Roster</b> tab first.</p></div>`; return; }
-    body.innerHTML = `<div class="card pad-lg" style="max-width:620px">
-      <p class="muted" style="margin-top:0">Update each player's <b>${esc(S.season)}</b> stats — they show on their card, profile and the league table. (Switch season from the top bar.)</p>
-      ${F("Player",`<select id="st-player">${players.map(p=>`<option value="${p.id}">#${p.number} ${esc(p.name)}</option>`).join("")}</select>`)}
-      <div id="st-fields"></div>
+    function renderRows(iso) {
+      const saved = S.registerState(iso);
+      const hasSaved = Object.keys(saved).length > 0;
+      const going = rsvpGoing(iso);
+      body.querySelector("#reg-rows").innerHTML = roster.map(p=>{
+        // if a register was saved, use it; otherwise prefill attendance from RSVP (coach can override)
+        const s = saved[p.id] || { attended: hasSaved ? false : going.has(p.id), perf:"" };
+        const rsvp = going.has(p.id);
+        return `<tr>
+          <td><b>${esc(p.name)}</b> <span class="muted">#${p.number}</span>${rsvp?` <span class="tag green" style="font-size:.6rem">RSVP'd</span>`:""}</td>
+          <td style="text-align:center"><input type="checkbox" class="rg-att" data-p="${p.id}" ${s.attended?"checked":""} style="width:20px;height:20px"/></td>
+          <td><select class="rg-perf" data-p="${p.id}"><option value="" ${s.perf===""?"selected":""}>—</option><option value="good" ${s.perf==="good"?"selected":""}>Good (+${(cfg.SCORING||{}).trainingPerformanceGood})</option><option value="poor" ${s.perf==="poor"?"selected":""}>Poor (${(cfg.SCORING||{}).trainingPerformancePoor})</option></select></td>
+        </tr>`;
+      }).join("");
+    }
+    body.innerHTML = `<div class="card pad-lg">
+      <p class="muted" style="margin-top:0">Take the register for a <b>${esc(S.season)}</b> session. Attendance is +${(cfg.SCORING||{}).trainingAttendance}; grade effort Good/Poor. We <b>pre-fill from RSVPs</b> but you have the final say — untick anyone who said yes but didn't show. Saving updates the league instantly.</p>
+      ${F("Session date",`<select id="reg-date">${allDates.map(iso=>`<option value="${iso}">${fdateLong(iso)}</option>`).join("")}${allDates.length?"":`<option value="">No sessions found</option>`}</select>`)}
+      <div class="badge-row" style="margin:.2rem 0 .8rem">
+        <button class="btn btn-ghost btn-sm" id="reg-all">✓ Mark all present</button>
+        <button class="btn btn-ghost btn-sm" id="reg-none">Clear all</button>
+      </div>
+      <div class="table-wrap"><table class="league-table"><thead><tr><th>Player</th><th>Attended</th><th>Performance</th></tr></thead><tbody id="reg-rows"></tbody></table></div>
+      <button class="btn btn-gold btn-block" id="reg-save" style="margin-top:1rem">Save register</button>
     </div>`;
-    body.querySelector("#st-player").addEventListener("change", e => load(+e.target.value));
-    load(players[0].id);
+    const dsel = body.querySelector("#reg-date");
+    dsel.addEventListener("change", () => renderRows(dsel.value));
+    if (allDates.length) renderRows(dsel.value);
+    body.querySelector("#reg-all").addEventListener("click", ()=>body.querySelectorAll(".rg-att").forEach(c=>c.checked=true));
+    body.querySelector("#reg-none").addEventListener("click", ()=>body.querySelectorAll(".rg-att").forEach(c=>c.checked=false));
+    body.querySelector("#reg-save").addEventListener("click", async () => {
+      const iso = dsel.value; if (!iso) return toast("No session selected");
+      const entries = roster.map(p => ({
+        playerId: p.id,
+        attended: body.querySelector(`.rg-att[data-p="${p.id}"]`).checked,
+        perf: body.querySelector(`.rg-perf[data-p="${p.id}"]`).value
+      }));
+      const res = await S.saveRegister(iso, entries);
+      if (res.ok) toast("Register saved ✓"); else toast("Error: "+res.msg);
+    });
+  }
+
+  // ---- Points & league: live table + manual adjustments ----
+  function AdmPoints() {
+    const body = $("#admin-body");
+    const rows = S.leagueRows();
+    const roster = S.roster(true).sort((a,b)=>a.number-b.number);
+    const recent = [...(S.state.ledger||[])].filter(e=>e.season===S.season).slice(-12).reverse();
+    body.innerHTML = `<div class="card pad-lg">
+      <p class="muted" style="margin-top:0">Every point in <b>${esc(S.season)}</b> adds up here automatically (matches, register, quiz, videos, challenges). Use the box below for one-off awards: the <b>perfect-month</b> bonus, the <b>bottom-of-league</b> big challenge, or a correction.</p>
+      <div class="grid cols-2" style="align-items:end">
+        ${F("Player",`<select id="pt-player">${roster.map(p=>`<option value="${p.id}">#${p.number} ${esc(p.name)}</option>`).join("")}</select>`)}
+        ${F("Points (use a minus to deduct)",`<input type="number" id="pt-pts" value="${(cfg.SCORING||{}).perfectMonth}"/>`)}
+      </div>
+      ${F("Reason",`<input id="pt-note" placeholder="e.g. Perfect month — every session in May"/>`)}
+      <div class="badge-row" style="margin:.2rem 0 1rem">
+        <button class="btn btn-ghost btn-sm" data-quick="${(cfg.SCORING||{}).perfectMonth}|Perfect month — every session">💯 Perfect month +${(cfg.SCORING||{}).perfectMonth}</button>
+        <button class="btn btn-ghost btn-sm" data-quick="${(cfg.SCORING||{}).bottomOfLeagueChallenge}|Bottom-of-league big challenge">🏅 Bottom-league challenge +${(cfg.SCORING||{}).bottomOfLeagueChallenge}</button>
+      </div>
+      <button class="btn btn-gold btn-block" id="pt-save">Add points</button>
+      <div class="lbl" style="font-size:.74rem;color:var(--muted);font-weight:700;letter-spacing:1px;margin:1.2rem 0 .4rem">LEAGUE (${esc(S.season)})</div>
+      <div class="table-wrap"><table class="league-table"><thead><tr><th>#</th><th>Player</th><th>Pts</th></tr></thead>
+        <tbody>${rows.map((r,i)=>`<tr><td>${i+1}</td><td>${esc(r.player.name)}</td><td class="pts">${r.total}</td></tr>`).join("")}</tbody></table></div>
+      ${recent.length?`<div class="lbl" style="font-size:.74rem;color:var(--muted);font-weight:700;letter-spacing:1px;margin:1.2rem 0 .4rem">RECENT POINTS <span class="muted" style="font-weight:500;text-transform:none;letter-spacing:0">— ✕ to undo a mistake</span></div>${recent.map(e=>{const pl=S.player(e.player_id);return `<div class="ach" style="margin-bottom:.3rem;justify-content:space-between"><div>${esc(pl?pl.name:"?")} <span class="muted">· ${esc(e.note||e.category)}</span></div><div style="display:flex;align-items:center;gap:.6rem"><b style="color:var(--gold-bright)">${e.points>0?"+":""}${e.points}</b><button class="btn btn-ghost btn-sm" data-del-pe="${e.id}" title="Undo">✕</button></div></div>`;}).join("")}`:""}
+    </div>`;
+    body.querySelectorAll("[data-quick]").forEach(b=>b.addEventListener("click",()=>{
+      const [pts,note]=b.dataset.quick.split("|"); body.querySelector("#pt-pts").value=pts; body.querySelector("#pt-note").value=note;
+    }));
+    body.querySelector("#pt-save").addEventListener("click", async () => {
+      const pid=+body.querySelector("#pt-player").value, pts=+body.querySelector("#pt-pts").value, note=body.querySelector("#pt-note").value.trim();
+      if(!pts) return toast("Enter a points value");
+      const res = await S.addManual(pid, pts, note);
+      if(res.ok){ toast("Points added ✓"); Admin("points"); } else toast("Error: "+res.msg);
+    });
+    body.querySelectorAll("[data-del-pe]").forEach(b=>b.addEventListener("click", async ()=>{
+      const res = await S.deletePointEvent(+b.dataset.delPe);
+      if(res.ok){ toast("Removed ✓"); Admin("points"); } else toast("Error: "+res.msg);
+    }));
+  }
+
+  // ---- Weekly quiz results table (auto-marked; blank = 0, not done) ----
+  function AdmQuizResults() {
+    const body = $("#admin-body");
+    const roster = S.roster(true).sort((a,b)=>a.number-b.number);
+    const total = (S.state.quiz && S.state.quiz.questions.length) || 0;
+    const week = S.weekId();
+    const results = S.quizResults(week);
+    const done = roster.filter(p=>results[p.id]!=null).length;
+    body.innerHTML = `<div class="card pad-lg">
+      <p class="muted" style="margin-top:0">Quiz results for <b>${esc(week)}</b> (${esc(S.season)}). Auto-marked — 1 point per correct answer. Anyone who hasn't done it by Sunday counts as <b>0</b>. ${done}/${roster.length} completed.</p>
+      <div class="table-wrap"><table class="league-table"><thead><tr><th>Player</th><th>Score</th><th>Status</th></tr></thead>
+        <tbody>${roster.map(p=>{
+          const sc=results[p.id];
+          return `<tr><td><b>${esc(p.name)}</b> <span class="muted">#${p.number}</span></td>
+            <td class="pts">${sc!=null?sc:0}${total?` / ${total}`:""}</td>
+            <td>${sc!=null?`<span class="tag green">Done</span>`:`<span class="tag">Not done (0)</span>`}</td></tr>`;
+        }).join("")}</tbody></table></div>
+    </div>`;
   }
 
   function AdmAcademy() {
@@ -863,7 +1064,10 @@
   }
 
   function AdmContacts() {
+    const body = $("#admin-body");
     const profs = (S.state.profiles || []).filter(pr => pr.parents && pr.parents.length);
+    const allEmails = [...new Set(profs.flatMap(pr => pr.parents.map(p=>p.email).filter(Boolean)))];
+    const allPhones = [...new Set(profs.flatMap(pr => pr.parents.map(p=>p.phone).filter(Boolean)))];
     const rows = profs.flatMap(pr => {
       const child = S.player(pr.player_id);
       return pr.parents.map(par => `<tr>
@@ -872,12 +1076,22 @@
         <td>${par.email?`<a href="mailto:${esc(par.email)}" style="color:var(--gold-bright)">${esc(par.email)}</a>`:""}</td>
         <td>${esc(par.phone||"")}</td></tr>`);
     }).join("");
-    $("#admin-body").innerHTML = `<div class="card pad-lg">
-      <p class="muted" style="margin-top:0">Parent contact details from family sign-ups (${profs.length} ${profs.length===1?"family":"families"}).</p>
+    body.innerHTML = `<div class="card pad-lg">
+      <p class="muted" style="margin-top:0">Parent contact details from family sign-ups (${profs.length} ${profs.length===1?"family":"families"}, ${allEmails.length} emails). Emails are <b>BCC'd</b> so families can't see each other's addresses.</p>
+      ${allEmails.length?`<div class="badge-row" style="margin-bottom:1rem">
+        <a class="btn btn-gold btn-sm" href="mailto:?bcc=${encodeURIComponent(allEmails.join(","))}">✉️ Email all parents</a>
+        <button class="btn btn-ghost btn-sm" data-copy="${esc(allEmails.join(", "))}">Copy emails</button>
+        <button class="btn btn-ghost btn-sm" data-copy="${esc(allPhones.join(", "))}">Copy numbers</button>
+      </div>`:""}
       ${rows ? `<div class="table-wrap"><table class="league-table">
         <thead><tr><th>Child</th><th>Parent</th><th>Email</th><th>Mobile</th></tr></thead>
         <tbody>${rows}</tbody></table></div>` : `<p class="muted">No families have completed sign-up yet.</p>`}
     </div>`;
+    body.querySelectorAll("[data-copy]").forEach(b=>b.addEventListener("click", ()=>{
+      const t=b.dataset.copy;
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(()=>toast("Copied ✓"),()=>toast(t));
+      else toast(t);
+    }));
   }
 
   function AdmDrills() {
@@ -935,7 +1149,7 @@
 
   function AdmPlayer() {
     $("#admin-body").innerHTML = `<div class="card pad-lg" style="max-width:620px">
-      <p class="muted" style="margin-top:0">Add a new squad member to the <b>${esc(S.season)}</b> season. They start as <b>pending</b> (hidden from parents) — approve them on the <b>Roster</b> tab once they've signed. Set their stats on the <b>Player stats</b> tab.</p>
+      <p class="muted" style="margin-top:0">Add a new squad member to the <b>${esc(S.season)}</b> season. They start as <b>pending</b> (hidden from parents) — approve them on the <b>Roster</b> tab once they've signed. Their goals, assists, points and stats then build up automatically from results, the register and the league.</p>
       ${F("Full name",`<input id="p-name" placeholder="e.g. Sam Kirby"/>`)}
       <div class="grid cols-2">${F("Squad number",`<input type="number" min="1" id="p-num"/>`)}${F("Position",`<select id="p-pos">${["GK","RB","LB","CB","CDM","CM","CAM","LM","RM","LW","RW","ST"].map(x=>`<option>${x}</option>`).join("")}</select>`)}</div>
       <label class="field" style="flex-direction:row;align-items:center;gap:.5rem"><input type="checkbox" id="p-capt" style="width:auto"/> <span style="margin:0">Team captain</span></label>
