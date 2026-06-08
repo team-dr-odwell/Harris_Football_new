@@ -150,6 +150,7 @@
       base.media = base.media || {};
       base.completedExercises = base.completedExercises || [];
       base.ledger = JSON.parse(localStorage.getItem(LS_LEDGER) || "[]");
+      base.quizzes = JSON.parse(localStorage.getItem("harris_quizzes") || "{}");
       const myp = localStorage.getItem("harris_my_player");
       if (myp) { this.me = +myp; this.linkedPlayer = +myp; }
       this.displayName = localStorage.getItem("harris_name") || this.displayName;
@@ -176,6 +177,8 @@
       try { const { data } = await sb.from("drills").select("*").order("id"); drills = data || []; } catch (e) { /* drills table not created yet */ }
       let ledger = [];
       try { const { data } = await sb.from("point_events").select("*"); ledger = data || []; } catch (e) { /* point_events not created yet */ }
+      let quizzes = {};
+      try { const { data } = await sb.from("quizzes").select("*"); (data || []).forEach(r => { quizzes[r.week] = r.questions; }); } catch (e) { /* quizzes table not created yet */ }
       // who am I, and am I an admin?
       let allProfiles = [];
       try {
@@ -204,6 +207,8 @@
         gamePoints: (points.data || []).map(g => ({ ...g, playerId: g.player_id })),
         achievements: window.HARRIS_DATA.achievements,
         quiz: window.HARRIS_DATA.quiz,
+        quizBank: window.HARRIS_DATA.quizBank,
+        quizzes,
         exercises: window.HARRIS_DATA.exercises,
         media: {}, completedExercises: []
       };
@@ -309,9 +314,10 @@
       if (r.motm) events.push({ player_id: r.motm, season, category: "motm", points: SC.motm, note: "Man of the Match vs " + opp, ref: `match:${fixtureId}:motm` });
       (r.cleanSheets || []).forEach(pid => events.push({ player_id: pid, season, category: "cleansheet", points: SC.cleanSheet, note: "Clean sheet vs " + opp, ref: `match:${fixtureId}:cs${pid}` }));
 
+      const lineup = Array.isArray(r.lineup) ? r.lineup : (fx && fx.lineup) || [];
       if (LIVE) {
         const { error } = await this.sb.from("fixtures")
-          .update({ status:"past", our_score:r.our_score, their_score:r.their_score, result, motm:r.motm })
+          .update({ status:"past", our_score:r.our_score, their_score:r.their_score, result, motm:r.motm, lineup })
           .eq("id", fixtureId);
         if (error) return { ok:false, msg:error.message };
         await this.sb.from("goals").delete().eq("fixture_id", fixtureId);
@@ -319,7 +325,7 @@
         await this.replacePoints(`match:${fixtureId}:`, events);
         await this.load();
       } else {
-        Object.assign(fx, { status:"past", our_score:r.our_score, their_score:r.their_score, result, motm:r.motm, goals:r.goals });
+        Object.assign(fx, { status:"past", our_score:r.our_score, their_score:r.their_score, result, motm:r.motm, goals:r.goals, lineup });
         this._persistContent();
         await this.replacePoints(`match:${fixtureId}:`, events);
       }
@@ -561,7 +567,7 @@
         const m = e.ref.split(":").slice(0, 2).join(":"); byMatch[m] = (byMatch[m] || 0) + 1;
       });
       if (Object.values(byMatch).some(c => c >= 3)) out.push("hattrick");
-      const total = (this.state.quiz && this.state.quiz.questions.length) || 0;
+      const total = (this.currentQuiz().questions || []).length || 0;
       if (total && this.ledgerFor(playerId, season).some(e => e.category === "quiz" && e.points === total)) out.push("quizace");
       if (this.ledgerFor(playerId, season).some(e => e.category === "manual" && /perfect month/i.test(e.note || ""))) out.push("perfect");
       return out;
@@ -649,6 +655,58 @@
       (this.state.ledger || []).filter(e => e.category === "quiz" && e.season === this.season && e.ref && e.ref.includes(`:${week}:`))
         .forEach(e => { map[e.player_id] = e.points; });
       return map;
+    },
+
+    /* ----- weekly quiz: fresh rotation from the bank, with optional coach override ----- */
+    _weekHash(salt) { const s = this.weekId() + (salt || ""); let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return h; },
+    _rotatePick(arr, n, salt) {
+      if (!arr.length) return [];
+      if (arr.length <= n) return arr.slice();
+      const off = this._weekHash(salt) % arr.length, out = [];
+      for (let i = 0; i < n; i++) out.push(arr[(off + i) % arr.length]);
+      return out;
+    },
+    // The quiz to play THIS week — a coach override if one exists, else a rotated set from the bank.
+    currentQuiz() {
+      const meta = (this.state && this.state.quiz) || window.HARRIS_DATA.quiz || { title: "Weekly Quiz" };
+      const wk = this.weekId();
+      const custom = (this.state.quizzes || {})[wk];
+      if (custom && custom.length) return { title: meta.title, week: wk, custom: true, questions: custom };
+      const bank = this.state.quizBank || window.HARRIS_DATA.quizBank || [];
+      const per = meta.perWeek || { skill: 5, gen: 5, foot: 10 };
+      const questions = [].concat(
+        this._rotatePick(bank.filter(q => q.cat === "skill"), per.skill, "skill"),
+        this._rotatePick(bank.filter(q => q.cat === "gen"), per.gen, "gen"),
+        this._rotatePick(bank.filter(q => q.cat === "foot"), per.foot, "foot")
+      );
+      return { title: meta.title, week: wk, custom: false, questions };
+    },
+    // A brand-new random set drawn from the bank (for the "new set" button).
+    shuffleQuiz() {
+      const bank = this.state.quizBank || [], per = (this.state.quiz || {}).perWeek || { skill: 5, gen: 5, foot: 10 };
+      const pick = (cat, n) => { const a = bank.filter(q => q.cat === cat).slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1));[a[i], a[j]] = [a[j], a[i]]; } return a.slice(0, n); };
+      return [].concat(pick("skill", per.skill), pick("gen", per.gen), pick("foot", per.foot));
+    },
+    async saveCustomQuiz(questions) {
+      const wk = this.weekId();
+      this.state.quizzes = this.state.quizzes || {};
+      this.state.quizzes[wk] = questions;
+      if (LIVE) { const { error } = await this.sb.from("quizzes").upsert({ week: wk, questions, season: this.currentSeason() }, { onConflict: "week" }); if (error) return { ok: false, msg: error.message }; }
+      else localStorage.setItem("harris_quizzes", JSON.stringify(this.state.quizzes));
+      return { ok: true };
+    },
+    async resetCustomQuiz() {
+      const wk = this.weekId();
+      if (this.state.quizzes) delete this.state.quizzes[wk];
+      if (LIVE) { const { error } = await this.sb.from("quizzes").delete().eq("week", wk); if (error) return { ok: false, msg: error.message }; }
+      else localStorage.setItem("harris_quizzes", JSON.stringify(this.state.quizzes || {}));
+      return { ok: true };
+    },
+
+    /* ----- match appearances (who actually played) ----- */
+    appearances(playerId, season) {
+      season = season || this.season;
+      return (this.state.fixtures || []).filter(f => this._seasonForDate(f.date) === season && Array.isArray(f.lineup) && f.lineup.includes(playerId)).length;
     },
 
     // Video watch: 2 points first full watch, +1 each rewatch.

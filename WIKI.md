@@ -282,6 +282,13 @@ Run in **Supabase → SQL Editor**. On a brand-new project, run `schema.sql` fir
 | `migrate-seasons.sql` | Adds `players.seasons`, `players.signed`, `players.stats` (per-season squad + stats); carries all players into 2026/27; backfills 25/26 stats | **Run this** for the season switcher |
 | `migrate-training-videos.sql` | Adds `training_sessions.videos` (pin stock drill videos to a session) | **Run this** for session drills |
 | `migrate-points.sql` | Creates `point_events` (the league points ledger) + RLS | **Run this** for the scoring system |
+| `migrate-security.sql` | Locks parent contact data to family+admins (profiles RLS). Also disable open sign-ups in the dashboard | **Run this** (safeguarding) |
+| `migrate-quiz.sql` | Creates `quizzes` (per-week coach overrides for the quiz) | **Run this** for the quiz editor |
+| `migrate-appearances.sql` | Adds `fixtures.lineup` (who actually played) | **Run this** for appearances |
+
+### Weekly quiz
+
+The quiz **refreshes automatically every week**: `currentQuiz()` rotates a fresh set from `data.js → quizBank` (5 skills + 5 general + 10 football) keyed by ISO week, so it changes with no coach effort. Coaches can override a given week in **Admin → Quiz** (shuffle a new set, write their own questions, or reset to automatic) — overrides are stored in the `quizzes` table per ISO week. Scores are auto-marked (1 per correct), one attempt per child per week, banked in the live season.
 
 ### League scoring (points ledger)
 

@@ -156,37 +156,68 @@ window.HARRIS_DATA = {
     { key:"perfect",      emoji:"💯", name:"100% Club",      desc:"Attended every session in a month (+20)", locked:true }
   ],
 
-  quiz: {
-    title:"Weekly Quiz — Skills, Brains & Football",
-    points:20,
-    questions:[
-      /* --- Skills & development (5) --- */
-      { q:"To keep the ball away from a defender, the best thing to do is…", opts:["Shield it with your body","Kick it as hard as you can","Stop and stand still","Pick it up"], answer:0 },
-      { q:"What's the best way to get better at a football skill?", opts:["Only play matches","Watch TV","Practise it regularly","Never try it"], answer:2 },
-      { q:"To strike a powerful shot, you usually hit the ball with…", opts:["Your toe","Your heel","Your knee","The laces of your boot"], answer:3 },
-      { q:"A good first touch helps you to…", opts:["Lose the ball","Control the ball and keep possession","Give away a foul","Waste time"], answer:1 },
-      { q:"When defending one-against-one, you should…", opts:["Dive in straight away","Turn your back","Stay on your feet and jockey","Stop watching the ball"], answer:2 },
+  // Quiz meta. The actual questions are drawn fresh each week from quizBank
+  // (5 skills + 5 general + 10 football), rotating by ISO week so it changes
+  // automatically. Coaches can override a given week in Admin → Quiz.
+  quiz: { title:"Weekly Quiz — Skills, Brains & Football", perWeek:{ skill:5, gen:5, foot:10 } },
 
-      /* --- General knowledge, age 11 (5) --- */
-      { q:"What is the capital city of France?", opts:["Paris","London","Rome","Madrid"], answer:0 },
-      { q:"Which planet is known as the Red Planet?", opts:["Venus","Mars","Jupiter","Saturn"], answer:1 },
-      { q:"How many sides does a hexagon have?", opts:["5","7","8","6"], answer:3 },
-      { q:"Animals that eat only plants are called…", opts:["Carnivores","Herbivores","Omnivores","Predators"], answer:1 },
-      { q:"How many minutes are there in one hour?", opts:["30","45","60","90"], answer:2 },
+  // The question bank to rotate through. cat: "skill" | "gen" | "foot".
+  quizBank: [
+    /* ---------- SKILLS & DEVELOPMENT ---------- */
+    { cat:"skill", q:"To keep the ball away from a defender, the best thing to do is…", opts:["Shield it with your body","Kick it as hard as you can","Stop and stand still","Pick it up"], answer:0 },
+    { cat:"skill", q:"What's the best way to get better at a football skill?", opts:["Only play matches","Watch TV","Practise it regularly","Never try it"], answer:2 },
+    { cat:"skill", q:"To strike a powerful shot, you usually hit the ball with…", opts:["Your toe","Your heel","Your knee","The laces of your boot"], answer:3 },
+    { cat:"skill", q:"A good first touch helps you to…", opts:["Lose the ball","Control the ball and keep possession","Give away a foul","Waste time"], answer:1 },
+    { cat:"skill", q:"When defending one-against-one, you should…", opts:["Dive in straight away","Turn your back","Stay on your feet and jockey","Stop watching the ball"], answer:2 },
+    { cat:"skill", q:"For an accurate short pass, which part of the foot is best?", opts:["The inside of the foot","The toe","The heel","The studs"], answer:0 },
+    { cat:"skill", q:"What's the FIRST thing a smart player does before they get the ball?", opts:["Close their eyes","Look around and scan","Shout","Stand still"], answer:1 },
+    { cat:"skill", q:"Why is it useful to be able to use BOTH feet?", opts:["It isn't useful","You can only shoot harder","You have more options and are harder to defend","Referees give you more time"], answer:2 },
+    { cat:"skill", q:"Why do we warm up before training and games?", opts:["To waste time","To get the ball dirty","To get our bodies ready and avoid injury","Because the coach is bored"], answer:2 },
+    { cat:"skill", q:"When dribbling at speed, where should your eyes mostly be?", opts:["Closed","Only on the ball","Up, scanning the pitch","On the crowd"], answer:2 },
+    { cat:"skill", q:"What helps a team keep possession best?", opts:["Everyone chasing the ball","Good communication and passing","Booting it long every time","Standing still"], answer:1 },
+    { cat:"skill", q:"If you make a mistake in a game, the best thing to do is…", opts:["Give up","Blame a team-mate","Reset and get back into the game","Walk off"], answer:2 },
 
-      /* --- Football, 2020 onwards (10) --- */
-      { q:"Which country won the 2022 World Cup in Qatar?", opts:["Argentina","France","Brazil","England"], answer:0 },
-      { q:"Spain beat which country 2–1 to win Euro 2024?", opts:["France","England","Germany","Italy"], answer:1 },
-      { q:"Which club won the 2024 Champions League — a record 15th title?", opts:["Borussia Dortmund","Manchester City","Liverpool","Real Madrid"], answer:3 },
-      { q:"Who won the 2024 Ballon d'Or (best men's player)?", opts:["Vinícius Júnior","Kylian Mbappé","Rodri","Jude Bellingham"], answer:2 },
-      { q:"England's Lionesses won which trophy in 2022?", opts:["The Women's World Cup","The Women's Euros","Olympic gold","The Champions League"], answer:1 },
-      { q:"Which country won the 2023 Women's World Cup?", opts:["Spain","England","USA","Australia"], answer:0 },
-      { q:"Erling Haaland broke the Premier League goal-scoring record in 2022/23. Which club does he play for?", opts:["Arsenal","Manchester United","Chelsea","Manchester City"], answer:3 },
-      { q:"Lionel Messi joined which American club in 2023?", opts:["LA Galaxy","Inter Miami","New York City","Toronto FC"], answer:1 },
-      { q:"Italy beat England in the Euro 2020 final. How was the winner decided?", opts:["A last-minute goal","On penalties","4–0","Golden goal"], answer:1 },
-      { q:"Which club won the 2023/24 Premier League — four titles in a row?", opts:["Manchester City","Arsenal","Liverpool","Manchester United"], answer:0 }
-    ]
-  },
+    /* ---------- GENERAL KNOWLEDGE (age 11) ---------- */
+    { cat:"gen", q:"What is the capital city of France?", opts:["Paris","London","Rome","Madrid"], answer:0 },
+    { cat:"gen", q:"What is the capital city of Spain?", opts:["Barcelona","Madrid","Lisbon","Seville"], answer:1 },
+    { cat:"gen", q:"What is the capital city of Italy?", opts:["Milan","Naples","Rome","Turin"], answer:2 },
+    { cat:"gen", q:"Which planet is known as the Red Planet?", opts:["Venus","Mars","Jupiter","Saturn"], answer:1 },
+    { cat:"gen", q:"How many sides does a hexagon have?", opts:["5","7","8","6"], answer:3 },
+    { cat:"gen", q:"Animals that eat only plants are called…", opts:["Carnivores","Herbivores","Omnivores","Predators"], answer:1 },
+    { cat:"gen", q:"How many minutes are there in one hour?", opts:["30","45","60","90"], answer:2 },
+    { cat:"gen", q:"How many days are there in a week?", opts:["5","6","7","8"], answer:2 },
+    { cat:"gen", q:"What is the largest ocean on Earth?", opts:["Atlantic","Indian","Arctic","Pacific"], answer:3 },
+    { cat:"gen", q:"How many continents are there on Earth?", opts:["5","6","7","8"], answer:2 },
+    { cat:"gen", q:"Which gas do humans need to breathe in to live?", opts:["Oxygen","Helium","Carbon dioxide","Hydrogen"], answer:0 },
+    { cat:"gen", q:"In which direction does the sun rise?", opts:["West","North","East","South"], answer:2 },
+    { cat:"gen", q:"How many legs does a spider have?", opts:["6","8","10","12"], answer:1 },
+    { cat:"gen", q:"What do bees make?", opts:["Milk","Honey","Bread","Silk"], answer:1 },
+
+    /* ---------- FOOTBALL (evergreen) ---------- */
+    { cat:"foot", q:"How many players are on the pitch for each team in a full 11-a-side game?", opts:["9","10","11","12"], answer:2 },
+    { cat:"foot", q:"Which country has won the most men's World Cups?", opts:["Germany","Brazil","Argentina","Italy"], answer:1 },
+    { cat:"foot", q:"What is it called when one player scores three goals in a game?", opts:["A treble-top","A hat-trick","A triple","A super-goal"], answer:1 },
+    { cat:"foot", q:"How many points do you get for winning a league game?", opts:["1","2","3","4"], answer:2 },
+    { cat:"foot", q:"What does a red card mean?", opts:["A warning","A corner","Sent off","A goal"], answer:2 },
+    { cat:"foot", q:"Which player is allowed to handle the ball in their own box?", opts:["The captain","The goalkeeper","The striker","Nobody"], answer:1 },
+    { cat:"foot", q:"How long is a normal professional match (both halves)?", opts:["60 minutes","75 minutes","90 minutes","120 minutes"], answer:2 },
+    { cat:"foot", q:"In which country is the Premier League played?", opts:["Spain","England","Germany","France"], answer:1 },
+    { cat:"foot", q:"From where is a penalty taken?", opts:["The corner","The halfway line","The penalty spot","The touchline"], answer:2 },
+    { cat:"foot", q:"Which official can show yellow and red cards?", opts:["The manager","The referee","The captain","A ball-boy"], answer:1 },
+    { cat:"foot", q:"The Champions League is a competition for the best clubs in…", opts:["Africa","Europe","Asia","South America"], answer:1 },
+    { cat:"foot", q:"In which city is Wembley Stadium?", opts:["Manchester","Liverpool","London","Leeds"], answer:2 },
+    /* ---------- FOOTBALL (2020 onwards) ---------- */
+    { cat:"foot", q:"Which country won the 2022 World Cup in Qatar?", opts:["Argentina","France","Brazil","England"], answer:0 },
+    { cat:"foot", q:"Spain beat which country 2–1 to win Euro 2024?", opts:["France","England","Germany","Italy"], answer:1 },
+    { cat:"foot", q:"Which club won the 2024 Champions League — a record 15th title?", opts:["Borussia Dortmund","Manchester City","Liverpool","Real Madrid"], answer:3 },
+    { cat:"foot", q:"Who won the 2024 Ballon d'Or (best men's player)?", opts:["Vinícius Júnior","Kylian Mbappé","Rodri","Jude Bellingham"], answer:2 },
+    { cat:"foot", q:"England's Lionesses won which trophy in 2022?", opts:["The Women's World Cup","The Women's Euros","Olympic gold","The Champions League"], answer:1 },
+    { cat:"foot", q:"Which country won the 2023 Women's World Cup?", opts:["Spain","England","USA","Australia"], answer:0 },
+    { cat:"foot", q:"Erling Haaland broke the Premier League goal record in 2022/23. Which club is he at?", opts:["Arsenal","Manchester United","Chelsea","Manchester City"], answer:3 },
+    { cat:"foot", q:"Lionel Messi joined which American club in 2023?", opts:["LA Galaxy","Inter Miami","New York City","Toronto FC"], answer:1 },
+    { cat:"foot", q:"Italy beat England in the Euro 2020 final. How was the winner decided?", opts:["A last-minute goal","On penalties","4–0","Golden goal"], answer:1 },
+    { cat:"foot", q:"Which club won the 2023/24 Premier League — four titles in a row?", opts:["Manchester City","Arsenal","Liverpool","Manchester United"], answer:0 }
+  ],
 
   /* fun off-pitch challenges that earn league points */
   exercises: [
