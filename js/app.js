@@ -833,6 +833,7 @@
     $("#f-save").addEventListener("click", async () => {
       const data = collect();
       if (!data.opponent || !data.date) return toast("Add an opponent and a date");
+      if (!S.inSeason(data.date) && !window.confirm(`That date is outside the ${S.season} season you're viewing — it'll appear under ${S._seasonForDate(data.date)}. Add anyway?`)) return;
       const res = ed ? await S.updateFixture(ed.id, data) : await S.addFixture(data);
       if (res.ok) { toast(ed?"Fixture updated ✓":"Fixture added ✓"); Admin("fixtures"); } else toast("Error: "+res.msg);
     });
@@ -910,6 +911,7 @@
       syncFromDom();
       const fx = played.find(f=>f.id===curId) || {};
       if (fx.date > today && !window.confirm("This fixture is in the future — save a result anyway?")) return;
+      if (st.them > 0 && st.cs.size > 0 && !window.confirm(`We conceded ${st.them} but ${st.cs.size} clean sheet(s) are ticked — award them anyway?`)) return;
       const res = await S.saveResult(curId, {
         our_score:st.our, their_score:st.them, motm:st.motm,
         goals:st.goals.filter(g=>g.scorer), cleanSheets:[...st.cs], lineup:[...st.lineup] });
@@ -1166,7 +1168,7 @@
     body.innerHTML = `<div class="card pad-lg">
       <p class="muted" style="margin-top:0">Managing the <b>${esc(season)}</b> squad. Tick <b>In ${esc(season)}</b> for the players continuing this season (untick the ones who've left), and tick <b>Signed</b> once a child has registered. <b>Unsigned players are hidden from parents.</b> Switch season from the top bar.</p>
       <div class="table-wrap"><table class="league-table">
-        <thead><tr><th>#</th><th>Player</th><th>In ${esc(season)}</th><th>Signed</th></tr></thead>
+        <thead><tr><th>#</th><th>Player</th><th>In ${esc(season)}</th><th>Signed</th><th></th></tr></thead>
         <tbody>${players.map(p=>{
           const inS = (Array.isArray(p.seasons)?p.seasons:[]).includes(season);
           return `<tr>
@@ -1174,6 +1176,7 @@
             <td><b>${esc(p.name)}</b>${p.signed===false?` <span class="tag">pending</span>`:""}</td>
             <td style="text-align:center"><input type="checkbox" data-in="${p.id}" ${inS?"checked":""} style="width:20px;height:20px"/></td>
             <td style="text-align:center"><input type="checkbox" data-signed="${p.id}" ${p.signed!==false?"checked":""} style="width:20px;height:20px"/></td>
+            <td style="text-align:right"><button class="btn btn-ghost btn-sm" data-edit-p="${p.id}">Edit</button></td>
           </tr>`;
         }).join("")}</tbody>
       </table></div>
@@ -1187,24 +1190,42 @@
       const res = await S.setRoster(+cb.dataset.signed, { signed: cb.checked });
       if (res.ok) { toast(cb.checked ? "Approved ✓" : "Set to pending"); Admin("roster"); } else toast("Error: "+res.msg);
     }));
+    body.querySelectorAll("[data-edit-p]").forEach(b => b.addEventListener("click", () => location.hash = "#admin/players/"+b.dataset.editP));
     body.querySelector("[data-go-roster-add]").addEventListener("click", () => location.hash = "#admin/players");
   }
 
-  function AdmPlayer() {
+  function AdmPlayer(editId) {
+    const ed = editId ? S.player(+editId) : null;
+    const POS = ["GK","RB","LB","CB","CDM","CM","CAM","LM","RM","LW","RW","ST"];
     $("#admin-body").innerHTML = `<div class="card pad-lg" style="max-width:620px">
-      <p class="muted" style="margin-top:0">Add a new squad member to the <b>${esc(S.season)}</b> season. They start as <b>pending</b> (hidden from parents) — approve them on the <b>Roster</b> tab once they've signed. Their goals, assists, points and stats then build up automatically from results, the register and the league.</p>
-      ${F("Full name",`<input id="p-name" placeholder="e.g. Sam Kirby"/>`)}
-      <div class="grid cols-2">${F("Squad number",`<input type="number" min="1" id="p-num"/>`)}${F("Position",`<select id="p-pos">${["GK","RB","LB","CB","CDM","CM","CAM","LM","RM","LW","RW","ST"].map(x=>`<option>${x}</option>`).join("")}</select>`)}</div>
-      <label class="field" style="flex-direction:row;align-items:center;gap:.5rem"><input type="checkbox" id="p-capt" style="width:auto"/> <span style="margin:0">Team captain</span></label>
-      <button class="btn btn-gold btn-block" id="p-save">Add player</button>
+      ${ed ? `<h3 style="margin:0 0 .6rem;font-family:var(--display)">Edit player — ${esc(ed.name)}</h3>`
+           : `<p class="muted" style="margin-top:0">Add a new squad member to the <b>${esc(S.season)}</b> season. They start as <b>pending</b> (hidden from parents) — approve them on the <b>Roster</b> tab once they've signed. Their goals, assists, points and stats then build up automatically from results, the register and the league.</p>`}
+      ${F("Full name",`<input id="p-name" value="${esc(ed?ed.name:"")}" placeholder="e.g. Sam Kirby"/>`)}
+      <div class="grid cols-2">${F("Squad number",`<input type="number" min="1" id="p-num" value="${ed&&ed.number!=null?ed.number:""}"/>`)}${F("Position",`<select id="p-pos">${POS.map(x=>`<option ${ed&&ed.pos===x?'selected':''}>${x}</option>`).join("")}</select>`)}</div>
+      <label class="field" style="flex-direction:row;align-items:center;gap:.5rem"><input type="checkbox" id="p-capt" ${ed&&ed.captain?'checked':''} style="width:auto"/> <span style="margin:0">Team captain</span></label>
+      <button class="btn btn-gold btn-block" id="p-save">${ed?"Save changes":"Add player"}</button>
+      ${ed?`<div class="grid cols-2" style="margin-top:.5rem"><button class="btn btn-ghost btn-sm" id="p-cancel">Cancel</button><button class="btn btn-ghost btn-sm" id="p-del">Delete player</button></div>`:""}
     </div>`;
     $("#p-save").addEventListener("click", async () => {
       const name=$("#p-name").value.trim(); if(!name) return toast("Add a name");
       const init=name.split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase();
-      const res = await S.addPlayer({ name, number:+$("#p-num").value, pos:$("#p-pos").value,
-        captain:$("#p-capt").checked, init });
-      if(res.ok){ toast("Player added as pending ✓"); location.hash="#admin/roster"; } else toast("Error: "+res.msg);
+      const fields = { name, number:+$("#p-num").value, pos:$("#p-pos").value, captain:$("#p-capt").checked, init };
+      if (ed) {
+        const res = await S.updatePlayer(ed.id, fields);
+        if(res.ok){ toast("Player updated ✓"); location.hash="#admin/roster"; } else toast("Error: "+res.msg);
+      } else {
+        const res = await S.addPlayer(fields);
+        if(res.ok){ toast("Player added as pending ✓"); location.hash="#admin/roster"; } else toast("Error: "+res.msg);
+      }
     });
+    if (ed) {
+      $("#p-cancel").addEventListener("click", ()=>location.hash="#admin/roster");
+      $("#p-del").addEventListener("click", async ()=>{
+        if(!window.confirm(`Delete ${ed.name}? This only works for players with no match/points history.`)) return;
+        const res = await S.deletePlayer(ed.id);
+        if(res.ok){ toast("Player deleted"); location.hash="#admin/roster"; } else toast(res.msg);
+      });
+    }
   }
 
   // Next training dates in the current season (from the recurring schedule + any planned ones)
@@ -1243,8 +1264,15 @@
             <input type="checkbox" class="t-vid" value="${dr.id}" ${checked.has(dr.url)?"checked":""} style="width:auto"/>
             <span style="margin:0">🎬 ${esc(dr.title)}${dr.area?` <span class="tag t-train">${esc(dr.area)}</span>`:""}</span></label>`).join("")
           : `<p class="muted" style="margin:.2rem 0">No stock videos yet — add some on the <b>Drill library</b> tab first.</p>`}
-        <button class="btn btn-gold btn-block" id="t-save" style="margin-top:1rem">Save session plan</button>`;
+        <button class="btn btn-gold btn-block" id="t-save" style="margin-top:1rem">Save session plan</button>
+        ${plan.id ? `<button class="btn btn-ghost btn-sm btn-block" id="t-del" style="margin-top:.5rem">Delete this planned session</button>` : ""}`;
       $("#t-save").addEventListener("click", save);
+      const del = $("#t-del");
+      if (del) del.addEventListener("click", async () => {
+        if (!window.confirm("Delete this planned session? The recurring slot (if any) will still show.")) return;
+        const res = await S.deleteTraining(plan.id);
+        if (res.ok) { toast("Planned session deleted"); Admin("training"); } else toast("Error: "+res.msg);
+      });
     }
 
     async function save() {
@@ -1278,22 +1306,38 @@
     fields(dates[0] || "");
   }
 
-  function AdmEvent() {
-    $("#admin-body").innerHTML = `<div class="card pad-lg" style="max-width:620px">
-      ${F("Title",`<input id="e-title" placeholder="e.g. Club Awards Afternoon"/>`)}
-      <div class="grid cols-2">${F("Date",`<input type="date" id="e-date"/>`)}${F("Start time (optional)",`<input id="e-time" placeholder="e.g. 11:00"/>`)}</div>
-      <div class="grid cols-2">${F("Location",`<input id="e-loc" placeholder="e.g. High Elms Golf Course"/>`)}${F("Icon",`<select id="e-img"><option value="trophy">🏆 Trophy</option><option value="target">🎯 Fundraiser</option><option value="flag">🏁 Day out</option><option value="cone">🔶 Training/camp</option></select>`)}</div>
-      ${F("Link (optional)",`<input id="e-link" placeholder="https://..."/>`)}
-      ${F("Details",`<textarea id="e-desc" rows="4" placeholder="What's happening, who's invited, what to bring..."></textarea>`)}
-      <button class="btn btn-gold btn-block" id="e-save">Add event</button>
+  function AdmEvent(editId) {
+    const body = $("#admin-body");
+    const ed = editId ? S.state.events.find(e=>e.id===+editId) : null;
+    const v = (k,d)=> ed && ed[k]!=null ? ed[k] : (d||"");
+    const upcoming = [...S.state.events].sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+    body.innerHTML = `<div class="card pad-lg" style="max-width:620px">
+      <h3 style="margin:0 0 .6rem;font-family:var(--display)">${ed?`Edit event — ${esc(ed.title)}`:"Add an event"}</h3>
+      ${F("Title",`<input id="e-title" value="${esc(v("title"))}" placeholder="e.g. Club Awards Afternoon"/>`)}
+      <div class="grid cols-2">${F("Date",`<input type="date" id="e-date" value="${esc(v("date"))}"/>`)}${F("Start time (optional)",`<input id="e-time" value="${esc(v("time"))}" placeholder="e.g. 11:00"/>`)}</div>
+      <div class="grid cols-2">${F("Location",`<input id="e-loc" value="${esc(v("location"))}" placeholder="e.g. High Elms Golf Course"/>`)}${F("Icon",`<select id="e-img">${[["trophy","🏆 Trophy"],["target","🎯 Fundraiser"],["flag","🏁 Day out"],["cone","🔶 Training/camp"]].map(([k,l])=>`<option value="${k}" ${v("img")===k?'selected':''}>${l}</option>`).join("")}</select>`)}</div>
+      ${F("Link (optional)",`<input id="e-link" value="${esc(v("link"))}" placeholder="https://..."/>`)}
+      ${F("Details",`<textarea id="e-desc" rows="4" placeholder="What's happening, who's invited, what to bring...">${esc(v("desc"))}</textarea>`)}
+      <button class="btn btn-gold btn-block" id="e-save">${ed?"Save changes":"Add event"}</button>
+      ${ed?`<button class="btn btn-ghost btn-sm btn-block" id="e-cancel" style="margin-top:.5rem">Cancel</button>`:""}
+      <div class="lbl" style="font-size:.74rem;color:var(--muted);font-weight:700;letter-spacing:1px;margin:1.2rem 0 .4rem">ALL EVENTS</div>
+      ${upcoming.map(e=>`<div class="ach" style="margin-bottom:.35rem;justify-content:space-between"><div>${fdate(e.date)} <b>${esc(e.title)}</b></div><div style="display:flex;gap:.4rem"><button class="btn btn-ghost btn-sm" data-edit-ev="${e.id}">Edit</button><button class="btn btn-ghost btn-sm" data-del-ev="${e.id}">✕</button></div></div>`).join("") || `<p class="muted">No events yet.</p>`}
     </div>`;
+    const collect = ()=>({ title:$("#e-title").value.trim(), date:$("#e-date").value, location:$("#e-loc").value.trim(),
+      desc:$("#e-desc").value.trim(), time:$("#e-time").value.trim(), link:$("#e-link").value.trim(), img:$("#e-img").value });
     $("#e-save").addEventListener("click", async () => {
-      const title=$("#e-title").value.trim(), date=$("#e-date").value;
-      if(!title||!date) return toast("Add a title and a date");
-      const res = await S.addEvent({ title, date, location:$("#e-loc").value.trim(), desc:$("#e-desc").value.trim(),
-        time:$("#e-time").value.trim(), link:$("#e-link").value.trim(), img:$("#e-img").value });
-      if(res.ok){ toast("Event added ✓"); location.hash="#events"; } else toast("Error: "+res.msg);
+      const d = collect(); if(!d.title||!d.date) return toast("Add a title and a date");
+      const res = ed ? await S.updateEvent(ed.id, d) : await S.addEvent(d);
+      if(res.ok){ toast(ed?"Event updated ✓":"Event added ✓"); Admin("events"); } else toast("Error: "+res.msg);
     });
+    if (ed) $("#e-cancel").addEventListener("click", ()=>location.hash="#admin/events");
+    body.querySelectorAll("[data-edit-ev]").forEach(b=>b.addEventListener("click", ()=>location.hash="#admin/events/"+b.dataset.editEv));
+    body.querySelectorAll("[data-del-ev]").forEach(b=>b.addEventListener("click", async ()=>{
+      const e = S.state.events.find(x=>x.id===+b.dataset.delEv);
+      if(!window.confirm(`Delete the event "${e.title}"?`)) return;
+      const res = await S.deleteEvent(+b.dataset.delEv);
+      if(res.ok){ toast("Event deleted"); Admin("events"); } else toast("Error: "+res.msg);
+    }));
   }
 
   /* ============================ MODAL + nav helpers ============================ */

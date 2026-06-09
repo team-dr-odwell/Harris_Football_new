@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>OWFC Harris U11 — Sponsorship 2026/27</title>
+<style>
+  @page { size: A4; margin: 14mm 14mm 16mm 14mm; }
+  * { box-sizing: border-box; }
+  html { -weasy-hyphens: none; }
+  body {
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    color: #1c1a14; margin: 0; font-size: 10.5pt; line-height: 1.5;
+  }
+  h1,h2,h3 { font-family: "Arial Black", Arial, sans-serif; letter-spacing:.2px; margin:0; }
+  .gold { color:#b78a16; }
+  .muted { color:#6b6657; }
+  a { color:#b78a16; text-decoration:none; }
+
+  /* ---- hero ---- */
+  .hero { background:#111009; color:#fff; border-radius:14px; padding:22px 24px; position:relative; overflow:hidden; }
+  .hero:after { content:""; position:absolute; right:-60px; top:-60px; width:220px; height:220px;
+    background:radial-gradient(circle, rgba(201,162,39,.35), transparent 70%); }
+  .crest { display:inline-block; width:46px; height:46px; vertical-align:middle; margin-right:12px; }
+  .hero .club { display:inline-block; vertical-align:middle; }
+  .hero .club .k { font-size:18pt; font-weight:900; letter-spacing:1px; }
+  .hero .club .k span { color:#e6c24a; }
+  .hero .club .s { font-size:8.5pt; letter-spacing:3px; text-transform:uppercase; color:#cfc7b0; }
+  .hero h1 { font-size:25pt; line-height:1.05; margin:16px 0 6px; }
+  .hero h1 span { color:#e6c24a; }
+  .hero .sub { color:#d8d2c2; max-width:62ch; font-size:10pt; }
+  .season-pill { display:inline-block; margin-top:12px; background:rgba(230,194,74,.15); color:#e6c24a;
+    border:1px solid rgba(230,194,74,.4); border-radius:999px; padding:4px 12px; font-size:8.5pt; font-weight:800; letter-spacing:1px; }
+
+  /* ---- sections ---- */
+  .eyebrow { color:#b78a16; font-weight:900; font-size:8pt; letter-spacing:2.5px; text-transform:uppercase; margin:0 0 4px; }
+  .section { margin-top:18px; }
+  .section h2 { font-size:15pt; margin-bottom:8px; }
+  .lead { background:#faf7ee; border:1px solid #ece3cc; border-left:4px solid #c9a227; border-radius:10px; padding:14px 16px; }
+  .lead p { margin:0 0 8px; }
+  .lead p:last-child { margin-bottom:0; }
+  .sign { font-weight:800; color:#1c1a14; }
+
+  /* ---- stat chips ---- */
+  .stats { width:100%; border-collapse:separate; border-spacing:8px 0; margin:6px 0 4px; }
+  .stats td { width:25%; background:#111009; color:#fff; border-radius:10px; padding:12px 10px; text-align:center; vertical-align:middle; }
+  .stats .n { font-size:16pt; font-weight:900; color:#e6c24a; font-family:"Arial Black",Arial; }
+  .stats .l { font-size:7.7pt; color:#cfc7b0; text-transform:uppercase; letter-spacing:.6px; }
+  .bene { margin:10px 0 0; padding:0; list-style:none; }
+  .bene li { padding:3px 0 3px 22px; position:relative; }
+  .bene li:before { content:"\2605"; position:absolute; left:0; color:#c9a227; }
+
+  /* ---- package cards ---- */
+  .pkgs { width:100%; border-collapse:separate; border-spacing:10px; }
+  .pkgs td { width:50%; vertical-align:top; }
+  .card { border:1px solid #e7ddc6; border-radius:12px; overflow:hidden; page-break-inside:avoid; }
+  .card .top { background:#f7f3e8; padding:10px 14px; border-bottom:1px solid #e7ddc6; }
+  .card .top h3 { font-size:12pt; }
+  .card .top .place { font-size:8.3pt; color:#6b6657; }
+  .card .art { text-align:center; padding:8px 8px 2px; }
+  .card .art svg { width:150px; height:150px; }
+  .card .body { padding:6px 14px 14px; }
+  .card .price { font-size:17pt; font-weight:900; color:#111009; font-family:"Arial Black",Arial; }
+  .card .price small { font-size:8.5pt; font-weight:700; color:#6b6657; }
+  .card .desc { font-size:9pt; color:#4b4639; margin:4px 0 0; }
+  .tagspot { display:inline-block; background:#fff6da; color:#9a7510; border:1px solid #e7cf86;
+    border-radius:6px; padding:2px 8px; font-size:7.6pt; font-weight:800; letter-spacing:.4px; margin-top:6px; }
+
+  /* ---- price summary ---- */
+  .summary { width:100%; border-collapse:collapse; margin-top:6px; }
+  .summary th, .summary td { text-align:left; padding:8px 10px; border-bottom:1px solid #eadfca; font-size:9.5pt; }
+  .summary th { background:#111009; color:#e6c24a; font-size:8pt; letter-spacing:1px; text-transform:uppercase; }
+  .summary td.amt, .summary th.amt { text-align:right; font-weight:800; }
+
+  /* ---- form ---- */
+  .form { border:1.5px solid #111009; border-radius:12px; padding:16px 18px; }
+  .form h2 { font-size:14pt; }
+  .opt { border:1px solid #ddd3bd; border-radius:8px; padding:8px 10px; margin:6px 0; }
+  .opt .box { display:inline-block; width:14px; height:14px; border:1.6px solid #111009; border-radius:3px; vertical-align:-2px; margin-right:8px; }
+  .opt .amt { float:right; font-weight:900; }
+  .field { margin-top:12px; }
+  .field .lab { font-size:8pt; font-weight:800; letter-spacing:.8px; text-transform:uppercase; color:#6b6657; }
+  .line { border-bottom:1.2px solid #1c1a14; height:18px; margin-top:6px; }
+  .two { width:100%; border-collapse:separate; border-spacing:14px 0; }
+  .two td { width:50%; vertical-align:top; }
+  .foot { margin-top:14px; text-align:center; color:#6b6657; font-size:8.6pt; }
+  .foot b { color:#111009; }
+  .pgbreak { page-break-before: always; }
+</style>
+</head>
+<body>
+
+  <!-- ============ HERO ============ -->
+  <div class="hero">
+    <svg class="crest" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+      <path d="M50 4 L90 16 V52 C90 76 72 90 50 96 C28 90 10 76 10 52 V16 Z" fill="#1a1813" stroke="#e6c24a" stroke-width="3"/>
+      <text x="50" y="46" text-anchor="middle" font-family="Arial Black,Arial" font-size="22" fill="#e6c24a" font-weight="900">H</text>
+      <text x="50" y="68" text-anchor="middle" font-family="Arial" font-size="9" fill="#fff" letter-spacing="1">FC</text>
+    </svg>
+    <div class="club">
+      <div class="k">OWFC <span>HARRIS</span></div>
+      <div class="s">Under&#8209;11s &#183; Grassroots Football</div>
+    </div>
+    <h1>Become a <span>Team Sponsor</span></h1>
+    <div class="sub">Put your brand on our kit and behind a group of young players who give everything, every week. A season-long partnership with a proud local team.</div>
+    <div class="season-pill">SPONSORSHIP PACK &#183; 2026/27 SEASON</div>
+  </div>
+
+  <!-- ============ WARM MESSAGE ============ -->
+  <div class="section">
+    <div class="eyebrow">A note from the team</div>
+    <div class="lead">
+      <p>Dear Sponsor,</p>
+      <p>OWFC Harris Under&#8209;11s are a small, hard&#8209;working grassroots side with big hearts and even bigger ambitions. Every week our players give their all &mdash; learning, developing and representing our community with real pride.</p>
+      <p>Your sponsorship is so much more than a logo on a shirt. It helps a group of young people fall in love with the game, grow as people, and build memories that last a lifetime &mdash; while your brand travels with us to every pitch, tournament and touchline across the season.</p>
+      <p>We would be proud to have you on our team sheet, and we'll champion your support every step of the way. Thank you for considering us.</p>
+      <p class="sign">&mdash; The OWFC Harris U11 Team &amp; Families</p>
+    </div>
+  </div>
+
+  <!-- ============ WHY SPONSOR ============ -->
+  <div class="section">
+    <div class="eyebrow">Why partner with us</div>
+    <h2>A team on the up &mdash; and a brand seen all season</h2>
+    <table class="stats"><tr>
+      <td><div class="n">30</div><div class="l">Games last season</div></td>
+      <td><div class="n">Finalists</div><div class="l">Autumn Cup</div></td>
+      <td><div class="n">Winners</div><div class="l">JPL Cup</div></td>
+      <td><div class="n">1,000s</div><div class="l">Seen locally</div></td>
+    </tr></table>
+    <ul class="bene">
+      <li><b>Real visibility.</b> Across a full season your brand is seen by thousands of people in the local area &mdash; players, parents, opposition clubs, leagues, tournaments and supporters on the sidelines.</li>
+      <li><b>A permanent place online.</b> Every sponsor is featured on the <b>Sponsors</b> section of <a href="https://www.harris.football">www.harris.football</a>, our private team website.</li>
+      <li><b>Community goodwill.</b> Show your support for grassroots sport and young people in our area &mdash; a partnership people remember.</li>
+    </ul>
+  </div>
+
+  <!-- ============ PACKAGES ============ -->
+  <div class="section pgbreak">
+    <div class="eyebrow">Choose your package</div>
+    <h2>Sponsorship Opportunities</h2>
+    <p class="muted" style="margin-top:2px">Each illustration shows where your logo will sit. Garments by Macron. One sponsor per package.</p>
+
+    <table class="pkgs">
+      <tr>
+        <!-- Match day shirt -->
+        <td>
+          <div class="card">
+            <div class="top"><h3>Match Day Shirt</h3><div class="place">White &amp; grey playing shirt &middot; logo front &amp; centre</div></div>
+            <div class="art"><svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <path d="M88 34 L70 40 L40 58 L52 84 L72 72 L62 172 C84 179 116 179 138 172 L128 72 L148 84 L160 58 L130 40 L112 34 C112 46 88 46 88 34 Z" fill="#ffffff" stroke="#9aa0a6" stroke-width="2" stroke-linejoin="round"/>
+  <line x1="88" y1="80" x2="112" y2="80" stroke="#cfd3d8" stroke-width="2" stroke-linecap="round" opacity="0.8"/><line x1="80" y1="90" x2="120" y2="90" stroke="#cfd3d8" stroke-width="2" stroke-linecap="round" opacity="0.8"/><line x1="91" y1="98" x2="109" y2="98" stroke="#cfd3d8" stroke-width="2" stroke-linecap="round" opacity="0.8"/><line x1="76" y1="106" x2="124" y2="106" stroke="#cfd3d8" stroke-width="2" stroke-linecap="round" opacity="0.8"/><line x1="86" y1="114" x2="114" y2="114" stroke="#cfd3d8" stroke-width="2" stroke-linecap="round" opacity="0.8"/><line x1="74" y1="122" x2="126" y2="122" stroke="#cfd3d8" stroke-width="2" stroke-linecap="round" opacity="0.8"/><line x1="89" y1="130" x2="111" y2="130" stroke="#cfd3d8" stroke-width="2" stroke-linecap="round" opacity="0.8"/><line x1="78" y1="138" x2="122" y2="138" stroke="#cfd3d8" stroke-width="2" stroke-linecap="round" opacity="0.8"/><line x1="84" y1="146" x2="116" y2="146" stroke="#cfd3d8" stroke-width="2" stroke-linecap="round" opacity="0.8"/><line x1="76" y1="154" x2="124" y2="154" stroke="#cfd3d8" stroke-width="2" stroke-linecap="round" opacity="0.8"/><line x1="88" y1="162" x2="112" y2="162" stroke="#cfd3d8" stroke-width="2" stroke-linecap="round" opacity="0.8"/>
+  <path d="M70 40 L40 58 L52 84 L72 72 Z" fill="#ffffff" stroke="#9aa0a6" stroke-width="2" stroke-linejoin="round"/>
+  <path d="M130 40 L160 58 L148 84 L128 72 Z" fill="#ffffff" stroke="#9aa0a6" stroke-width="2" stroke-linejoin="round"/>
+  <path d="M51,60 L56,64.0 L61,60 L56,61.5 Z" fill="#b9bec4"/> <path d="M139,60 L144,64.0 L149,60 L144,61.5 Z" fill="#b9bec4"/>
+  <path d="M88 34 C88 48 112 48 112 34 C108 41 92 41 88 34 Z" fill="#15140f" stroke="#15140f" stroke-width="1"/>
+  <path d="M90 36 C92 45 108 45 110 36" fill="none" stroke="#e6c24a" stroke-width="1.6"/>
+  <path d="M93,57 L107,57 L107,66.1 C107,71.7 100,75.2 100,75.2 C100,75.2 93,71.7 93,66.1 Z" fill="#d8a92a" stroke="#5e4708" stroke-width="0.7"/><rect x="95.1" y="53.5" width="9.799999999999999" height="4.2" rx="1" fill="#d8a92a"/><text x="100" y="67.5" text-anchor="middle" font-family="Arial" font-size="4.8999999999999995" fill="#3a2e08" font-weight="bold">OWFC</text>
+  <rect x="72" y="104" width="56" height="32" rx="4" fill="#fff6da" fill-opacity="0.96" stroke="#c9a227" stroke-width="2" stroke-dasharray="5 3"/><text x="100.0" y="118.0" text-anchor="middle" font-family="Arial" font-size="8" font-weight="bold" fill="#9a7510">YOUR LOGO</text><text x="100.0" y="128.0" text-anchor="middle" font-family="Arial" font-size="8" font-weight="bold" fill="#9a7510">HERE</text>
+</svg></div>
+            <div class="body">
+              <div class="price">&pound;600<small> / season</small></div>
+              <div class="desc">Our flagship package &mdash; your brand worn on the chest in every league and cup game we play.</div>
+              <span class="tagspot">&#9733; Premium &middot; front-of-shirt</span>
+            </div>
+          </div>
+        </td>
+        <!-- 1/4 zip -->
+        <td>
+          <div class="card">
+            <div class="top"><h3>Match Day Top &mdash; &frac14; Zip</h3><div class="place">Black &frac14;-zip &middot; worn to &amp; from games &middot; logo on the back</div></div>
+            <div class="art"><svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <path d="M86 36 L68 40 L44 56 L40 150 L62 152 L72 78 L64 176 C84 182 116 182 136 176 L128 78 L138 152 L160 150 L156 56 L132 40 L114 36 C114 46 86 46 86 36 Z"
+        fill="#0c0c0c" stroke="#000" stroke-width="2" stroke-linejoin="round"/>
+  <path d="M68 44 L84 52" stroke="#8a8f98" stroke-width="1.4"/>
+  <path d="M132 44 L116 52" stroke="#8a8f98" stroke-width="1.4"/>
+  <path d="M86 36 C86 47 114 47 114 36 L110 32 L100 40 L90 32 Z" fill="#1c1c1c" stroke="#000" stroke-width="1.4"/>
+  <rect x="74" y="74" width="52" height="30" rx="4" fill="#fff6da" fill-opacity="0.96" stroke="#c9a227" stroke-width="2" stroke-dasharray="5 3"/><text x="100.0" y="87.0" text-anchor="middle" font-family="Arial" font-size="8" font-weight="bold" fill="#9a7510">YOUR LOGO</text><text x="100.0" y="97.0" text-anchor="middle" font-family="Arial" font-size="8" font-weight="bold" fill="#9a7510">HERE</text>
+  <text x="100" y="192" text-anchor="middle" font-family="Arial" font-size="8" fill="#8a8f98">back view &#183; logo on back</text>
+</svg></div>
+            <div class="body">
+              <div class="price">&pound;400<small> / season</small></div>
+              <div class="desc">The squad's matchday travel top &mdash; your logo on the upper back, seen at every arrival, warm-up and presentation.</div>
+              <span class="tagspot">&#9733; Logo on back</span>
+            </div>
+          </div>
+        </td>
+      </tr>
+      <tr>
+        <!-- Training kit 1 -->
+        <td>
+          <div class="card">
+            <div class="top"><h3>Training Kit 1 &mdash; Tee &amp; Shorts</h3><div class="place">Black graffiti training tee &amp; shorts &middot; logo on front</div></div>
+            <div class="art"><svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <defs><clipPath id="teebody"><path d="M84 20 L68 25 L44 40 L54 62 L72 52 L64 128 C82 134 118 134 136 128 L128 52 L146 62 L156 40 L132 25 L116 20 C116 31 84 31 84 20 Z"/></clipPath></defs>
+  <path d="M84 20 L68 25 L44 40 L54 62 L72 52 L64 128 C82 134 118 134 136 128 L128 52 L146 62 L156 40 L132 25 L116 20 C116 31 84 31 84 20 Z"
+        fill="#0c0c0c" stroke="#000" stroke-width="2" stroke-linejoin="round"/>
+  <g clip-path="url(#teebody)"><text x="78" y="86" font-family="Arial Black,Arial" font-size="18" fill="#6e7278" opacity="0.5" transform="rotate(-12 78 86)" font-weight="900">OWAC</text><text x="120" y="80" font-family="Arial Black,Arial" font-size="12" fill="#6e7278" opacity="0.5" transform="rotate(8 120 80)" font-weight="900">OWAC</text><text x="95" y="120" font-family="Arial Black,Arial" font-size="22" fill="#6e7278" opacity="0.5" transform="rotate(-6 95 120)" font-weight="900">OWAC</text><text x="118" y="128" font-family="Arial Black,Arial" font-size="12" fill="#6e7278" opacity="0.5" transform="rotate(10 118 128)" font-weight="900">OWAC</text><text x="78" y="150" font-family="Arial Black,Arial" font-size="16" fill="#6e7278" opacity="0.5" transform="rotate(-14 78 150)" font-weight="900">OWAC</text><text x="122" y="150" font-family="Arial Black,Arial" font-size="14" fill="#6e7278" opacity="0.5" transform="rotate(6 122 150)" font-weight="900">OWAC</text><text x="100" y="160" font-family="Arial Black,Arial" font-size="20" fill="#6e7278" opacity="0.5" transform="rotate(0 100 160)" font-weight="900">OWAC</text><text x="84" y="118" font-family="Arial Black,Arial" font-size="12" fill="#6e7278" opacity="0.5" transform="rotate(-20 84 118)" font-weight="900">OWAC</text><text x="128" y="108" font-family="Arial Black,Arial" font-size="12" fill="#6e7278" opacity="0.5" transform="rotate(14 128 108)" font-weight="900">OWAC</text><text x="96" y="98" font-family="Arial Black,Arial" font-size="12" fill="#6e7278" opacity="0.5" transform="rotate(6 96 98)" font-weight="900">OWAC</text></g>
+  <path d="M54,40 L60,44.8 L66,40 L60,41.8 Z" fill="#e6c24a"/> <path d="M134,40 L140,44.8 L146,40 L140,41.8 Z" fill="#e6c24a"/>
+  <path d="M84 20 C84 31 116 31 116 20 C112 26 88 26 84 20 Z" fill="#1c1c1c" stroke="#000" stroke-width="1.2"/>
+  <path d="M94,38 L106,38 L106,45.8 C106,50.6 100,53.6 100,53.6 C100,53.6 94,50.6 94,45.8 Z" fill="#d8a92a" stroke="#5e4708" stroke-width="0.7"/><rect x="95.8" y="35.0" width="8.399999999999999" height="3.5999999999999996" rx="1" fill="#d8a92a"/><text x="100" y="47.0" text-anchor="middle" font-family="Arial" font-size="4.199999999999999" fill="#3a2e08" font-weight="bold">OWFC</text>
+  <rect x="78" y="62" width="44" height="26" rx="4" fill="#fff6da" fill-opacity="0.96" stroke="#c9a227" stroke-width="2" stroke-dasharray="5 3"/><text x="100.0" y="73.0" text-anchor="middle" font-family="Arial" font-size="8" font-weight="bold" fill="#9a7510">YOUR LOGO</text><text x="100.0" y="83.0" text-anchor="middle" font-family="Arial" font-size="8" font-weight="bold" fill="#9a7510">HERE</text>
+  <!-- shorts -->
+  <path d="M62 142 L138 142 L138 152 L106 152 L100 186 L84 186 L80 158 L76 186 L60 186 L62 152 Z"
+        fill="#111" stroke="#000" stroke-width="2" stroke-linejoin="round"/>
+  <rect x="62" y="142" width="76" height="6" fill="#000"/>
+  <path d="M123,160 L128,164.0 L133,160 L128,161.5 Z" fill="#e6c24a"/>
+</svg></div>
+            <div class="body">
+              <div class="price">&pound;400<small> / season</small></div>
+              <div class="desc">Training T&#8209;shirts and shorts the players live in week-round &mdash; your logo front and centre at every session.</div>
+              <span class="tagspot">&#9733; Logo on front</span>
+            </div>
+          </div>
+        </td>
+        <!-- Training kit 2 -->
+        <td>
+          <div class="card">
+            <div class="top"><h3>Training Kit 2 &mdash; Hoodie</h3><div class="place">Black full-zip hoodie &middot; logo on front</div></div>
+            <div class="art"><svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <!-- hood -->
+  <path d="M74 42 C68 18 132 18 126 42 C112 33 88 33 74 42 Z" fill="#000" stroke="#000" stroke-width="2"/>
+  <!-- body -->
+  <path d="M80 42 L60 46 L40 64 L52 88 L70 76 L64 176 C84 182 116 182 136 176 L130 76 L148 88 L160 64 L140 46 L120 42 C118 56 82 56 80 42 Z"
+        fill="#0c0c0c" stroke="#000" stroke-width="2" stroke-linejoin="round"/>
+  <!-- shoulder piping -->
+  <path d="M64 52 L82 60" stroke="#8a8f98" stroke-width="1.3"/>
+  <path d="M136 52 L118 60" stroke="#8a8f98" stroke-width="1.3"/>
+  <!-- centre silver zip -->
+  <line x1="100" y1="46" x2="100" y2="176" stroke="#b8bdc4" stroke-width="2.4"/>
+  <rect x="97" y="60" width="6" height="9" rx="1.5" fill="#cfd3d8"/>
+  <!-- neck rib -->
+  <path d="M80 42 C84 58 116 58 120 42 C112 52 88 52 80 42 Z" fill="#1c1c1c" stroke="#000" stroke-width="1.2"/>
+  <!-- drawcords -->
+  <line x1="94" y1="50" x2="93" y2="72" stroke="#cfd3d8" stroke-width="1.8"/>
+  <line x1="106" y1="50" x2="107" y2="72" stroke="#cfd3d8" stroke-width="1.8"/>
+  <path d="M117,78 L129,78 L129,85.8 C129,90.6 123,93.6 123,93.6 C123,93.6 117,90.6 117,85.8 Z" fill="#d8a92a" stroke="#5e4708" stroke-width="0.7"/><rect x="118.8" y="75.0" width="8.399999999999999" height="3.5999999999999996" rx="1" fill="#d8a92a"/><text x="123" y="87.0" text-anchor="middle" font-family="Arial" font-size="4.199999999999999" fill="#3a2e08" font-weight="bold">OWFC</text>
+  <path d="M75,80 L80,84.0 L85,80 L80,81.5 Z" fill="#ffffff"/>
+  <rect x="60" y="96" width="40" height="24" rx="4" fill="#fff6da" fill-opacity="0.96" stroke="#c9a227" stroke-width="2" stroke-dasharray="5 3"/><text x="80.0" y="106.0" text-anchor="middle" font-family="Arial" font-size="8" font-weight="bold" fill="#9a7510">YOUR LOGO</text><text x="80.0" y="116.0" text-anchor="middle" font-family="Arial" font-size="8" font-weight="bold" fill="#9a7510">HERE</text>
+  <!-- side zip pockets -->
+  <line x1="74" y1="120" x2="70" y2="150" stroke="#5a5e64" stroke-width="1.6"/>
+  <line x1="126" y1="120" x2="130" y2="150" stroke="#5a5e64" stroke-width="1.6"/>
+</svg></div>
+            <div class="body">
+              <div class="price">&pound;500<small> / season</small></div>
+              <div class="desc">The training hoodie worn before games, at training and out and about &mdash; brilliant year-round visibility.</div>
+              <span class="tagspot">&#9733; Logo on front</span>
+            </div>
+          </div>
+        </td>
+      </tr>
+    </table>
+    <p class="muted" style="text-align:center;margin-top:14px;font-size:9.5pt">Prefer to discuss a bespoke or multi-item package? We'd love to chat &mdash; just get in touch.</p>
+  </div>
+
+  <!-- ============ FORM ============ -->
+  <div class="section pgbreak">
+    <div class="form">
+      <div class="eyebrow">Yes, count us in</div>
+      <h2>Sponsorship Application</h2>
+      <p class="muted" style="margin-top:2px">Tick your chosen package(s), add your details, and return this form to us. We'll be in touch to arrange your logo artwork and confirm.</p>
+
+      <div class="opt"><span class="box"></span><b>Match Day Shirt</b> &mdash; front &amp; centre <span class="amt">&pound;600</span></div>
+      <div class="opt"><span class="box"></span><b>Training Kit 2 &mdash; Hoodie</b> &mdash; logo on front <span class="amt">&pound;500</span></div>
+      <div class="opt"><span class="box"></span><b>Training Kit 1 &mdash; Tee &amp; Shorts</b> &mdash; logo on front <span class="amt">&pound;400</span></div>
+      <div class="opt"><span class="box"></span><b>Match Day Top &mdash; &frac14; Zip</b> &mdash; logo on back <span class="amt">&pound;400</span></div>
+      <div class="opt" style="border-style:dashed"><b>Total amount</b> <span class="amt">&pound; ______________</span></div>
+
+      <table class="two" style="margin-top:6px"><tr>
+        <td>
+          <div class="field"><div class="lab">Company / Sponsor name</div><div class="line"></div></div>
+          <div class="field"><div class="lab">Contact name</div><div class="line"></div></div>
+          <div class="field"><div class="lab">Email</div><div class="line"></div></div>
+        </td>
+        <td>
+          <div class="field"><div class="lab">Phone</div><div class="line"></div></div>
+          <div class="field"><div class="lab">Website / social to feature</div><div class="line"></div></div>
+          <div class="field"><div class="lab">Logo artwork</div><div class="line"></div><div class="muted" style="font-size:7.6pt;margin-top:3px">Please email a high&#8209;resolution logo (PNG/SVG).</div></div>
+        </td>
+      </tr></table>
+
+      <table class="two" style="margin-top:14px"><tr>
+        <td><div class="field"><div class="lab">Signature</div><div class="line"></div></div></td>
+        <td><div class="field"><div class="lab">Date</div><div class="line"></div></div></td>
+      </tr></table>
+
+      <div class="foot">
+        To confirm your sponsorship, return this form to <b>Daniel &mdash; Team Manager</b><br/>
+        <b>dr@uqualify.co</b> &nbsp;&middot;&nbsp; <b>www.harris.football</b><br/>
+        <span style="font-size:8pt">Thank you for supporting OWFC Harris Under&#8209;11s. You'll be proudly featured on our team's Sponsors page.</span>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>

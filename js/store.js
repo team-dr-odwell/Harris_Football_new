@@ -396,6 +396,60 @@
       return { ok:true };
     },
 
+    async updateEvent(id, ev) {
+      const e = this.state.events.find(x => x.id === id); if (!e) return { ok:false, msg:"Event not found" };
+      Object.assign(e, { title:ev.title, desc:ev.desc, location:ev.location, date:ev.date, time:ev.time, link:ev.link, img:ev.img });
+      if (LIVE) {
+        const { error } = await this.sb.from("events").update({ title:ev.title, description:ev.desc || null,
+          location:ev.location || null, date:ev.date, time:ev.time || null, link:ev.link || null, img:ev.img }).eq("id", id);
+        if (error) return { ok:false, msg:error.message };
+      } else this._persistContent();
+      return { ok:true };
+    },
+    async deleteEvent(id) {
+      this.state.events = this.state.events.filter(x => x.id !== id);
+      if (LIVE) { const { error } = await this.sb.from("events").delete().eq("id", id); if (error) return { ok:false, msg:error.message }; }
+      else this._persistContent();
+      return { ok:true };
+    },
+
+    async deleteTraining(id) {
+      this.state.training = (this.state.training || []).filter(x => x.id !== id);
+      if (LIVE) { const { error } = await this.sb.from("training_sessions").delete().eq("id", id); if (error) return { ok:false, msg:error.message }; }
+      else this._persistContent();
+      return { ok:true };
+    },
+
+    async updatePlayer(id, fields) {
+      const p = this.player(id); if (!p) return { ok:false, msg:"Player not found" };
+      Object.assign(p, fields);
+      if (LIVE) { const { error } = await this.sb.from("players").update(fields).eq("id", id); if (error) return { ok:false, msg:error.message }; }
+      else this._persistContent();
+      return { ok:true };
+    },
+    // Safe delete: only allowed if the player has no match/points history (avoids destroying records).
+    playerHasHistory(id) {
+      const inLedger = (this.state.ledger || []).some(e => e.player_id === id);
+      const inMatch = (this.state.fixtures || []).some(f =>
+        (Array.isArray(f.lineup) && f.lineup.includes(id)) ||
+        (Array.isArray(f.goals) && f.goals.some(g => g.scorer === id || g.assist === id)) ||
+        f.motm === id);
+      return inLedger || inMatch;
+    },
+    async deletePlayer(id) {
+      if (this.playerHasHistory(id)) return { ok:false, msg:"This player has match/points history — remove them from the season on the Roster tab instead of deleting." };
+      this.state.players = this.state.players.filter(x => x.id !== id);
+      // clear any RSVP rows so they don't inflate "going" counts
+      Object.values(this.state.attendance || {}).forEach(m => { delete m[id]; });
+      if (LIVE) {
+        try { await this.sb.from("profiles").update({ player_id:null }).eq("player_id", id); } catch (e) {}
+        try { await this.sb.from("rsvp").delete().eq("player_id", id); } catch (e) {}
+        const { error } = await this.sb.from("players").delete().eq("id", id);
+        if (error) return { ok:false, msg:error.message };
+      } else this._persistContent();
+      return { ok:true };
+    },
+
     resetPreview() { localStorage.removeItem(LS_CONTENT); localStorage.removeItem(LS_KEY); },
 
     /* ---------- parent profile (contact details + child) ---------- */
@@ -536,7 +590,14 @@
     // The real, live season today falls in (NOT the season being viewed) — so a
     // child earning quiz/video/challenge points always banks them in the right season.
     currentSeason() { return this._seasonForDate(new Date().toISOString().slice(0, 10)); },
-    _urlKey(url) { return String(url || "").replace(/[^a-z0-9]/gi, "").slice(-24); },
+    _urlKey(url) {
+      // Prefer the stable YouTube video id; fall back to a normalised tail.
+      const m = String(url || "").match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([\w-]{11})/);
+      if (m) return "yt" + m[1];
+      const vm = String(url || "").match(/vimeo\.com\/(\d+)/);
+      if (vm) return "vm" + vm[1];
+      return String(url || "").replace(/[^a-z0-9]/gi, "").slice(-24);
+    },
 
     ledgerFor(playerId, season) {
       season = season || this.season;
@@ -575,13 +636,18 @@
     ledgerHas(ref) { return !!ref && (this.state.ledger || []).some(e => e.ref === ref); },
 
     // Recompute each player's headline numbers from the ledger (current season).
+    // If a season has NO ledger rows for a player (e.g. the 2025/26 archive, whose
+    // stats live in players.stats), keep the _applySeason projection so historical
+    // records aren't wiped to zero.
     _applyPoints() {
+      const s = this.season;
       (this.state.players || []).forEach(p => {
-        p.points   = this.ledgerSum(p.id);
-        p.goals    = this.countCat(p.id, "goal");
-        p.assists  = this.countCat(p.id, "assist");
-        p.motm     = this.countCat(p.id, "motm");
-        p.sessions = this.countCat(p.id, "attendance");
+        if (!this.ledgerFor(p.id, s).length) return; // keep projected season stats
+        p.points   = this.ledgerSum(p.id, s);
+        p.goals    = this.countCat(p.id, "goal", s);
+        p.assists  = this.countCat(p.id, "assist", s);
+        p.motm     = this.countCat(p.id, "motm", s);
+        p.sessions = this.countCat(p.id, "attendance", s);
       });
     },
 

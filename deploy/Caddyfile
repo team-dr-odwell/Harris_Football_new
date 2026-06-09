@@ -1,0 +1,16 @@
+# /etc/caddy/Caddyfile  —  OWFC Harris (harris.football)
+# Named-domain block => Caddy automatically obtains & renews a free Let's Encrypt
+# certificate and redirects http -> https. Replace the old ":80 { ... }" block
+# with this, then: sudo systemctl reload caddy
+
+harris.football, www.harris.football {
+    root * /var/www/harris
+    encode gzip
+    file_server
+
+    # Always serve fresh HTML/JS/CSS so site updates show immediately
+    @nocache {
+        path *.html *.js *.css /
+    }
+    header @nocache Cache-Control "no-cache, no-store, must-revalidate"
+}

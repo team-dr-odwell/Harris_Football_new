@@ -23,7 +23,7 @@ window.HARRIS_DATA = {
     { id:7,  number:7,  name:"Jack Horrell",            pos:"ST", rating:83, pace:88, shooting:84, passing:72, dribbling:84, defending:52, physical:72, games:0, goals:0, assists:0, motm:0, init:"JH",
       dev:{ passing:60, shooting:75, dribbling:70, defending:45, fitness:65, teamwork:80 },
       targets:["Score with your weaker foot in a match","Win the ball back within 6 seconds of losing it"],
-      videos:[{ title:"Finishing inside the box", url:"https://www.youtube.com/watch?v=dQw4w9WgXcQ" }],
+      videos:[{ title:"Finishing inside the box", url:"" }],
       program:["Finishing first-time in the box","Movement to lose your marker","Hold-up play and linking with the team","Leading the press from the front"] },
     { id:8,  number:8,  name:"Alex Biondini",           pos:"CM", rating:82, pace:76, shooting:70, passing:84, dribbling:80, defending:70, physical:72, games:0, goals:0, assists:0, motm:0, init:"AB",
       program:["Receiving on the half-turn and scanning first","Range of passing — short and long","Driving forward with the ball","Pressing and winning the ball back"] },
@@ -63,7 +63,7 @@ window.HARRIS_DATA = {
     { id:105, status:"past", date:"2025-10-19", kickoff:"10:00", meetup:"09:30", opponent:"Whitley Bay Storm", home_away:"H",
       ground:"Harris Park, Pitch 3", address:"Harris Park, Coast Rd, Newcastle NE28 9JA", kit:"gold", competition:"League",
       our_score:5, their_score:2, result:"W", motm:7,
-      goals:[{scorer:7,assist:10},{scorer:9,assist:8},{scorer:9,assist:7},{scorer:10,assist:6},{scorer:15,assist:11}],
+      goals:[{scorer:7,assist:10},{scorer:9,assist:8},{scorer:9,assist:7},{scorer:10,assist:6},{scorer:11,assist:14}],
       media:[{type:"video",caption:"5-goal highlights"},{type:"photo",caption:"Man of the match Jack"}] },
     { id:106, status:"past", date:"2025-11-02", kickoff:"11:00", meetup:"10:30", opponent:"Blyth Town Colts", home_away:"A",
       ground:"South Beach Recreation Ground", address:"Links Rd, Blyth NE24 3PL", kit:"black", competition:"League",
@@ -113,8 +113,8 @@ window.HARRIS_DATA = {
 
   /* training-exercise video library (coach-managed; paste YouTube/Vimeo links) */
   drills: [
-    { id:1, title:"Cone dribbling warm-up", area:"Dribbling", url:"https://www.youtube.com/watch?v=dQw4w9WgXcQ" },
-    { id:2, title:"Passing diamond drill", area:"Passing", url:"https://www.youtube.com/watch?v=8r0Z0u8aQ1A" }
+    { id:1, title:"Cone dribbling warm-up", area:"Dribbling", url:"" },
+    { id:2, title:"Passing diamond drill", area:"Passing", url:"" }
   ],
 
   /* ---------------- EVENTS ---------------- */

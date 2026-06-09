@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>OWFC Harris U11 — Sponsorship 2026/27</title>
+<style>
+  @page { size: A4; margin: 14mm 14mm 16mm 14mm; }
+  * { box-sizing: border-box; }
+  html { -weasy-hyphens: none; }
+  body {
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    color: #1c1a14; margin: 0; font-size: 10.5pt; line-height: 1.5;
+  }
+  h1,h2,h3 { font-family: "Arial Black", Arial, sans-serif; letter-spacing:.2px; margin:0; }
+  .gold { color:#b78a16; }
+  .muted { color:#6b6657; }
+  a { color:#b78a16; text-decoration:none; }
+
+  /* ---- hero ---- */
+  .hero { background:#111009; color:#fff; border-radius:14px; padding:22px 24px; position:relative; overflow:hidden; }
+  .hero:after { content:""; position:absolute; right:-60px; top:-60px; width:220px; height:220px;
+    background:radial-gradient(circle, rgba(201,162,39,.35), transparent 70%); }
+  .crest { display:inline-block; width:46px; height:46px; vertical-align:middle; margin-right:12px; }
+  .hero .club { display:inline-block; vertical-align:middle; }
+  .hero .club .k { font-size:18pt; font-weight:900; letter-spacing:1px; }
+  .hero .club .k span { color:#e6c24a; }
+  .hero .club .s { font-size:8.5pt; letter-spacing:3px; text-transform:uppercase; color:#cfc7b0; }
+  .hero h1 { font-size:25pt; line-height:1.05; margin:16px 0 6px; }
+  .hero h1 span { color:#e6c24a; }
+  .hero .sub { color:#d8d2c2; max-width:62ch; font-size:10pt; }
+  .season-pill { display:inline-block; margin-top:12px; background:rgba(230,194,74,.15); color:#e6c24a;
+    border:1px solid rgba(230,194,74,.4); border-radius:999px; padding:4px 12px; font-size:8.5pt; font-weight:800; letter-spacing:1px; }
+
+  /* ---- sections ---- */
+  .eyebrow { color:#b78a16; font-weight:900; font-size:8pt; letter-spacing:2.5px; text-transform:uppercase; margin:0 0 4px; }
+  .section { margin-top:18px; }
+  .section h2 { font-size:15pt; margin-bottom:8px; }
+  .lead { background:#faf7ee; border:1px solid #ece3cc; border-left:4px solid #c9a227; border-radius:10px; padding:14px 16px; }
+  .lead p { margin:0 0 8px; }
+  .lead p:last-child { margin-bottom:0; }
+  .sign { font-weight:800; color:#1c1a14; }
+
+  /* ---- stat chips ---- */
+  .stats { width:100%; border-collapse:separate; border-spacing:8px 0; margin:6px 0 4px; }
+  .stats td { width:25%; background:#111009; color:#fff; border-radius:10px; padding:12px 10px; text-align:center; vertical-align:middle; }
+  .stats .n { font-size:16pt; font-weight:900; color:#e6c24a; font-family:"Arial Black",Arial; }
+  .stats .l { font-size:7.7pt; color:#cfc7b0; text-transform:uppercase; letter-spacing:.6px; }
+  .bene { margin:10px 0 0; padding:0; list-style:none; }
+  .bene li { padding:3px 0 3px 22px; position:relative; }
+  .bene li:before { content:"\2605"; position:absolute; left:0; color:#c9a227; }
+
+  /* ---- package cards ---- */
+  .pkgs { width:100%; border-collapse:separate; border-spacing:10px; }
+  .pkgs td { width:50%; vertical-align:top; }
+  .card { border:1px solid #e7ddc6; border-radius:12px; overflow:hidden; page-break-inside:avoid; }
+  .card .top { background:#f7f3e8; padding:10px 14px; border-bottom:1px solid #e7ddc6; }
+  .card .top h3 { font-size:12pt; }
+  .card .top .place { font-size:8.3pt; color:#6b6657; }
+  .card .art { text-align:center; padding:8px 8px 2px; }
+  .card .art svg { width:150px; height:150px; }
+  .card .body { padding:6px 14px 14px; }
+  .card .price { font-size:17pt; font-weight:900; color:#111009; font-family:"Arial Black",Arial; }
+  .card .price small { font-size:8.5pt; font-weight:700; color:#6b6657; }
+  .card .desc { font-size:9pt; color:#4b4639; margin:4px 0 0; }
+  .tagspot { display:inline-block; background:#fff6da; color:#9a7510; border:1px solid #e7cf86;
+    border-radius:6px; padding:2px 8px; font-size:7.6pt; font-weight:800; letter-spacing:.4px; margin-top:6px; }
+
+  /* ---- price summary ---- */
+  .summary { width:100%; border-collapse:collapse; margin-top:6px; }
+  .summary th, .summary td { text-align:left; padding:8px 10px; border-bottom:1px solid #eadfca; font-size:9.5pt; }
+  .summary th { background:#111009; color:#e6c24a; font-size:8pt; letter-spacing:1px; text-transform:uppercase; }
+  .summary td.amt, .summary th.amt { text-align:right; font-weight:800; }
+
+  /* ---- form ---- */
+  .form { border:1.5px solid #111009; border-radius:12px; padding:16px 18px; }
+  .form h2 { font-size:14pt; }
+  .opt { border:1px solid #ddd3bd; border-radius:8px; padding:8px 10px; margin:6px 0; }
+  .opt .box { display:inline-block; width:14px; height:14px; border:1.6px solid #111009; border-radius:3px; vertical-align:-2px; margin-right:8px; }
+  .opt .amt { float:right; font-weight:900; }
+  .field { margin-top:12px; }
+  .field .lab { font-size:8pt; font-weight:800; letter-spacing:.8px; text-transform:uppercase; color:#6b6657; }
+  .line { border-bottom:1.2px solid #1c1a14; height:18px; margin-top:6px; }
+  .two { width:100%; border-collapse:separate; border-spacing:14px 0; }
+  .two td { width:50%; vertical-align:top; }
+  .foot { margin-top:14px; text-align:center; color:#6b6657; font-size:8.6pt; }
+  .foot b { color:#111009; }
+  .pgbreak { page-break-before: always; }
+</style>
+</head>
+<body>
+
+  <!-- ============ HERO ============ -->
+  <div class="hero">
+    <svg class="crest" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+      <path d="M50 4 L90 16 V52 C90 76 72 90 50 96 C28 90 10 76 10 52 V16 Z" fill="#1a1813" stroke="#e6c24a" stroke-width="3"/>
+      <text x="50" y="46" text-anchor="middle" font-family="Arial Black,Arial" font-size="22" fill="#e6c24a" font-weight="900">H</text>
+      <text x="50" y="68" text-anchor="middle" font-family="Arial" font-size="9" fill="#fff" letter-spacing="1">FC</text>
+    </svg>
+    <div class="club">
+      <div class="k">OWFC <span>HARRIS</span></div>
+      <div class="s">Under&#8209;11s &#183; Grassroots Football</div>
+    </div>
+    <h1>Become a <span>Team Sponsor</span></h1>
+    <div class="sub">Put your brand on our kit and behind a group of young players who give everything, every week. A season-long partnership with a proud local team.</div>
+    <div class="season-pill">SPONSORSHIP PACK &#183; 2026/27 SEASON</div>
+  </div>
+
+  <!-- ============ WARM MESSAGE ============ -->
+  <div class="section">
+    <div class="eyebrow">A note from the team</div>
+    <div class="lead">
+      <p>Dear Sponsor,</p>
+      <p>OWFC Harris Under&#8209;11s are a small, hard&#8209;working grassroots side with big hearts and even bigger ambitions. Every week our players give their all &mdash; learning, developing and representing our community with real pride.</p>
+      <p>Your sponsorship is so much more than a logo on a shirt. It helps a group of young people fall in love with the game, grow as people, and build memories that last a lifetime &mdash; while your brand travels with us to every pitch, tournament and touchline across the season.</p>
+      <p>We would be proud to have you on our team sheet, and we'll champion your support every step of the way. Thank you for considering us.</p>
+      <p class="sign">&mdash; The OWFC Harris U11 Team &amp; Families</p>
+    </div>
+  </div>
+
+  <!-- ============ WHY SPONSOR ============ -->
+  <div class="section">
+    <div class="eyebrow">Why partner with us</div>
+    <h2>A team on the up &mdash; and a brand seen all season</h2>
+    <table class="stats"><tr>
+      <td><div class="n">30</div><div class="l">Games last season</div></td>
+      <td><div class="n">Finalists</div><div class="l">Autumn Cup</div></td>
+      <td><div class="n">Winners</div><div class="l">JPL Cup</div></td>
+      <td><div class="n">1,000s</div><div class="l">Seen locally</div></td>
+    </tr></table>
+    <ul class="bene">
+      <li><b>Real visibility.</b> Across a full season your brand is seen by thousands of people in the local area &mdash; players, parents, opposition clubs, leagues, tournaments and supporters on the sidelines.</li>
+      <li><b>A permanent place online.</b> Every sponsor is featured on the <b>Sponsors</b> section of <a href="https://www.harris.football">www.harris.football</a>, our private team website.</li>
+      <li><b>Community goodwill.</b> Show your support for grassroots sport and young people in our area &mdash; a partnership people remember.</li>
+    </ul>
+  </div>
+
+  <!-- ============ PACKAGES ============ -->
+  <div class="section pgbreak">
+    <div class="eyebrow">Choose your package</div>
+    <h2>Sponsorship Opportunities</h2>
+    <p class="muted" style="margin-top:2px">Each illustration shows where your logo will sit. Garments by Macron. One sponsor per package.</p>
+
+    <table class="pkgs">
+      <tr>
+        <!-- Match day shirt -->
+        <td>
+          <div class="card">
+            <div class="top"><h3>Match Day Shirt</h3><div class="place">White &amp; grey playing shirt &middot; logo front &amp; centre</div></div>
+            <div class="art">__SHIRT__</div>
+            <div class="body">
+              <div class="price">&pound;600<small> / season</small></div>
+              <div class="desc">Our flagship package &mdash; your brand worn on the chest in every league and cup game we play.</div>
+              <span class="tagspot">&#9733; Premium &middot; front-of-shirt</span>
+            </div>
+          </div>
+        </td>
+        <!-- 1/4 zip -->
+        <td>
+          <div class="card">
+            <div class="top"><h3>Match Day Top &mdash; &frac14; Zip</h3><div class="place">Black &frac14;-zip &middot; worn to &amp; from games &middot; logo on the back</div></div>
+            <div class="art">__ZIP__</div>
+            <div class="body">
+              <div class="price">&pound;400<small> / season</small></div>
+              <div class="desc">The squad's matchday travel top &mdash; your logo on the upper back, seen at every arrival, warm-up and presentation.</div>
+              <span class="tagspot">&#9733; Logo on back</span>
+            </div>
+          </div>
+        </td>
+      </tr>
+      <tr>
+        <!-- Training kit 1 -->
+        <td>
+          <div class="card">
+            <div class="top"><h3>Training Kit 1 &mdash; Tee &amp; Shorts</h3><div class="place">Black graffiti training tee &amp; shorts &middot; logo on front</div></div>
+            <div class="art">__TEE__</div>
+            <div class="body">
+              <div class="price">&pound;400<small> / season</small></div>
+              <div class="desc">Training T&#8209;shirts and shorts the players live in week-round &mdash; your logo front and centre at every session.</div>
+              <span class="tagspot">&#9733; Logo on front</span>
+            </div>
+          </div>
+        </td>
+        <!-- Training kit 2 -->
+        <td>
+          <div class="card">
+            <div class="top"><h3>Training Kit 2 &mdash; Hoodie</h3><div class="place">Black full-zip hoodie &middot; logo on front</div></div>
+            <div class="art">__HOODIE__</div>
+            <div class="body">
+              <div class="price">&pound;500<small> / season</small></div>
+              <div class="desc">The training hoodie worn before games, at training and out and about &mdash; brilliant year-round visibility.</div>
+              <span class="tagspot">&#9733; Logo on front</span>
+            </div>
+          </div>
+        </td>
+      </tr>
+    </table>
+    <p class="muted" style="text-align:center;margin-top:14px;font-size:9.5pt">Prefer to discuss a bespoke or multi-item package? We'd love to chat &mdash; just get in touch.</p>
+  </div>
+
+  <!-- ============ FORM ============ -->
+  <div class="section pgbreak">
+    <div class="form">
+      <div class="eyebrow">Yes, count us in</div>
+      <h2>Sponsorship Application</h2>
+      <p class="muted" style="margin-top:2px">Tick your chosen package(s), add your details, and return this form to us. We'll be in touch to arrange your logo artwork and confirm.</p>
+
+      <div class="opt"><span class="box"></span><b>Match Day Shirt</b> &mdash; front &amp; centre <span class="amt">&pound;600</span></div>
+      <div class="opt"><span class="box"></span><b>Training Kit 2 &mdash; Hoodie</b> &mdash; logo on front <span class="amt">&pound;500</span></div>
+      <div class="opt"><span class="box"></span><b>Training Kit 1 &mdash; Tee &amp; Shorts</b> &mdash; logo on front <span class="amt">&pound;400</span></div>
+      <div class="opt"><span class="box"></span><b>Match Day Top &mdash; &frac14; Zip</b> &mdash; logo on back <span class="amt">&pound;400</span></div>
+      <div class="opt" style="border-style:dashed"><b>Total amount</b> <span class="amt">&pound; ______________</span></div>
+
+      <table class="two" style="margin-top:6px"><tr>
+        <td>
+          <div class="field"><div class="lab">Company / Sponsor name</div><div class="line"></div></div>
+          <div class="field"><div class="lab">Contact name</div><div class="line"></div></div>
+          <div class="field"><div class="lab">Email</div><div class="line"></div></div>
+        </td>
+        <td>
+          <div class="field"><div class="lab">Phone</div><div class="line"></div></div>
+          <div class="field"><div class="lab">Website / social to feature</div><div class="line"></div></div>
+          <div class="field"><div class="lab">Logo artwork</div><div class="line"></div><div class="muted" style="font-size:7.6pt;margin-top:3px">Please email a high&#8209;resolution logo (PNG/SVG).</div></div>
+        </td>
+      </tr></table>
+
+      <table class="two" style="margin-top:14px"><tr>
+        <td><div class="field"><div class="lab">Signature</div><div class="line"></div></div></td>
+        <td><div class="field"><div class="lab">Date</div><div class="line"></div></div></td>
+      </tr></table>
+
+      <div class="foot">
+        To confirm your sponsorship, return this form to <b>Daniel &mdash; Team Manager</b><br/>
+        <b>dr@uqualify.co</b> &nbsp;&middot;&nbsp; <b>www.harris.football</b><br/>
+        <span style="font-size:8pt">Thank you for supporting OWFC Harris Under&#8209;11s. You'll be proudly featured on our team's Sponsors page.</span>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>
