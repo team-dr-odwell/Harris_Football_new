@@ -179,8 +179,8 @@
     const fifth = me ? { n: me.points||0, l:"My league points" }
                      : { n: ([...ros].sort((a,b)=>(b.points||0)-(a.points||0))[0]||{}).points||0, l:"Top points" };
 
-    const myVids = me ? (me.videos||[]).filter(v=>v.url).slice(0,2) : [];
-    const teamVids = (S.state.drills||[]).filter(d=>d.url).slice(0,2);
+    const myVids = me ? S.videosForPlayer(me.id).filter(v=>v.url).slice(0,2) : [];
+    const teamVids = S.teamVideos().filter(d=>d.url).slice(0,2);
     const firstName = me ? esc(me.name.split(" ")[0]) : "";
 
     view.innerHTML = `
@@ -189,10 +189,8 @@
         <div class="hero-tag">OWFC Harris · ${esc(S.season)}</div>
         <h1>Welcome back, <span>${firstName}</span>! 👋</h1>
         <p class="hero-sub">#${me.number} · ${esc(me.pos)}${me.captain?' · Captain 🧢':''} — you've earned <b>${me.points||0}</b> points this season. Keep climbing! 🚀</p>
+        <div class="hero-actions"><button class="btn btn-gold btn-sm" data-go="players/${me.id}">My player card →</button></div>
       </section>
-      <div class="home-mycard"><div class="fc-card" data-go="players/${me.id}" style="max-width:230px;margin:0 auto;cursor:pointer">${fcCardInner(me)}</div>
-        <div class="muted" style="text-align:center;font-size:.82rem;margin-top:.4rem">Tap your card to see your Academy profile</div>
-      </div>
       ` : `
       <section class="hero">
         <div class="hero-tag">${esc(cfg.TEAM_NAME)} · ${esc(cfg.AGE_GROUP)} · ${esc(S.season)}</div>
@@ -220,14 +218,14 @@
       </div>
 
       ${me && myVids.length ? `
-      <div class="section-head" style="margin-top:1.8rem"><div><div class="eyebrow">Picked for you</div><h2>My Development</h2></div>
+      <div class="section-head" style="margin-top:1.8rem"><div><div class="eyebrow">Picked just for ${firstName}</div><h2>My Development</h2></div>
         <button class="btn btn-ghost btn-sm" data-go="development/${me.id}">My plan →</button></div>
-      <p class="muted" style="margin-top:-.6rem;font-size:.86rem">Tap a video to watch it on your development page — finish it to earn points! 🎬</p>
+      <p class="muted" style="margin-top:-.6rem;font-size:.86rem">Videos your coach chose for <b>you</b> — tap one, watch it to the end and earn points! 🎬</p>
       <div class="home-vids">${myVids.map(v=>videoThumb(v, "#development/"+me.id, false)).join("")}</div>` : ""}
 
       ${teamVids.length ? `
-      <div class="section-head" style="margin-top:1.8rem"><div><div class="eyebrow">Practise at home</div><h2>Team Training Videos</h2></div>
-        <button class="btn btn-ghost btn-sm" data-go="training">Schedule →</button></div>
+      <div class="section-head" style="margin-top:1.8rem"><div><div class="eyebrow">For the whole squad</div><h2>Team Training Videos</h2></div></div>
+      <p class="muted" style="margin-top:-.6rem;font-size:.86rem">Drills for everyone to practise at home — not personal homework.</p>
       <div class="home-vids">${teamVids.map(v=>videoThumb(v, v.url, true)).join("")}</div>` : ""}
     `;
     wireRsvp(); wireGo();
@@ -545,7 +543,7 @@
     return `<div class="drill-plan">
       <div class="drill-label">📋 This session</div>
       ${drills.length ? `<ul class="drill-list">${drills.map(d=>`<li>${esc(d)}</li>`).join("")}</ul>` : ""}
-      ${videos.length ? `<div class="drill-vids">${videos.map(v=>`<div class="drill-vid"><b>${esc(v.title||"Drill")}</b>${v.area?` <span class="tag t-train">${esc(v.area)}</span>`:""}${videoEmbed(v.url)}</div>`).join("")}</div>` : ""}
+      ${videos.length ? `<div class="drill-vids">${videos.map(v=>`<div class="drill-vid"><b>${esc(v.title||"Drill")}</b>${v.area?` <span class="tag t-train">${esc(v.area)}</span>`:""}${v.description?`<div class="muted" style="font-size:.8rem;margin:.2rem 0 .4rem">${esc(v.description)}</div>`:""}${videoEmbed(v.url)}</div>`).join("")}</div>` : ""}
     </div>`;
   }
 
@@ -665,7 +663,7 @@
     const mine = p.id === S.me;
     const track = mine && !S.isAdmin;   // only the child earns points, on their own videos
     const program = p.program || [];
-    const videos = (p.videos || []).map((v,i)=>({ ...v, domId:`devvid-${p.id}-${i}`, yt:ytId(v.url) }));
+    const videos = S.videosForPlayer(p.id).map((v,i)=>({ ...v, domId:`devvid-${p.id}-${i}`, yt:ytId(v.url) }));
     view.innerHTML = `
       ${S.isAdmin ? `<button class="btn btn-ghost btn-sm" data-go="development" style="margin-bottom:1rem">← All players</button>`
         : (id && !mine ? `<button class="btn btn-ghost btn-sm" data-go="players/${p.id}" style="margin-bottom:1rem">← ${esc(p.name.split(" ")[0])}'s card</button>` : "")}
@@ -679,7 +677,7 @@
       </div>
 
       <div class="section-head" style="margin-top:1.6rem"><div><div class="eyebrow">Picked for you</div><h2>My Videos</h2></div></div>
-      ${videos.length?`<div class="grid cols-2">${videos.map(v=>`<div class="card"><b style="display:block;margin-bottom:.6rem">${esc(v.title||"Video")}</b>${(track && v.yt)?`<div class="video"><iframe id="${v.domId}" src="https://www.youtube.com/embed/${v.yt}?enablejsapi=1" loading="lazy" allow="fullscreen; picture-in-picture" allowfullscreen></iframe></div>`:videoEmbed(v.url)}${track?`<div class="muted" style="font-size:.74rem;margin-top:.4rem">${v.yt?`+${(cfg.SCORING||{}).videoFirstWatch} for watching it fully, +${(cfg.SCORING||{}).videoRewatch} each rewatch 🎬`:`Auto-points only work for YouTube links`}</div>`:""}</div>`).join("")}</div>`
+      ${videos.length?`<div class="grid cols-2">${videos.map(v=>`<div class="card"><b style="display:block;margin-bottom:${v.description?'.25rem':'.6rem'}">${esc(v.title||"Video")}</b>${v.description?`<div class="muted" style="font-size:.82rem;margin-bottom:.6rem">${esc(v.description)}</div>`:""}${(track && v.yt)?`<div class="video"><iframe id="${v.domId}" src="https://www.youtube.com/embed/${v.yt}?enablejsapi=1" loading="lazy" allow="fullscreen; picture-in-picture" allowfullscreen></iframe></div>`:videoEmbed(v.url)}${track?`<div class="muted" style="font-size:.74rem;margin-top:.4rem">${v.yt?`+${(cfg.SCORING||{}).videoFirstWatch} for watching it fully, +${(cfg.SCORING||{}).videoRewatch} each rewatch 🎬`:`Auto-points only work for YouTube links`}</div>`:""}</div>`).join("")}</div>`
         :`<div class="card"><p class="muted" style="margin:0">No videos yet — your coach will add some skills to work on.</p></div>`}
 
       <div class="section-head" style="margin-top:1.6rem"><div><div class="eyebrow">Fresh every week · test yourself</div><h2>Weekly Quiz</h2></div>
@@ -823,7 +821,7 @@
   function Admin(sub) {
     if (!S.isAdmin) { view.innerHTML = `<div class="card pad-lg"><h2 style="font-family:var(--display)">Admins only</h2><p class="muted">This area is for team coaches/admins. Ask the team admin to grant you access.</p></div>`; return; }
     sub = sub || "fixtures";
-    const tabs = [["fixtures","Add fixture"],["result","Enter result"],["register","Register"],["points","Points & league"],["quizresults","Quiz results"],["quizedit","Quiz"],["academy","Development"],["drills","Drill library"],["contacts","Contacts"],["roster","Roster"],["players","Add player"],["training","Plan training"],["events","Add event"]];
+    const tabs = [["fixtures","Add fixture"],["result","Enter result"],["register","Register"],["points","Points & league"],["quizresults","Quiz results"],["quizedit","Quiz"],["academy","Development"],["videos","Videos"],["contacts","Contacts"],["roster","Roster"],["players","Add player"],["training","Plan training"],["events","Add event"]];
     view.innerHTML = `
       <div class="section-head"><div><div class="eyebrow">Coaches only</div><h2>Admin Panel</h2></div></div>
       <p class="muted" style="margin-top:-.6rem;max-width:62ch">Manage everything from here — no spreadsheets. ${S.MODE==='preview'?'<b>Preview mode:</b> changes save to this browser so you can try it. Connect Supabase to save for everyone.':'Changes save to your database and appear for everyone straight away.'}</p>
@@ -833,7 +831,7 @@
       <div id="admin-body"></div>`;
     view.querySelectorAll("[data-atab]").forEach(b => b.addEventListener("click", () => location.hash = "#admin/"+b.dataset.atab));
     const sub2 = (location.hash.replace("#","").split("/"))[2];
-    ({ fixtures:AdmFixture, result:AdmResult, register:AdmRegister, points:AdmPoints, quizresults:AdmQuizResults, quizedit:AdmQuizEditor, academy:AdmAcademy, drills:AdmDrills, contacts:AdmContacts, roster:AdmRoster, players:AdmPlayer, training:AdmTraining, events:AdmEvent }[sub] || AdmFixture)(sub2);
+    ({ fixtures:AdmFixture, result:AdmResult, register:AdmRegister, points:AdmPoints, quizresults:AdmQuizResults, quizedit:AdmQuizEditor, academy:AdmAcademy, videos:AdmVideos, contacts:AdmContacts, roster:AdmRoster, players:AdmPlayer, training:AdmTraining, events:AdmEvent }[sub] || AdmFixture)(sub2);
   }
 
   function toast(msg) {
@@ -1087,21 +1085,18 @@
         <div class="grid cols-3">${DEV_AREAS.map(([k,label])=>F(label,`<input type="number" min="0" max="100" id="ac-${k}" value="${dev[k]||0}"/>`)).join("")}</div>
         ${F("Goals to achieve (one per line)",`<textarea id="ac-targets" rows="3">${esc((p.targets||[]).join("\n"))}</textarea>`)}
         ${F("Development plan (one step per line)",`<textarea id="ac-plan" rows="4">${esc((p.program||[]).join("\n"))}</textarea>`)}
-        ${F("Videos — one per line as: Title | https://link",`<textarea id="ac-videos" rows="3">${esc((p.videos||[]).map(v=>`${v.title} | ${v.url}`).join("\n"))}</textarea>`)}
+        <p class="muted" style="font-size:.82rem;margin:.4rem 0 .2rem">🎬 Videos are now managed in the <b>Videos</b> tab — add a video once and assign it to ${esc(p.name.split(" ")[0])} (or the whole team) there.</p>
         <button class="btn btn-gold btn-block" id="ac-save">Save ${esc(p.name)}'s development</button>`;
       body.querySelector("#ac-save").addEventListener("click", async () => {
         const devObj = {}; DEV_AREAS.forEach(([k]) => devObj[k] = Math.max(0, Math.min(100, +$("#ac-"+k).value || 0)));
         const targets = $("#ac-targets").value.split("\n").map(s=>s.trim()).filter(Boolean);
         const program = $("#ac-plan").value.split("\n").map(s=>s.trim()).filter(Boolean);
-        const videos = $("#ac-videos").value.split("\n").map(s=>s.trim()).filter(Boolean).map(line => {
-          const [title, url] = line.split("|").map(x=>x.trim()); return { title: title||"Video", url: url||"" };
-        });
-        const res = await S.updatePlayerAcademy(id, { dev: devObj, targets, program, videos });
+        const res = await S.updatePlayerAcademy(id, { dev: devObj, targets, program });
         if (res.ok) toast("Development saved ✓"); else toast("Error: "+res.msg);
       });
     }
     body.innerHTML = `<div class="card pad-lg" style="max-width:640px">
-      <p class="muted" style="margin-top:0">Set each player's <b>${esc(S.season)}</b> development progress, targets, plan and personalised videos. Shown on their Academy profile and Development page.</p>
+      <p class="muted" style="margin-top:0">Set each player's <b>${esc(S.season)}</b> development progress, targets and plan. Shown on their Academy profile and Development page. (Videos are assigned in the <b>Videos</b> tab.)</p>
       ${F("Player",`<select id="ac-player">${players.map(p=>`<option value="${p.id}">#${p.number} ${esc(p.name)}</option>`).join("")}</select>`)}
       <div id="ac-fields"></div>
     </div>`;
@@ -1177,25 +1172,55 @@
     }));
   }
 
-  function AdmDrills() {
+  function AdmVideos(editId) {
     const body = $("#admin-body");
-    const drills = S.state.drills || [];
-    body.innerHTML = `<div class="card pad-lg" style="max-width:620px">
-      <p class="muted" style="margin-top:0">Your reusable <b>stock library</b> of drill videos (YouTube/Vimeo). Build it up once, then attach any of these to a session on the <b>Plan training</b> tab — they show on that session in the Schedule.</p>
-      ${F("Title",`<input id="dr-title" placeholder="e.g. Cone dribbling warm-up"/>`)}
-      <div class="grid cols-2">${F("Skill area",`<select id="dr-area"><option value="">—</option>${DEV_AREAS.map(([,l])=>`<option>${l}</option>`).join("")}</select>`)}${F("Video link",`<input id="dr-url" placeholder="https://youtu.be/..."/>`)}</div>
-      <button class="btn btn-gold btn-block" id="dr-save">Add to library</button>
-      ${drills.length?`<div class="lbl" style="font-size:.74rem;color:var(--muted);font-weight:700;margin:1rem 0 .4rem">STOCK LIBRARY (${drills.length})</div>${drills.map(d=>`<div class="ach" style="margin-bottom:.4rem;justify-content:space-between"><div style="display:flex;gap:.6rem;align-items:center"><span class="em">🎬</span><div><b>${esc(d.title)}</b>${d.area?` <span class="tag">${esc(d.area)}</span>`:""}</div></div><button class="btn btn-ghost btn-sm" data-del-drill="${d.id}">✕</button></div>`).join("")}`:`<p class="muted" style="margin-top:1rem">Library is empty — add your first drill video above.</p>`}
+    const lib = S.state.drills || [];
+    const ed = editId ? lib.find(v=>v.id===+editId) : null;
+    const v = (k,d)=> ed && ed[k]!=null ? ed[k] : (d||"");
+    const roster = S.roster(true).sort((a,b)=>a.number-b.number);
+    const isTeam = ed ? ed.team===true : true;
+    const assigned = new Set(ed && Array.isArray(ed.player_ids) ? ed.player_ids : []);
+    const scopeLabel = d => d.team===true ? `<span class="tag t-train">Whole team</span>`
+      : `<span class="tag">${(d.player_ids||[]).map(pid=>{const pl=S.player(pid);return pl?esc(pl.name.split(" ")[0]):"?";}).join(", ")||"unassigned"}</span>`;
+    body.innerHTML = `<div class="card pad-lg" style="max-width:640px">
+      <h3 style="margin:0 0 .4rem;font-family:var(--display)">${ed?"Edit video":"Add a video"}</h3>
+      <p class="muted" style="margin-top:0">Add a video <b>once</b> here, then assign it to the whole team or to specific children — no need to add the same clip twice.</p>
+      ${F("Title",`<input id="v-title" value="${esc(v("title"))}" placeholder="e.g. Cone dribbling warm-up"/>`)}
+      ${F("Video link (YouTube/Vimeo)",`<input id="v-url" value="${esc(v("url"))}" placeholder="https://youtu.be/..."/>`)}
+      ${F("Description",`<textarea id="v-desc" rows="2" placeholder="What it's for / what to focus on">${esc(v("description"))}</textarea>`)}
+      ${F("Skill area",`<select id="v-area"><option value="">—</option>${DEV_AREAS.map(([,l])=>`<option ${v("area")===l?'selected':''}>${l}</option>`).join("")}</select>`)}
+      <div class="lbl" style="font-size:.74rem;color:var(--muted);font-weight:700;letter-spacing:1px;margin:.8rem 0 .4rem">WHO IS IT FOR?</div>
+      <label class="field" style="flex-direction:row;align-items:center;gap:.5rem"><input type="radio" name="v-scope" id="v-team" value="team" ${isTeam?"checked":""} style="width:auto"/> <span style="margin:0">🟢 Whole team (Team Training Videos)</span></label>
+      <label class="field" style="flex-direction:row;align-items:center;gap:.5rem"><input type="radio" name="v-scope" id="v-indiv" value="indiv" ${!isTeam?"checked":""} style="width:auto"/> <span style="margin:0">👤 Specific children (their My Development)</span></label>
+      <div id="v-players" class="${isTeam?'hidden':''}" style="border:1px solid var(--line);border-radius:10px;padding:.6rem .8rem;margin:.4rem 0;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:.2rem .8rem">
+        ${roster.map(p=>`<label class="field" style="flex-direction:row;align-items:center;gap:.45rem;margin-bottom:.2rem"><input type="checkbox" class="v-pl" value="${p.id}" ${assigned.has(p.id)?"checked":""} style="width:auto"/> <span style="margin:0">#${p.number} ${esc(p.name)}</span></label>`).join("")}
+      </div>
+      <button class="btn btn-gold btn-block" id="v-save">${ed?"Save changes":"Add to library"}</button>
+      ${ed?`<button class="btn btn-ghost btn-sm btn-block" id="v-cancel" style="margin-top:.5rem">Cancel</button>`:""}
+      <div class="lbl" style="font-size:.74rem;color:var(--muted);font-weight:700;letter-spacing:1px;margin:1.2rem 0 .4rem">VIDEO LIBRARY (${lib.length})</div>
+      ${lib.length?lib.map(d=>`<div class="ach" style="margin-bottom:.4rem;justify-content:space-between"><div style="display:flex;gap:.6rem;align-items:center"><span class="em">🎬</span><div><b>${esc(d.title)}</b>${d.area?` <span class="tag">${esc(d.area)}</span>`:""}<br>${scopeLabel(d)}</div></div><div style="display:flex;gap:.4rem"><button class="btn btn-ghost btn-sm" data-edit-v="${d.id}">Edit</button><button class="btn btn-ghost btn-sm" data-del-v="${d.id}">✕</button></div></div>`).join(""):`<p class="muted">Library is empty — add your first video above.</p>`}
     </div>`;
-    $("#dr-save").addEventListener("click", async () => {
-      const title=$("#dr-title").value.trim(), url=$("#dr-url").value.trim();
-      if(!title||!url) return toast("Add a title and a video link");
-      const res = await S.addDrill({ title, area:$("#dr-area").value, url });
-      if(res.ok){ toast("Added to library ✓"); Admin("drills"); } else toast("Error: "+res.msg);
+    const toggle = () => $("#v-players").classList.toggle("hidden", $("#v-team").checked);
+    $("#v-team").addEventListener("change", toggle); $("#v-indiv").addEventListener("change", toggle);
+    const collect = () => {
+      const team = $("#v-team").checked;
+      const player_ids = team ? [] : [...body.querySelectorAll(".v-pl:checked")].map(c=>+c.value);
+      return { title:$("#v-title").value.trim(), url:$("#v-url").value.trim(), description:$("#v-desc").value.trim(),
+        area:$("#v-area").value, team, player_ids };
+    };
+    $("#v-save").addEventListener("click", async () => {
+      const d = collect();
+      if(!d.title||!d.url) return toast("Add a title and a video link");
+      if(!d.team && !d.player_ids.length) return toast("Pick at least one child, or choose Whole team");
+      const res = ed ? await S.updateDrill(ed.id, d) : await S.addDrill(d);
+      if(res.ok){ toast(ed?"Video updated ✓":"Added to library ✓"); Admin("videos"); } else toast("Error: "+res.msg);
     });
-    body.querySelectorAll("[data-del-drill]").forEach(b => b.addEventListener("click", async () => {
-      const res = await S.deleteDrill(+b.dataset.delDrill);
-      if(res.ok){ toast("Removed"); Admin("drills"); } else toast("Error: "+res.msg);
+    if (ed) $("#v-cancel").addEventListener("click", ()=>location.hash="#admin/videos");
+    body.querySelectorAll("[data-edit-v]").forEach(b=>b.addEventListener("click", ()=>location.hash="#admin/videos/"+b.dataset.editV));
+    body.querySelectorAll("[data-del-v]").forEach(b => b.addEventListener("click", async () => {
+      if(!window.confirm("Delete this video from the library?")) return;
+      const res = await S.deleteDrill(+b.dataset.delV);
+      if(res.ok){ toast("Removed"); Admin("videos"); } else toast("Error: "+res.msg);
     }));
   }
 
@@ -1301,7 +1326,7 @@
         ${lib.length ? lib.map(dr => `<label class="field" style="flex-direction:row;align-items:center;gap:.6rem;margin-bottom:.35rem">
             <input type="checkbox" class="t-vid" value="${dr.id}" ${checked.has(dr.url)?"checked":""} style="width:auto"/>
             <span style="margin:0">🎬 ${esc(dr.title)}${dr.area?` <span class="tag t-train">${esc(dr.area)}</span>`:""}</span></label>`).join("")
-          : `<p class="muted" style="margin:.2rem 0">No stock videos yet — add some on the <b>Drill library</b> tab first.</p>`}
+          : `<p class="muted" style="margin:.2rem 0">No videos yet — add some on the <b>Videos</b> tab first.</p>`}
         <button class="btn btn-gold btn-block" id="t-save" style="margin-top:1rem">Save session plan</button>
         ${plan.id ? `<button class="btn btn-ghost btn-sm btn-block" id="t-del" style="margin-top:.5rem">Delete this planned session</button>` : ""}`;
       $("#t-save").addEventListener("click", save);
@@ -1318,7 +1343,7 @@
       if (!iso) return toast("Pick or enter a date");
       const drills = $("#t-drills").value.split("\n").map(s=>s.trim()).filter(Boolean);
       const ids = [...body.querySelectorAll(".t-vid:checked")].map(c => +c.value);
-      const videos = lib.filter(d => ids.includes(d.id)).map(d => ({ title:d.title, url:d.url, area:d.area }));
+      const videos = lib.filter(d => ids.includes(d.id)).map(d => ({ title:d.title, url:d.url, area:d.area, description:d.description }));
       const res = await S.addTraining({ date:iso, start:$("#t-start").value, end:$("#t-end").value,
         location:$("#t-loc").value.trim(), focus:$("#t-focus").value.trim(), drills, videos });
       if (res.ok) { toast("Session plan saved ✓"); location.hash = "#training"; } else toast("Error: "+res.msg);

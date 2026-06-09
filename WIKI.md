@@ -285,6 +285,7 @@ Run in **Supabase → SQL Editor**. On a brand-new project, run `schema.sql` fir
 | `migrate-security.sql` | Locks parent contact data to family+admins (profiles RLS). Also disable open sign-ups in the dashboard | **Run this** (safeguarding) |
 | `migrate-quiz.sql` | Creates `quizzes` (per-week coach overrides for the quiz) | **Run this** for the quiz editor |
 | `migrate-appearances.sql` | Adds `fixtures.lineup` (who actually played) | **Run this** for appearances |
+| `migrate-video-library.sql` | Upgrades the drill library into one video library: `description`, `team`, `player_ids` (assign to whole team or specific children) | **Run this** for the video library |
 
 ### Weekly quiz
 
@@ -297,7 +298,7 @@ All point values live in `config.js → SCORING`. Every point a player earns is 
 - **Matches** (Admin → Enter result): goal +3, assist +5, MOTM +10, clean sheet +5 (defenders/GK ticked at result entry). Re-saving a result cleanly replaces that game's points.
 - **Training register** (Admin → Register): attendance +3, good performance +3, poor −3.
 - **Quiz** (auto-marked, 1 per correct): one attempt per child per ISO week; not done by Sunday = 0. See Admin → Quiz results.
-- **Videos** (a child watching their *own* development videos): +2 first full watch, +1 each rewatch — auto-detected via the YouTube player.
+- **Videos** (a child watching their *own* assigned videos): +2 first full watch, +1 each rewatch — auto-detected via the YouTube player. Videos live in ONE library (⚙ Admin → **Videos**): add a clip once with a description, then mark it **whole team** (Team Training) or assign it to **specific children by name** (their My Development). No re-uploading per child.
 - **Challenges** (League page, parent/child ticks): fun home challenge +10, make-your-bed +5/week (weekly reset), coach challenge +10.
 - **Manual** (Admin → Points & league): perfect month +20, bottom-of-league big challenge +20, or any correction.
 

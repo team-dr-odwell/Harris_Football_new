@@ -71,6 +71,7 @@
       }
       this._initSeason();
       this._normalizePlayers();
+      this._normalizeDrills();
       this._applySeason();
       this._applyPoints();
       return this.state;
@@ -548,16 +549,39 @@
       return { ok: true };
     },
 
-    /* admin: training-exercise video library */
+    /* ================= VIDEO LIBRARY (the `drills` table) =================
+       One library, added once. A video is either a TEAM video (team:true, whole
+       squad) or assigned to specific children (team:false, player_ids:[...]). */
+    _normalizeDrills() {
+      (this.state.drills || []).forEach(d => {
+        if (d.team === undefined || d.team === null) d.team = !(Array.isArray(d.player_ids) && d.player_ids.length);
+        if (!Array.isArray(d.player_ids)) d.player_ids = [];
+      });
+    },
+    teamVideos() { return (this.state.drills || []).filter(d => d.team === true); },
+    videosForPlayer(pid) { return (this.state.drills || []).filter(d => d.team !== true && (d.player_ids || []).includes(pid)); },
+
     async addDrill(d) {
       this.state.drills = this.state.drills || [];
+      const row = { title:d.title, url:d.url, area:d.area || null, description:d.description || null,
+        team: d.team !== false, player_ids: d.player_ids || [] };
       if (LIVE) {
-        const { data, error } = await this.sb.from("drills").insert(d).select().single();
+        const { data, error } = await this.sb.from("drills").insert(row).select().single();
         if (error) return { ok: false, msg: error.message };
         this.state.drills.push(data);
       } else {
-        d.id = this._nextId(this.state.drills); this.state.drills.push(d); this._persistContent();
+        row.id = this._nextId(this.state.drills); this.state.drills.push(row); this._persistContent();
       }
+      return { ok: true };
+    },
+
+    async updateDrill(id, d) {
+      const v = (this.state.drills || []).find(x => x.id === id); if (!v) return { ok:false, msg:"Video not found" };
+      const fields = { title:d.title, url:d.url, area:d.area || null, description:d.description || null,
+        team: d.team !== false, player_ids: d.player_ids || [] };
+      Object.assign(v, fields);
+      if (LIVE) { const { error } = await this.sb.from("drills").update(fields).eq("id", id); if (error) return { ok:false, msg:error.message }; }
+      else this._persistContent();
       return { ok: true };
     },
 
