@@ -150,53 +150,91 @@
   }
 
   /* ============================ HOME ============================ */
+  function videoThumb(v, href, external) {
+    const id = ytId(v.url);
+    const bg = id ? `background-image:url('https://img.youtube.com/vi/${id}/hqdefault.jpg')` : "";
+    return `<a class="vthumb" href="${esc(href)}"${external?' target="_blank" rel="noopener"':''}>
+      <span class="vthumb-img" style="${bg}"><span class="vthumb-play">▶</span></span>
+      <span class="vthumb-t">${esc(v.title || "Video")}</span></a>`;
+  }
+
   function Home() {
-    const next = S.fixtures("upcoming")[0];
+    const me = S.hasLinkedPlayer() ? S.player(S.me) : null;
     const past = S.fixtures("past");
     const W = past.filter(f=>f.result==="W").length, D = past.filter(f=>f.result==="D").length, L = past.filter(f=>f.result==="L").length;
     const goals = past.reduce((n,f)=>n+(f.our_score||0),0);
     const ros = S.roster();
     const top = [...ros].sort((a,b)=>(b.goals||0)-(a.goals||0))[0];
+    const next = S.fixtures("upcoming")[0];
+
+    // Build interactive agenda items for the next fixture + next training
+    const nextFixIt = next ? { kind:"match", key:"m"+next.id, dateObj:new Date(next.date+"T00:00:00"),
+      start:next.kickoff, meetup:next.meetup, title:"vs "+next.opponent, location:next.ground,
+      competition:next.competition, homeAway:next.home_away } : null;
+    const nt = nextTraining();
+    const nextTrainIt = nt ? { ...nt, dateObj:new Date(nt.date+"T00:00:00") } : null;
+    const emptyCard = msg => `<div class="card"><p class="muted" style="margin:0">${msg}</p></div>`;
+
+    // 5th stat: the child's own league points (personal); fall back to the leader's for admins
+    const fifth = me ? { n: me.points||0, l:"My league points" }
+                     : { n: ([...ros].sort((a,b)=>(b.points||0)-(a.points||0))[0]||{}).points||0, l:"Top points" };
+
+    const myVids = me ? (me.videos||[]).filter(v=>v.url).slice(0,2) : [];
+    const teamVids = (S.state.drills||[]).filter(d=>d.url).slice(0,2);
+    const firstName = me ? esc(me.name.split(" ")[0]) : "";
 
     view.innerHTML = `
+      ${me ? `
+      <section class="hero hero-personal">
+        <div class="hero-tag">OWFC Harris · ${esc(S.season)}</div>
+        <h1>Welcome back, <span>${firstName}</span>! 👋</h1>
+        <p class="hero-sub">#${me.number} · ${esc(me.pos)}${me.captain?' · Captain 🧢':''} — you've earned <b>${me.points||0}</b> points this season. Keep climbing! 🚀</p>
+      </section>
+      <div class="home-mycard"><div class="fc-card" data-go="players/${me.id}" style="max-width:230px;margin:0 auto;cursor:pointer">${fcCardInner(me)}</div>
+        <div class="muted" style="text-align:center;font-size:.82rem;margin-top:.4rem">Tap your card to see your Academy profile</div>
+      </div>
+      ` : `
       <section class="hero">
         <div class="hero-tag">${esc(cfg.TEAM_NAME)} · ${esc(cfg.AGE_GROUP)} · ${esc(S.season)}</div>
         <h1>Welcome to the <span>Academy</span></h1>
-        <p>Your home for fixtures, training, player cards and everything that makes this team special. Every session, every goal, every bit of progress — all tracked right here.</p>
-        <div class="hero-actions">
-          <button class="btn btn-gold" data-go="fixtures">Next fixture →</button>
-          <button class="btn btn-ghost" data-go="players">Player cards</button>
-        </div>
-      </section>
+        <p>Fixtures, training, player cards and progress — all in one place.</p>
+        ${S.isAdmin?`<div class="hero-actions"><button class="btn btn-gold" data-go="admin">⚙ Admin</button><button class="btn btn-ghost" data-go="players">Player cards</button></div>`:""}
+      </section>`}
 
+      <div class="section-head" style="margin-top:1.4rem"><div><div class="eyebrow">Next up</div><h2>${me?`Is ${firstName} playing?`:"Coming up"}</h2></div></div>
+      <div class="agenda">
+        ${me
+          ? `${nextFixIt?agendaRow(nextFixIt):emptyCard("No fixtures just yet — check back soon!")}
+             ${nextTrainIt?agendaRow(nextTrainIt):emptyCard("No training booked in yet — watch this space!")}`
+          : `<div class="card pad-lg">${next?fixtureMini(next):`<p class="muted" style="margin:0">No fixtures just yet.</p>`}<button class="btn btn-dark btn-sm" data-go="fixtures" style="margin-top:1rem">All fixtures</button></div>
+             <div class="card pad-lg">${trainingMini(nt)}<button class="btn btn-dark btn-sm" data-go="training" style="margin-top:1rem">Schedule</button></div>`}
+      </div>
+
+      <div class="section-head" style="margin-top:1.8rem"><div><div class="eyebrow">${me?"My season":esc(S.season)+" season"}</div><h2>The numbers</h2></div></div>
       <div class="stat-strip">
         <div class="stat"><div class="n">${W}-${D}-${L}</div><div class="l">W · D · L</div></div>
         <div class="stat"><div class="n">${goals}</div><div class="l">Goals scored</div></div>
         <div class="stat"><div class="n">${ros.length}</div><div class="l">Squad size</div></div>
         <div class="stat"><div class="n">${top?top.goals:0}</div><div class="l">Top scorer${top?` (${esc(top.name.split(" ")[0])})`:""}</div></div>
+        <div class="stat stat-link" data-go="league"><div class="n">${fifth.n}</div><div class="l">${fifth.l} →</div></div>
       </div>
 
-      <div class="grid cols-2">
-        <div class="card pad-lg">
-          <div class="eyebrow" style="color:var(--gold)">Next up</div>
-          ${next ? fixtureMini(next) : `<p class="muted">No fixtures just yet — check back soon!</p>`}
-          <button class="btn btn-dark btn-sm" data-go="fixtures" style="margin-top:1rem">See all fixtures</button>
-        </div>
-        <div class="card pad-lg">
-          <div class="eyebrow" style="color:var(--gold)">Next training</div>
-          ${trainingMini(nextTraining())}
-          <button class="btn btn-dark btn-sm" data-go="training" style="margin-top:1rem">Full calendar</button>
-        </div>
-      </div>
+      ${me && myVids.length ? `
+      <div class="section-head" style="margin-top:1.8rem"><div><div class="eyebrow">Picked for you</div><h2>My Development</h2></div>
+        <button class="btn btn-ghost btn-sm" data-go="development/${me.id}">My plan →</button></div>
+      <p class="muted" style="margin-top:-.6rem;font-size:.86rem">Tap a video to watch it on your development page — finish it to earn points! 🎬</p>
+      <div class="home-vids">${myVids.map(v=>videoThumb(v, "#development/"+me.id, false)).join("")}</div>` : ""}
 
-      <div class="section-head" style="margin-top:1.8rem"><div><div class="eyebrow">Climb the ranks</div><h2>Academy League</h2></div>
-        <button class="btn btn-ghost btn-sm" data-go="league">Full table →</button></div>
-      ${leaguePreview()}
+      ${teamVids.length ? `
+      <div class="section-head" style="margin-top:1.8rem"><div><div class="eyebrow">Practise at home</div><h2>Team Training Videos</h2></div>
+        <button class="btn btn-ghost btn-sm" data-go="training">Schedule →</button></div>
+      <div class="home-vids">${teamVids.map(v=>videoThumb(v, v.url, true)).join("")}</div>` : ""}
     `;
-    wireGo();
+    wireRsvp(); wireGo();
   }
 
   function fixtureMini(f) {
+    if (!f) return `<p class="muted" style="margin:0">No fixtures just yet.</p>`;
     return `<div class="fixture-vs" style="margin:.4rem 0 .8rem">
         <span class="club-badge us">H</span><h3>vs ${esc(f.opponent)}</h3>
       </div>

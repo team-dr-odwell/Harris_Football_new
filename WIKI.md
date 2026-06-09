@@ -32,7 +32,7 @@ This doctrine is the reference point for prioritisation, design reviews and new 
 
 A private, members-only website for the **OWFC Harris Under-11s** football team. Families log in with a name + password to see:
 
-- **Home** — season snapshot (record, goals, squad size, top scorer) + what's next.
+- **Home** — personalised to the family's child: a "Welcome back, {name}!" hero with their FC card, the next fixture + next training with **tap-to-RSVP** (Going / Lift / Can't), a 5-stat season strip ending in the child's own **My league points**, their **My Development** videos (tap → Development to watch & earn), and the **Team Training** drill videos. (Admins/no-child see a team-level version.)
 - **Fixtures** — upcoming games (with attendance) and past results.
 - **Schedule** — a single agenda list of training, matches and events, each with RSVP (Going / Lift / Can't).
 - **Players** — an FC-style card and profile per player, showing factual stats (goals, assists, MOTM, training sessions, league points).
