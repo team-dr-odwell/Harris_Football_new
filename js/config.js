@@ -37,6 +37,17 @@ window.HARRIS_CONFIG = {
     { id: "2026/27", from: "2026-07-01", to: "2027-06-30" }
   ],
 
+  // --- Club honours per season (shown on the Home page "Trophy cabinet") ---
+  // Add a line each time the team wins or reaches a final.
+  SEASON_HONOURS: {
+    "2025/26": [
+      { comp: "JPL Vase Cup",    result: "Winners",        icon: "🏆", win: true },
+      { comp: "Vase Cup",        result: "Finalists",      icon: "🥈" },
+      { comp: "Spring Vase Cup", result: "Finalists",      icon: "🥈" },
+      { comp: "Anderson Cup",    result: "Semi-Finalists", icon: "🥉" }
+    ]
+  },
+
   // --- League scoring rules (one place to change every point value) ---
   SCORING: {
     quizPerCorrect: 1,          // 1 point per correct quiz answer (0 if not done by Sunday)

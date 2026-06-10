@@ -152,6 +152,13 @@ img{max-width:100%}
 .vthumb-img{display:flex;align-items:center;justify-content:center;aspect-ratio:16/9;border-radius:12px;background:#0c0c0c center/cover no-repeat;border:1px solid var(--line);position:relative}
 .vthumb-play{width:46px;height:46px;border-radius:50%;background:rgba(201,162,39,.94);color:#171205;display:flex;align-items:center;justify-content:center;font-size:1.05rem;box-shadow:0 4px 16px rgba(0,0,0,.45)}
 .vthumb-t{display:block;margin-top:.5rem;font-weight:700;font-size:.9rem;line-height:1.3}
+/* ---- club honours (trophy cabinet) ---- */
+.honours{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:.8rem}
+.honour{display:flex;gap:.75rem;align-items:center;background:rgba(255,255,255,.02);border:1px solid var(--line);border-radius:14px;padding:.8rem 1rem}
+.honour-ic{font-size:1.8rem;line-height:1;flex:none}
+.honour b{font-size:.98rem}
+.honour-win{border-color:var(--gold);background:linear-gradient(180deg,rgba(201,162,39,.14),rgba(201,162,39,.02))}
+.honour-win b{color:var(--gold-bright)}
 .stat{background:linear-gradient(180deg,var(--panel),var(--ink));border:1px solid var(--line);border-radius:var(--radius);padding:1.1rem 1rem;text-align:center}
 .stat .n{font-family:var(--display);font-size:2rem;color:var(--gold-bright);line-height:1}
 .stat .l{font-size:.74rem;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-top:.3rem;font-weight:700}

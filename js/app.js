@@ -198,6 +198,7 @@
     const myVids = me ? S.videosForPlayer(me.id).filter(v=>v.url).slice(0,2) : [];
     const teamVids = S.teamVideos().filter(d=>d.url).slice(0,2);
     const firstName = me ? esc(me.name.split(" ")[0]) : "";
+    const honours = (cfg.SEASON_HONOURS || {})[S.season] || [];
 
     view.innerHTML = `
       ${me ? `
@@ -232,6 +233,12 @@
         <div class="stat"><div class="n">${top?top.goals:0}</div><div class="l">Top scorer${top?` (${esc(top.name.split(" ")[0])})`:""}</div></div>
         <div class="stat stat-link" data-go="league"><div class="n">${fifth.n}</div><div class="l">${fifth.l} →</div></div>
       </div>
+
+      ${honours.length ? `
+      <div class="section-head" style="margin-top:1.8rem"><div><div class="eyebrow">${esc(S.season)} · Trophy cabinet</div><h2>Club Honours</h2></div></div>
+      <div class="honours">
+        ${honours.map(hn=>`<div class="honour ${hn.win?'honour-win':''}"><div class="honour-ic">${hn.icon||"🏅"}</div><div><b>${esc(hn.comp)}</b><div class="muted" style="font-size:.84rem">${esc(hn.result)}</div></div></div>`).join("")}
+      </div>` : ""}
 
       ${me && myVids.length ? `
       <div class="section-head" style="margin-top:1.8rem"><div><div class="eyebrow">Picked just for ${firstName}</div><h2>My Development</h2></div>
