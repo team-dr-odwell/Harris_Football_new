@@ -15,7 +15,8 @@
     state: null,
     me: cfg.DEMO_PLAYER_ID,
     isAdmin: !LIVE,   // preview: everyone behind the team password can try the admin panel
-    linkedPlayer: null,   // the player (child) this account is linked to
+    linkedPlayer: null,   // the active child this account is currently viewing as
+    myKids: [],           // all children linked to this family account (ids)
     userId: null,
     displayName: "",
     parents: [],          // [{name, relation, email, phone}]
@@ -152,8 +153,10 @@
       base.completedExercises = base.completedExercises || [];
       base.ledger = JSON.parse(localStorage.getItem(LS_LEDGER) || "[]");
       base.quizzes = JSON.parse(localStorage.getItem("harris_quizzes") || "{}");
+      const kids = JSON.parse(localStorage.getItem("harris_my_kids") || "null");
       const myp = localStorage.getItem("harris_my_player");
-      if (myp) { this.me = +myp; this.linkedPlayer = +myp; }
+      this.myKids = Array.isArray(kids) && kids.length ? kids : (myp ? [+myp] : []);
+      if (this.myKids.length) { this.me = myp ? +myp : this.myKids[0]; this.linkedPlayer = this.me; }
       this.displayName = localStorage.getItem("harris_name") || this.displayName;
       this.parents = JSON.parse(localStorage.getItem("harris_parents") || "[]");
       this.state = base;
@@ -190,7 +193,9 @@
           if (prof) {
             this.isAdmin = !!prof.is_admin;
             if (prof.parent_name) this.displayName = prof.parent_name;
-            if (prof.player_id) { this.me = prof.player_id; this.linkedPlayer = prof.player_id; }
+            const kids = (Array.isArray(prof.player_ids) && prof.player_ids.length) ? prof.player_ids : (prof.player_id ? [prof.player_id] : []);
+            this.myKids = kids;
+            if (kids.length) { this.me = prof.player_id || kids[0]; this.linkedPlayer = this.me; }
             this.parents = prof.parents || [];
           }
           if (this.isAdmin) { try { const { data } = await sb.from("profiles").select("*"); allProfiles = data || []; } catch (e) {} }
@@ -458,32 +463,60 @@
       if (this.isAdmin) return false;
       return LIVE ? !(this.parents && this.parents.length) : !localStorage.getItem("harris_parents");
     },
-    async saveProfile({ parents, playerId }) {
+    async saveProfile({ parents, playerIds }) {
+      playerIds = (playerIds || []).filter(Boolean);
       this.parents = parents;
-      this.me = playerId; this.linkedPlayer = playerId;
+      this.myKids = playerIds;
+      this.me = playerIds[0] || null; this.linkedPlayer = this.me;
       this.displayName = (parents[0] && parents[0].name) || this.displayName;
       if (LIVE) {
         const { error } = await this.sb.from("profiles").upsert(
-          { id: this.userId, parents, player_id: playerId, parent_name: this.displayName || null },
+          { id: this.userId, parents, player_ids: playerIds, player_id: this.me, parent_name: this.displayName || null },
           { onConflict: "id" });
         if (error) return { ok: false, msg: error.message };
       } else {
         localStorage.setItem("harris_parents", JSON.stringify(parents));
-        localStorage.setItem("harris_my_player", String(playerId));
+        localStorage.setItem("harris_my_kids", JSON.stringify(playerIds));
+        if (this.me) localStorage.setItem("harris_my_player", String(this.me));
         if (this.displayName) localStorage.setItem("harris_name", this.displayName);
       }
       return { ok: true };
     },
 
-    /* ---------- which child is this account linked to ---------- */
-    hasLinkedPlayer() { return LIVE ? !!this.linkedPlayer : !!localStorage.getItem("harris_my_player"); },
+    /* ---------- which children is this account linked to ---------- */
+    hasLinkedPlayer() { return (this.myKids && this.myKids.length > 0); },
+    myChildren() { return (this.myKids || []).map(id => this.player(id)).filter(Boolean); },
+
+    // switch the ACTIVE child (for the personalised home) among the linked children
     async setMyPlayer(id) {
       this.me = id; this.linkedPlayer = id;
+      if (!this.myKids.includes(id)) this.myKids = [...this.myKids, id];
       if (LIVE) {
-        await this.sb.from("profiles").upsert({ id: this.userId, player_id: id, parent_name: this.displayName || null }, { onConflict: "id" });
+        await this.sb.from("profiles").upsert({ id: this.userId, player_id: id, player_ids: this.myKids, parent_name: this.displayName || null }, { onConflict: "id" });
       } else {
         localStorage.setItem("harris_my_player", String(id));
+        localStorage.setItem("harris_my_kids", JSON.stringify(this.myKids));
       }
+    },
+
+    // set the full list of linked children (add/remove siblings)
+    async setMyKids(ids) {
+      ids = (ids || []).filter(Boolean);
+      this.myKids = ids;
+      if (!ids.includes(this.me)) { this.me = ids[0] || null; this.linkedPlayer = this.me; }
+      if (LIVE) {
+        await this.sb.from("profiles").upsert({ id: this.userId, player_ids: ids, player_id: this.me, parent_name: this.displayName || null }, { onConflict: "id" });
+      } else {
+        localStorage.setItem("harris_my_kids", JSON.stringify(ids));
+        if (this.me) localStorage.setItem("harris_my_player", String(this.me)); else localStorage.removeItem("harris_my_player");
+      }
+      return { ok: true };
+    },
+
+    // set attendance for ALL the family's children at once (e.g. "both going")
+    async setAttendanceAll(key, status) {
+      for (const id of (this.myKids || [])) { await this.setAttendance(key, id, status); }
+      return { ok: true };
     },
 
     /* ---------- selectors ---------- */

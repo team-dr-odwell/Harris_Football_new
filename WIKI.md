@@ -286,6 +286,7 @@ Run in **Supabase → SQL Editor**. On a brand-new project, run `schema.sql` fir
 | `migrate-quiz.sql` | Creates `quizzes` (per-week coach overrides for the quiz) | **Run this** for the quiz editor |
 | `migrate-appearances.sql` | Adds `fixtures.lineup` (who actually played) | **Run this** for appearances |
 | `migrate-video-library.sql` | Upgrades the drill library into one video library: `description`, `team`, `player_ids` (assign to whole team or specific children) | **Run this** for the video library |
+| `migrate-multi-child.sql` | Adds `profiles.player_ids` so one family login can link to several children (siblings/twins) | **Run this** for multi-child families |
 
 ### Weekly quiz
 

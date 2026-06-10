@@ -283,6 +283,13 @@ img{max-width:100%}
 .ag-rsvp{flex:none;display:flex;flex-direction:column;align-items:flex-end;gap:.35rem}
 .ag-btns{display:flex;gap:.4rem}
 .att-btn.lift.on{background:rgba(90,169,230,.2);border-color:#5aa9e6;color:#bfe0fb}
+/* ---- per-child RSVP (siblings/twins) ---- */
+.rsvp-multi{flex:none;display:flex;flex-direction:column;gap:.45rem;min-width:230px}
+.rsvp-row{display:flex;align-items:center;justify-content:flex-end;gap:.5rem;flex-wrap:wrap}
+.rsvp-name{font-weight:800;font-size:.82rem;color:var(--gold-bright);min-width:48px;text-align:right}
+.rsvp-foot{display:flex;align-items:center;justify-content:space-between;gap:.6rem;border-top:1px dashed var(--line);padding-top:.4rem;margin-top:.1rem}
+.active-kid{border-color:var(--gold)!important;box-shadow:0 0 0 1px var(--gold) inset}
+@media(max-width:760px){ .rsvp-multi{width:100%;border-top:1px dashed var(--line);padding-top:.6rem} .rsvp-row{justify-content:space-between} .rsvp-row .ag-btns{flex:1} .rsvp-row .ag-btns .att-btn{flex:1} }
 .ag-cal{font-size:.8rem;color:var(--muted);margin-top:.4rem}
 .ag-cal a{color:var(--gold-bright)}
 .wa-share{display:inline-block;margin-top:.4rem;color:#7ee08b;font-weight:700;font-size:.82rem}

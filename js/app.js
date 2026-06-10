@@ -70,7 +70,7 @@
   function updateMyPlayerChip() {
     const chip = $("#myplayer-btn");
     const p = S.hasLinkedPlayer() ? S.player(S.me) : null;
-    if (p) { chip.textContent = "👤 " + p.name.split(" ")[0]; chip.classList.remove("hidden"); }
+    if (p) { chip.textContent = "👤 " + p.name.split(" ")[0] + (S.myChildren().length > 1 ? " ⇄" : ""); chip.classList.remove("hidden"); }
     else { chip.classList.add("hidden"); }
   }
 
@@ -95,7 +95,10 @@
           <div class="grid cols-2">${F("Email",`<input type="email" id="p2-email"/>`)}${F("Mobile number",`<input id="p2-phone"/>`)}</div>
         </div>
         <button class="btn btn-ghost btn-sm" id="add-p2" style="margin:.2rem 0 1rem">+ Add another parent</button>
-        ${F("Your child",`<select id="ob-child">${players.map(p=>`<option value="${p.id}" ${linked===p.id?'selected':''}>${esc(p.name)} (#${p.number})</option>`).join("")}</select>`)}
+        <div class="lbl" style="font-size:.74rem;color:var(--muted);font-weight:700;letter-spacing:1px;margin:.4rem 0 .3rem">YOUR CHILD / CHILDREN <span class="muted" style="font-weight:500;text-transform:none;letter-spacing:0">— tick everyone who's yours (twins / siblings too)</span></div>
+        <div id="ob-kids" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:.2rem .8rem">
+          ${players.map(p=>`<label class="field" style="flex-direction:row;align-items:center;gap:.5rem;margin-bottom:.2rem"><input type="checkbox" class="ob-kid" value="${p.id}" ${linked===p.id?'checked':''} style="width:auto"/> <span style="margin:0">${esc(p.name)} <span class="muted">#${p.number}</span></span></label>`).join("")}
+        </div>
         <p class="gate-hint" id="ob-hint">We'll only use this to contact you about the team.</p>
         <button class="btn btn-gold btn-block" id="ob-save">Save &amp; continue</button>
       </div>`;
@@ -109,7 +112,9 @@
         const p2 = { relation:$("#p2-rel").value, name:$("#p2-name").value.trim(), email:$("#p2-email").value.trim(), phone:$("#p2-phone").value.trim() };
         if (p2.name) parents.push(p2);
       }
-      const res = await S.saveProfile({ parents, playerId: +$("#ob-child").value });
+      const playerIds = [...view.querySelectorAll(".ob-kid:checked")].map(c=>+c.value);
+      if (!playerIds.length) { h.textContent = "Please tick at least one child."; h.classList.add("error"); return; }
+      const res = await S.saveProfile({ parents, playerIds });
       if (res.ok) { updateMyPlayerChip(); location.hash = "#home"; route(); }
       else { h.textContent = "Error: " + res.msg; h.classList.add("error"); }
     });
@@ -119,25 +124,36 @@
     $("#nav").classList.remove("open");
     updateMyPlayerChip();
     const hi = S.displayName ? esc(S.displayName.split(" ")[0]) : "there";
+    const kids = S.myChildren();
     view.innerHTML = `
       <section class="hero" style="text-align:center">
         <div class="hero-tag">Hi ${hi} 👋</div>
-        <h1>Which player is <span>yours</span>?</h1>
-        <p style="margin-inline:auto">Pick your child so we can show their card, season stats and match availability as yours. You can change this anytime from the top bar.</p>
+        <h1>Your <span>children</span></h1>
+        <p style="margin-inline:auto">Tick everyone who's yours — twins and siblings too. ${kids.length>1?"Tap a child to view the home page as them.":"You can change this anytime from the top bar."}</p>
       </section>
-      <div class="players-grid" style="grid-template-columns:repeat(auto-fill,minmax(220px,1fr))">
-        ${S.roster().sort((a,b)=>a.number-b.number).map(p=>`
-          <button class="card" data-pick="${p.id}" style="cursor:pointer;display:flex;gap:.8rem;align-items:center;text-align:left">
+      ${kids.length>1 ? `
+        <div class="section-head"><div><div class="eyebrow">Home page is showing</div><h2>Switch child</h2></div></div>
+        <div class="players-grid" style="grid-template-columns:repeat(auto-fill,minmax(200px,1fr));margin-bottom:1.4rem">
+          ${kids.map(p=>`<button class="card ${p.id===S.me?'active-kid':''}" data-pick="${p.id}" style="cursor:pointer;display:flex;gap:.8rem;align-items:center;text-align:left">
             <span class="club-badge us" style="flex:none">${esc(initials(p))}</span>
-            <span><b style="font-size:1.05rem;display:block">${esc(p.name)}</b><span class="muted" style="font-size:.82rem">Squad #${p.number} · ${esc(p.pos)}</span></span>
-          </button>`).join("")}
-      </div>
-      ${changing ? `<div style="margin-top:1.2rem"><button class="btn btn-ghost btn-sm" data-go="home">← Cancel</button></div>` : ""}`;
+            <span><b style="display:block">${esc(p.name)}</b><span class="muted" style="font-size:.82rem">${p.id===S.me?'✓ Active':'Tap to view'}</span></span></button>`).join("")}
+        </div>` : ""}
+      <div class="card pad-lg" style="max-width:620px">
+        <div class="lbl" style="font-size:.74rem;color:var(--muted);font-weight:700;letter-spacing:1px;margin:0 0 .5rem">MY CHILDREN</div>
+        <div id="pick-kids" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:.2rem .8rem">
+          ${S.roster().sort((a,b)=>a.number-b.number).map(p=>`<label class="field" style="flex-direction:row;align-items:center;gap:.5rem;margin-bottom:.2rem"><input type="checkbox" class="pick-kid" value="${p.id}" ${S.myKids.includes(p.id)?'checked':''} style="width:auto"/> <span style="margin:0">${esc(p.name)} <span class="muted">#${p.number}</span></span></label>`).join("")}
+        </div>
+        <button class="btn btn-gold btn-block" id="pick-save" style="margin-top:1rem">Save my children</button>
+        ${changing ? `<button class="btn btn-ghost btn-sm btn-block" data-go="home" style="margin-top:.5rem">← Cancel</button>` : ""}
+      </div>`;
     view.querySelectorAll("[data-pick]").forEach(b => b.addEventListener("click", async () => {
-      await S.setMyPlayer(+b.dataset.pick);
-      updateMyPlayerChip();
-      location.hash = "#home"; route();
+      await S.setMyPlayer(+b.dataset.pick); updateMyPlayerChip(); location.hash = "#home"; route();
     }));
+    $("#pick-save").addEventListener("click", async () => {
+      const ids = [...view.querySelectorAll(".pick-kid:checked")].map(c=>+c.value);
+      if (!ids.length) return toast("Tick at least one child");
+      await S.setMyKids(ids); updateMyPlayerChip(); location.hash = "#home"; route();
+    });
     wireGo();
   }
 
@@ -290,7 +306,6 @@
 
   function upcomingCard(f) {
     const key = "m" + f.id;
-    const mine = (S.state.attendance[key] || {})[S.me];
     const fit = { kind:"match", key, dateObj:new Date(f.date+"T00:00:00"), start:f.kickoff, meetup:f.meetup, title:"vs "+f.opponent, location:f.ground, competition:f.competition, homeAway:f.home_away };
     const mapsUrl = "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(f.address);
     return `<div class="card fixture">
@@ -308,13 +323,7 @@
         <span class="mi" style="grid-column:1/-1"><b>Address</b> <a href="${mapsUrl}" target="_blank" rel="noopener" style="color:var(--gold-bright)">${esc(f.address)} ↗</a></span>
       </div>
       ${calLinks(fit)}${shareLink(fit)}
-      <div class="attend ag-rsvp" data-key="${key}">
-        <span class="lbl">Will ${esc(playerFirst())} be there?</span>
-        <button class="att-btn yes ${mine==='yes'?'on':''}" data-s="yes">✓ Going</button>
-        <button class="att-btn lift ${mine==='lift'?'on':''}" data-s="lift">🚗 Lift</button>
-        <button class="att-btn no ${mine==='no'?'on':''}" data-s="no">✕ Can't</button>
-        <span class="att-count">${rsvpLabel(key)}</span>
-      </div>
+      ${rsvpControls(key)}
     </div>`;
   }
 
@@ -357,17 +366,44 @@
     const c = S.rsvpCount(key);
     return `${c.going} going${c.lifts ? ` · ${c.lifts} need a lift` : ""}`;
   }
+  function attendButtons(key, pid) {
+    const st = (S.state.attendance[key] || {})[pid];
+    return `<button class="att-btn yes ${st==='yes'?'on':''}" data-key="${key}" data-player="${pid}" data-s="yes">✓ Going</button>
+      <button class="att-btn lift ${st==='lift'?'on':''}" data-key="${key}" data-player="${pid}" data-s="lift">🚗 Lift</button>
+      <button class="att-btn no ${st==='no'?'on':''}" data-key="${key}" data-player="${pid}" data-s="no">✕ Can't</button>`;
+  }
+  // RSVP control: one row for a single child, or a row per child (+ "all going") for siblings/twins
+  function rsvpControls(key) {
+    const kids = S.myChildren();
+    if (kids.length <= 1) {
+      return `<div class="ag-rsvp attend" data-rsvp-group>
+        <span class="lbl">Will ${esc(playerFirst())} be there?</span>
+        <div class="ag-btns">${attendButtons(key, S.me)}</div>
+        <span class="att-count" data-key="${key}">${rsvpLabel(key)}</span>
+      </div>`;
+    }
+    return `<div class="rsvp-multi">
+      ${kids.map(k=>`<div class="rsvp-row" data-rsvp-group><span class="rsvp-name">${esc(k.name.split(" ")[0])}</span><div class="ag-btns">${attendButtons(key, k.id)}</div></div>`).join("")}
+      <div class="rsvp-foot"><button class="btn btn-ghost btn-sm" data-rsvp-all="${key}">✓ All going</button><span class="att-count" data-key="${key}">${rsvpLabel(key)}</span></div>
+    </div>`;
+  }
   function wireRsvp() {
-    view.querySelectorAll(".ag-rsvp").forEach(box => {
-      box.querySelectorAll(".att-btn").forEach(btn => btn.addEventListener("click", async () => {
-        const key = box.dataset.key, status = btn.dataset.s;
-        const current = (S.state.attendance[key] || {})[S.me];
-        const next = current === status ? null : status;
-        await S.setAttendance(key, S.me, next);
-        box.querySelectorAll(".att-btn").forEach(b => b.classList.toggle("on", b.dataset.s === next));
-        box.querySelector(".att-count").textContent = rsvpLabel(key);
-      }));
-    });
+    view.querySelectorAll(".att-btn[data-key]").forEach(btn => btn.addEventListener("click", async () => {
+      const key = btn.dataset.key, pid = +btn.dataset.player, status = btn.dataset.s;
+      const current = (S.state.attendance[key] || {})[pid];
+      const next = current === status ? null : status;
+      await S.setAttendance(key, pid, next);
+      const group = btn.closest("[data-rsvp-group]");
+      group.querySelectorAll(".att-btn").forEach(b => b.classList.toggle("on", b.dataset.s === next));
+      view.querySelectorAll(`.att-count[data-key="${key}"]`).forEach(c => c.textContent = rsvpLabel(key));
+    }));
+    view.querySelectorAll("[data-rsvp-all]").forEach(btn => btn.addEventListener("click", async () => {
+      const key = btn.dataset.rsvpAll;
+      await S.setAttendanceAll(key, "yes");
+      const multi = btn.closest(".rsvp-multi");
+      multi.querySelectorAll("[data-rsvp-group]").forEach(g => g.querySelectorAll(".att-btn").forEach(b => b.classList.toggle("on", b.dataset.s === "yes")));
+      view.querySelectorAll(`.att-count[data-key="${key}"]`).forEach(c => c.textContent = rsvpLabel(key));
+    }));
   }
 
   function wireMedia() {
@@ -548,7 +584,6 @@
   }
 
   function agendaRow(it) {
-    const me = (S.state.attendance[it.key] || {})[S.me];
     const tm = TYPE_META[it.kind];
     const time = it.kind === "match"
       ? `KO ${fmt12(it.start)}${it.meetup ? ` · meet ${fmt12(it.meetup)}` : ""}`
@@ -567,14 +602,7 @@
         ${calLinks(it)}
         ${shareLink(it)}
       </div>
-      <div class="ag-rsvp" data-key="${it.key}">
-        <div class="ag-btns">
-          <button class="att-btn yes ${me==='yes'?'on':''}" data-s="yes">✓ Going</button>
-          <button class="att-btn lift ${me==='lift'?'on':''}" data-s="lift">🚗 Lift</button>
-          <button class="att-btn no ${me==='no'?'on':''}" data-s="no">✕ Can't</button>
-        </div>
-        <span class="att-count">${rsvpLabel(it.key)}</span>
-      </div>
+      ${rsvpControls(it.key)}
     </div>`;
   }
 
@@ -1147,9 +1175,10 @@
     const allEmails = [...new Set(profs.flatMap(pr => pr.parents.map(p=>p.email).filter(Boolean)))];
     const allPhones = [...new Set(profs.flatMap(pr => pr.parents.map(p=>p.phone).filter(Boolean)))];
     const rows = profs.flatMap(pr => {
-      const child = S.player(pr.player_id);
+      const kidIds = (Array.isArray(pr.player_ids) && pr.player_ids.length) ? pr.player_ids : (pr.player_id ? [pr.player_id] : []);
+      const childNames = kidIds.map(id => S.player(id)).filter(Boolean).map(c => esc(c.name)).join(", ") || "—";
       return pr.parents.map(par => `<tr>
-        <td>${child ? esc(child.name) : "—"}</td>
+        <td>${childNames}</td>
         <td>${esc(par.name||"")}${par.relation?` <span class="muted">(${esc(par.relation)})</span>`:""}</td>
         <td>${par.email?`<a href="mailto:${esc(par.email)}" style="color:var(--gold-bright)">${esc(par.email)}</a>`:""}</td>
         <td>${esc(par.phone||"")}</td></tr>`);
