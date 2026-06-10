@@ -564,6 +564,24 @@
       return { ok: true };
     },
 
+    /* admin: set a player's SEASON TOTALS for the viewed season (for past seasons where
+       only totals are known — not game-by-game). Points are derived from the scoring rules.
+       Where a season has a points ledger (the live season), the ledger still wins on display. */
+    async updateSeasonTotals(id, t) {
+      const p = this.player(id); if (!p) return { ok: false, msg: "Player not found" };
+      if (!p.stats) p.stats = {};
+      const SC = cfg.SCORING || {};
+      const g = +t.goals || 0, a = +t.assists || 0, m = +t.motm || 0, s = +t.sessions || 0;
+      const points = g * (SC.goal || 0) + a * (SC.assist || 0) + m * (SC.motm || 0) + s * (SC.trainingAttendance || 0);
+      p.stats[this.season] = { ...(p.stats[this.season] || {}), goals: g, assists: a, motm: m, sessions: s, points };
+      if (LIVE) {
+        const { error } = await this.sb.from("players").update({ stats: p.stats }).eq("id", id);
+        if (error) return { ok: false, msg: error.message };
+      } else { this._persistContent(); }
+      this._applySeason(); this._applyPoints();
+      return { ok: true, points };
+    },
+
     /* admin: roster management — add/remove a player for the selected season, set signed status */
     async setRoster(id, opts) {
       const p = this.player(id); if (!p) return { ok: false, msg: "Player not found" };

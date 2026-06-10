@@ -856,7 +856,7 @@
   function Admin(sub) {
     if (!S.isAdmin) { view.innerHTML = `<div class="card pad-lg"><h2 style="font-family:var(--display)">Admins only</h2><p class="muted">This area is for team coaches/admins. Ask the team admin to grant you access.</p></div>`; return; }
     sub = sub || "fixtures";
-    const tabs = [["attendance","Attendance"],["fixtures","Add fixture"],["result","Enter result"],["register","Register"],["points","Points & league"],["quizresults","Quiz results"],["quizedit","Quiz"],["academy","Development"],["videos","Videos"],["contacts","Contacts"],["roster","Roster"],["players","Add player"],["training","Plan training"],["events","Add event"]];
+    const tabs = [["attendance","Attendance"],["fixtures","Add fixture"],["result","Enter result"],["register","Register"],["points","Points & league"],["seasonstats","Season stats"],["quizresults","Quiz results"],["quizedit","Quiz"],["academy","Development"],["videos","Videos"],["contacts","Contacts"],["roster","Roster"],["players","Add player"],["training","Plan training"],["events","Add event"]];
     view.innerHTML = `
       <div class="section-head"><div><div class="eyebrow">Coaches only</div><h2>Admin Panel</h2></div></div>
       <p class="muted" style="margin-top:-.6rem;max-width:62ch">Manage everything from here — no spreadsheets. ${S.MODE==='preview'?'<b>Preview mode:</b> changes save to this browser so you can try it. Connect Supabase to save for everyone.':'Changes save to your database and appear for everyone straight away.'}</p>
@@ -866,7 +866,7 @@
       <div id="admin-body"></div>`;
     view.querySelectorAll("[data-atab]").forEach(b => b.addEventListener("click", () => location.hash = "#admin/"+b.dataset.atab));
     const sub2 = (location.hash.replace("#","").split("/"))[2];
-    ({ attendance:AdmAttendance, fixtures:AdmFixture, result:AdmResult, register:AdmRegister, points:AdmPoints, quizresults:AdmQuizResults, quizedit:AdmQuizEditor, academy:AdmAcademy, videos:AdmVideos, contacts:AdmContacts, roster:AdmRoster, players:AdmPlayer, training:AdmTraining, events:AdmEvent }[sub] || AdmAttendance)(sub2);
+    ({ attendance:AdmAttendance, fixtures:AdmFixture, result:AdmResult, register:AdmRegister, points:AdmPoints, seasonstats:AdmSeasonStats, quizresults:AdmQuizResults, quizedit:AdmQuizEditor, academy:AdmAcademy, videos:AdmVideos, contacts:AdmContacts, roster:AdmRoster, players:AdmPlayer, training:AdmTraining, events:AdmEvent }[sub] || AdmAttendance)(sub2);
   }
 
   function toast(msg) {
@@ -1122,6 +1122,35 @@
   }
 
   // ---- Weekly quiz results table (auto-marked; blank = 0, not done) ----
+  // ---- Season totals editor (for past seasons where only totals are known) ----
+  function AdmSeasonStats() {
+    const body = $("#admin-body");
+    const players = S.roster(true).sort((a,b)=>a.number-b.number);
+    if (!players.length) { body.innerHTML = `<div class="card pad-lg"><p class="muted" style="margin:0">No players in the ${esc(S.season)} squad yet.</p></div>`; return; }
+    const SC = cfg.SCORING || {};
+    const num = (id,v)=>`<input type="number" min="0" id="${id}" value="${v}"/>`;
+    function load(id) {
+      const p = S.player(id); if (!p) return;
+      const st = (p.stats && p.stats[S.season]) || {};
+      body.querySelector("#ss-fields").innerHTML = `
+        <div class="grid cols-2">${F("Goals",num("ss-goals",st.goals||0))}${F("Assists",num("ss-assists",st.assists||0))}</div>
+        <div class="grid cols-2">${F("Man of the Match",num("ss-motm",st.motm||0))}${F("Training sessions attended",num("ss-sessions",st.sessions||0))}</div>
+        <p class="muted" style="font-size:.84rem;margin:.2rem 0 .6rem">League points are worked out automatically: goals×${SC.goal} + assists×${SC.assist} + MOTM×${SC.motm} + sessions×${SC.trainingAttendance}.</p>
+        <button class="btn btn-gold btn-block" id="ss-save">Save ${esc(p.name)}'s ${esc(S.season)} totals</button>`;
+      body.querySelector("#ss-save").addEventListener("click", async () => {
+        const res = await S.updateSeasonTotals(id, { goals:$("#ss-goals").value, assists:$("#ss-assists").value, motm:$("#ss-motm").value, sessions:$("#ss-sessions").value });
+        if (res.ok) toast(`Saved ✓ — ${res.points} league points`); else toast("Error: "+res.msg);
+      });
+    }
+    body.innerHTML = `<div class="card pad-lg" style="max-width:620px">
+      <p class="muted" style="margin-top:0">Enter each player's totals for <b>${esc(S.season)}</b>. Use this for a <b>past season</b> where you only have the season totals (not who scored in each game) — it fills in their card and the league. <b>For the current season you don't need this</b> — stats build automatically from results, the register and the league.</p>
+      ${F("Player",`<select id="ss-player">${players.map(p=>`<option value="${p.id}">#${p.number} ${esc(p.name)}</option>`).join("")}</select>`)}
+      <div id="ss-fields"></div>
+    </div>`;
+    body.querySelector("#ss-player").addEventListener("change", e => load(+e.target.value));
+    load(players[0].id);
+  }
+
   function AdmQuizResults() {
     const body = $("#admin-body");
     const roster = S.roster(true).sort((a,b)=>a.number-b.number);
