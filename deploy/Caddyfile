@@ -8,9 +8,9 @@ harris.football, www.harris.football {
     encode gzip
     file_server
 
-    # Always serve fresh HTML/JS/CSS so site updates show immediately
+    # Always serve fresh HTML/JS/CSS/SVG so site updates (incl. the logo) show immediately
     @nocache {
-        path *.html *.js *.css /
+        path *.html *.js *.css *.svg /
     }
     header @nocache Cache-Control "no-cache, no-store, must-revalidate"
 }

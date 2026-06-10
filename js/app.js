@@ -733,7 +733,7 @@
         <div><span>GOALS</span>${p.goals||0}</div><div><span>ASSISTS</span>${p.assists||0}</div>
         <div><span>MOTM</span>${p.motm||0}</div><div><span>TRAINING</span>${p.sessions||0}</div>
       </div>
-      <img class="fc-crest" src="assets/crest.svg" alt=""/></div>`; }
+      <img class="fc-crest" src="assets/crest.svg?v=2" alt=""/></div>`; }
 
   /* ============================ LEAGUE / GAMIFICATION ============================ */
   function pointsRules() {
