@@ -849,7 +849,7 @@
   function Admin(sub) {
     if (!S.isAdmin) { view.innerHTML = `<div class="card pad-lg"><h2 style="font-family:var(--display)">Admins only</h2><p class="muted">This area is for team coaches/admins. Ask the team admin to grant you access.</p></div>`; return; }
     sub = sub || "fixtures";
-    const tabs = [["fixtures","Add fixture"],["result","Enter result"],["register","Register"],["points","Points & league"],["quizresults","Quiz results"],["quizedit","Quiz"],["academy","Development"],["videos","Videos"],["contacts","Contacts"],["roster","Roster"],["players","Add player"],["training","Plan training"],["events","Add event"]];
+    const tabs = [["attendance","Attendance"],["fixtures","Add fixture"],["result","Enter result"],["register","Register"],["points","Points & league"],["quizresults","Quiz results"],["quizedit","Quiz"],["academy","Development"],["videos","Videos"],["contacts","Contacts"],["roster","Roster"],["players","Add player"],["training","Plan training"],["events","Add event"]];
     view.innerHTML = `
       <div class="section-head"><div><div class="eyebrow">Coaches only</div><h2>Admin Panel</h2></div></div>
       <p class="muted" style="margin-top:-.6rem;max-width:62ch">Manage everything from here — no spreadsheets. ${S.MODE==='preview'?'<b>Preview mode:</b> changes save to this browser so you can try it. Connect Supabase to save for everyone.':'Changes save to your database and appear for everyone straight away.'}</p>
@@ -859,7 +859,7 @@
       <div id="admin-body"></div>`;
     view.querySelectorAll("[data-atab]").forEach(b => b.addEventListener("click", () => location.hash = "#admin/"+b.dataset.atab));
     const sub2 = (location.hash.replace("#","").split("/"))[2];
-    ({ fixtures:AdmFixture, result:AdmResult, register:AdmRegister, points:AdmPoints, quizresults:AdmQuizResults, quizedit:AdmQuizEditor, academy:AdmAcademy, videos:AdmVideos, contacts:AdmContacts, roster:AdmRoster, players:AdmPlayer, training:AdmTraining, events:AdmEvent }[sub] || AdmFixture)(sub2);
+    ({ attendance:AdmAttendance, fixtures:AdmFixture, result:AdmResult, register:AdmRegister, points:AdmPoints, quizresults:AdmQuizResults, quizedit:AdmQuizEditor, academy:AdmAcademy, videos:AdmVideos, contacts:AdmContacts, roster:AdmRoster, players:AdmPlayer, training:AdmTraining, events:AdmEvent }[sub] || AdmAttendance)(sub2);
   }
 
   function toast(msg) {
@@ -870,6 +870,39 @@
   }
   const playerOpts = (sel) => S.roster(true).sort((a,b)=>a.number-b.number).map(p=>`<option value="${p.id}" ${sel===p.id?'selected':''}>#${p.number} ${esc(p.name)}</option>`).join("");
   const F = (label, inner) => `<label class="field"><span>${label}</span>${inner}</label>`;
+
+  // ---- Coach attendance view: who's coming to each upcoming session, by name ----
+  function attendanceBreakdown(key) {
+    const m = S.state.attendance[key] || {};
+    const going=[], cant=[], noreply=[]; const lift=new Set();
+    S.roster().sort((a,b)=>a.number-b.number).forEach(p => {
+      const s = m[p.id];
+      if (s==="yes") going.push(p);
+      else if (s==="lift") { going.push(p); lift.add(p.id); }
+      else if (s==="no") cant.push(p);
+      else noreply.push(p);
+    });
+    return { going, cant, noreply, lift };
+  }
+  function admName(p, lift){ const parts=p.name.split(" "); const ln=parts.length>1?` ${parts[parts.length-1][0]}.`:""; return `${esc(parts[0])}${esc(ln)}${lift&&lift.has(p.id)?' 🚗':''}`; }
+  function AdmAttendance() {
+    const body = $("#admin-body");
+    const items = buildAgenda(["training","match","event"], 35);
+    if (!items.length) { body.innerHTML = `<div class="card pad-lg"><p class="muted" style="margin:0">Nothing scheduled in the next few weeks for the <b>${esc(S.season)}</b> season.</p></div>`; return; }
+    const namesOf = (arr, lift) => arr.length ? arr.map(p=>admName(p,lift)).join(", ") : "—";
+    body.innerHTML = `
+      <p class="muted" style="margin-top:0;max-width:66ch">Who's coming to each upcoming session — so you can plan. 🚗 = needs a lift. Anyone who hasn't tapped Going or Can't shows under <b>No reply</b>. Switch season from the top bar.</p>
+      ${items.map(it=>{
+        const b=attendanceBreakdown(it.key); const d=it.dateObj;
+        const time = it.kind==="match"?`KO ${fmt12(it.start)}`:it.kind==="event"?(it.time?fmt12(it.time):""):`${fmt12(it.start)}–${fmt12(it.end)}`;
+        return `<div class="card" style="margin-bottom:.8rem">
+          <div class="ag-head" style="margin-bottom:.6rem"><span class="tag ${TYPE_META[it.kind].cls}">${TYPE_META[it.kind].label}</span><b>${esc(it.title||it.label)}</b> <span class="muted">${fdate(ymd(d))}${time?` · ${time}`:""}</span></div>
+          <div class="att-row att-go"><b>✓ Going (${b.going.length})</b> ${namesOf(b.going, b.lift)}</div>
+          <div class="att-row att-no"><b>✕ Can't (${b.cant.length})</b> ${namesOf(b.cant)}</div>
+          <div class="att-row att-na"><b>· No reply (${b.noreply.length})</b> ${namesOf(b.noreply)}</div>
+        </div>`;
+      }).join("")}`;
+  }
 
   function AdmFixture(editId) {
     const body = $("#admin-body");

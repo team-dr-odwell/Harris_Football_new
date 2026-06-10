@@ -289,6 +289,13 @@ img{max-width:100%}
 .rsvp-name{font-weight:800;font-size:.82rem;color:var(--gold-bright);min-width:48px;text-align:right}
 .rsvp-foot{display:flex;align-items:center;justify-content:space-between;gap:.6rem;border-top:1px dashed var(--line);padding-top:.4rem;margin-top:.1rem}
 .active-kid{border-color:var(--gold)!important;box-shadow:0 0 0 1px var(--gold) inset}
+/* ---- coach attendance view ---- */
+.att-row{font-size:.9rem;line-height:1.5;padding:.35rem 0;border-top:1px solid var(--line)}
+.att-row:first-of-type{border-top:0}
+.att-row b{display:inline-block;min-width:130px;font-size:.82rem}
+.att-go b{color:#8ce899}
+.att-no b{color:#f1948e}
+.att-na b{color:var(--muted)}
 @media(max-width:760px){ .rsvp-multi{width:100%;border-top:1px dashed var(--line);padding-top:.6rem} .rsvp-row{justify-content:space-between} .rsvp-row .ag-btns{flex:1} .rsvp-row .ag-btns .att-btn{flex:1} }
 .ag-cal{font-size:.8rem;color:var(--muted);margin-top:.4rem}
 .ag-cal a{color:var(--gold-bright)}
