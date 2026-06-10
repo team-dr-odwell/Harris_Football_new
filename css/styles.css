@@ -66,8 +66,8 @@ img{max-width:100%}
   position:relative;overflow:hidden;
 }
 .gate-card::before{content:"";position:absolute;inset:0;background:radial-gradient(400px 200px at 50% -20%, rgba(201,162,39,.22), transparent 70%);pointer-events:none}
-.gate-crest{width:96px;height:104px;margin-bottom:.4rem;filter:drop-shadow(0 6px 14px rgba(0,0,0,.5))}
-.gate-title{font-family:var(--display);font-size:2.6rem;letter-spacing:1px;margin:.2rem 0 0;line-height:1}
+.gate-crest{width:100px;height:100px;margin-bottom:.4rem;filter:drop-shadow(0 6px 14px rgba(0,0,0,.5))}
+.gate-title{font-family:"Archivo",sans-serif;font-weight:400;font-size:2.4rem;letter-spacing:.2em;margin:.2rem 0 0;line-height:1}
 .gate-title span{color:var(--gold)}
 .gate-sub{color:var(--muted);margin:.3rem 0 1.6rem;text-transform:uppercase;letter-spacing:3px;font-size:.72rem;font-weight:700}
 .field{display:block;text-align:left;margin-bottom:.9rem}
@@ -88,9 +88,9 @@ img{max-width:100%}
   backdrop-filter:blur(12px);border-bottom:1px solid var(--line);
 }
 .brand{display:flex;align-items:center;gap:.6rem;background:none;border:none;cursor:pointer;color:var(--white)}
-.brand-crest{width:34px;height:37px}
-.brand-text{font-family:var(--display);font-size:1.3rem;letter-spacing:.5px}
-.brand-text strong{color:var(--gold)}
+.brand-crest{width:36px;height:36px}
+.brand-text{font-family:"Archivo",sans-serif;font-weight:400;font-size:1.25rem;letter-spacing:.18em}
+.brand-text strong{color:var(--gold);font-weight:500}
 .nav{display:flex;gap:.3rem;margin-left:auto}
 .nav-link{padding:.5rem .85rem;border-radius:999px;font-weight:600;font-size:.92rem;color:#c8c8c0;transition:.18s}
 .nav-link:hover{color:var(--white)}
