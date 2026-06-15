@@ -844,19 +844,21 @@
     // records aren't wiped to zero.
     _applyPoints() {
       const s = this.season;
+      const SC = cfg.SCORING || {};
       (this.state.players || []).forEach(p => {
         const st = (p.stats && p.stats[s]) || {};
-        // ADDITIVE: typed-in archive performance (stored season totals) PLUS live
-        // ledger activity. A season's performance is recorded EITHER as stored totals
-        // (last season's archive) OR as match-result ledger events (the live season) —
-        // never both — so summing them never double-counts. This means a player who has
-        // earned a little live AP (e.g. a quiz) no longer loses their archived
-        // goals/assists/attendance from the card or their score.
-        p.points   = (st.points   || 0) + this.ledgerSum(p.id, s);
-        p.goals    = (st.goals    || 0) + this.countCat(p.id, "goal", s);
-        p.assists  = (st.assists  || 0) + this.countCat(p.id, "assist", s);
-        p.motm     = (st.motm     || 0) + this.countCat(p.id, "motm", s);
-        p.sessions = (st.sessions || 0) + this.countCat(p.id, "attendance", s);
+        const g = st.goals || 0, a = st.assists || 0, m = st.motm || 0, ses = st.sessions || 0;
+        // Season AP is COMPUTED from the archived stats with ONE formula so every player
+        // is on the same scale (goals×10 + assists×10 + MOTM×15 + training×20), PLUS any
+        // live ledger activity. Live seasons carry no stored totals (perf = 0), so the
+        // ledger drives those — performance is recorded as stored totals (archive) OR as
+        // match-result ledger events (live), never both, so this never double-counts.
+        const perf = g*(SC.goal||0) + a*(SC.assist||0) + m*(SC.motm||0) + ses*(SC.trainingAttendance||0);
+        p.points   = perf + this.ledgerSum(p.id, s);
+        p.goals    = g + this.countCat(p.id, "goal", s);
+        p.assists  = a + this.countCat(p.id, "assist", s);
+        p.motm     = m + this.countCat(p.id, "motm", s);
+        p.sessions = ses + this.countCat(p.id, "attendance", s);
       });
     },
 
@@ -959,10 +961,12 @@
     },
     tierOf(playerId, season) {
       season = season || this.season;
-      // Additive AP (matches _applyPoints): archived performance points + live ledger.
+      // Computed AP (matches _applyPoints): performance from stats + live ledger.
+      const _SC = cfg.SCORING || {};
       const _p = this.player(playerId) || {};
       const _st = (_p.stats && _p.stats[season]) || {};
-      const ap = (_st.points || 0) + this.ledgerSum(playerId, season);
+      const _perf = (_st.goals||0)*(_SC.goal||0) + (_st.assists||0)*(_SC.assist||0) + (_st.motm||0)*(_SC.motm||0) + (_st.sessions||0)*(_SC.trainingAttendance||0);
+      const ap = _perf + this.ledgerSum(playerId, season);
       const golds = this.skillGoldCount(playerId, season);
       const tiers = cfg.TIERS || [];
       let cur = tiers[0];
