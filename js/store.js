@@ -1461,6 +1461,12 @@
       return this.addPoints({ player_id: playerId, season: cs, category: "mover",
         points: SC.moverOfMonth, note: `Mover of the Month ${month}`, ref: `mover:${cs}:${month}` });
     },
+    // Has this month's Mover spotlight already been awarded? (read-only, for Home control tower)
+    moverAwarded(month) {
+      month = month || this.monthId();
+      const cs = this.currentSeason();
+      return (this.state.ledger || []).some(e => e.category === "mover" && String(e.ref || "") === `mover:${cs}:${month}`);
+    },
     // Coach-tap badge (incl. Home Team Hero monthly). 0 AP — badges are separate from AP (§1).
     async awardBadge(playerId, badgeName, period) {
       const cs = this.currentSeason();

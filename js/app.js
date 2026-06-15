@@ -6,6 +6,7 @@
   const cfg = window.HARRIS_CONFIG;
   const $ = (s, r = document) => r.querySelector(s);
   const view = $("#view");
+  let _hwPop = false;   // one-shot: pop the AP number after homework is marked done on Home
 
   /* ---------- helpers ---------- */
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
@@ -254,84 +255,250 @@
       <span class="vthumb-t">${esc(v.title || "Video")}</span></a>`;
   }
 
+  // Greeting that matches the time of day (local clock).
+  function timeGreeting() {
+    const h = new Date().getHours();
+    return h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
+  }
+
+  // A compact, child-facing summary of this week's homework for Home.
+  // UPSIDE ONLY: shows the deadline, the +bonus, the challenge (one-tap "Mark done")
+  // and the quiz ("Take it"). The −5/bench-start penalty copy lives ONLY on the
+  // parent Family page — never here on the shared child screen. When both are done
+  // this week it collapses to a single celebratory line. Wiring reuses wireHomework().
+  function homeworkSummary(me) {
+    const sc = cfg.SCORING || {};
+    const challengeDone = S.challengeDoneThisWeek(me.id);
+    const quizDone = S.quizDoneThisWeek(me.id);
+    const both = challengeDone && quizDone;
+    if (both) {
+      return `<div class="card pad-lg hw-summary">
+        <div class="hw-done"><span class="hw-tick">✓</span> Homework done this week <b class="ap-pop-target">+${sc.homeworkBonus}</b></div>
+      </div>`;
+    }
+    const ch = S.weeklyChallenge();
+    const deadline = S.homeworkDeadline();
+    return `<div class="card pad-lg hw-summary">
+      <div class="section-head" style="margin-bottom:.4rem"><div><div class="eyebrow">Homework · by ${fdateLong(deadline.toISOString().slice(0,10))} 6pm</div><h2 style="font-size:1.4rem">This week's homework</h2></div></div>
+      <p class="muted" style="margin:0 0 .7rem;font-size:.84rem">Do both before the deadline for a <b style="color:var(--gold-ink)">+${sc.homeworkBonus} AP</b> bonus — nice and easy!</p>
+      <div class="ach" style="justify-content:space-between;margin-bottom:.4rem">
+        <div><span class="em">${ch&&ch.icon?ch.icon:'🎯'}</span> <b>Challenge:</b> ${ch?esc(ch.name):'Weekly drill'}</div>
+        ${challengeDone?'<span class="tag green">✓ Done</span>':`<button class="btn btn-dark btn-sm" data-hw-challenge="${me.id}">Mark done +${sc.challenge}</button>`}
+      </div>
+      ${ch&&ch.desc?`<p class="muted" style="margin:.1rem 0 .5rem;font-size:.82rem">${esc(ch.desc)}${ch.minutes?` <b style="color:var(--gold-bright)">~${ch.minutes} min</b>`:''}</p>`:''}
+      <div class="ach" style="justify-content:space-between">
+        <div><span class="em">🧠</span> <b>Quiz:</b> this week's quiz</div>
+        ${quizDone?'<span class="tag green">✓ Done</span>':`<button class="btn btn-ghost btn-sm" onclick="location.hash='#academy/quiz'">Take it →</button>`}
+      </div>
+    </div>`;
+  }
+
   function Home() {
     const me = S.hasLinkedPlayer() ? S.player(S.me) : null;
-    const past = S.fixtures("past");
-    const W = past.filter(f=>f.result==="W").length, D = past.filter(f=>f.result==="D").length, L = past.filter(f=>f.result==="L").length;
-    const goals = past.reduce((n,f)=>n+(f.our_score||0),0);
-    const ros = S.roster();
-    const top = [...ros].sort((a,b)=>(b.goals||0)-(a.goals||0))[0];
-    const next = S.fixtures("upcoming")[0];
+    if (me) return HomeFamily(me);
+    if (S.isAdmin) return HomeCoach();
+    return HomeGuest();
+  }
 
-    // Build interactive agenda items for the next fixture + next training
-    const nextFixIt = next ? { kind:"match", key:"m"+next.id, dateObj:new Date(next.date+"T00:00:00"),
-      start:next.kickoff, meetup:next.meetup, title:"vs "+next.opponent, location:next.ground,
-      competition:next.competition, homeAway:next.home_away } : null;
+  /* ---- Variant A: logged-in parent / child ---- */
+  function HomeFamily(me) {
+    const firstName = esc(firstNameOf(me));
+    const t = S.tierOf(me.id);
+    const ap = t.ap || 0;
+    const tiers = cfg.TIERS || [];
+    const next = tiers.find(x => x.min > ap);
+    const pct = next ? Math.min(100, Math.round(ap / next.min * 100)) : 100;
+    const sub = next
+      ? `You're on <b class="hero-ap" data-count="${ap}">${ap}</b> Academy Points — ${next.min - ap} to ${esc(next.label)}.`
+      : `You're on <b class="hero-ap" data-count="${ap}">${ap}</b> Academy Points — Top tier reached, Icon ⭐.`;
+
+    // Next fixture + next training as interactive agenda rows with inline RSVP.
+    const nextFix = S.fixtures("upcoming")[0];
+    const nextFixIt = nextFix ? { kind:"match", key:"m"+nextFix.id, dateObj:new Date(nextFix.date+"T00:00:00"),
+      start:nextFix.kickoff, meetup:nextFix.meetup, title:"vs "+nextFix.opponent, location:nextFix.ground,
+      competition:nextFix.competition, homeAway:nextFix.home_away } : null;
     const nt = nextTraining();
     const nextTrainIt = nt ? { ...nt, dateObj:new Date(nt.date+"T00:00:00") } : null;
-    const emptyCard = msg => `<div class="card"><p class="muted" style="margin:0">${msg}</p></div>`;
 
-    // 5th stat: the child's own Academy Points (personal); for admins, the squad total.
-    const fifth = me ? { n: me.points||0, l:"My Academy Points" }
-                     : { n: ros.reduce((n,p)=>n+(p.points||0),0), l:"Squad AP" };
-
-    const myVids = me ? S.videosForPlayer(me.id).filter(v=>v.url).slice(0,2) : [];
-    const teamVids = S.teamVideos().filter(d=>d.url).slice(0,2);
-    const firstName = me ? esc(firstNameOf(me)) : "";
+    const myVids = S.videosForPlayer(me.id).filter(v=>v.url).slice(0,2);
     const honours = (cfg.SEASON_HONOURS || {})[S.season] || [];
 
     view.innerHTML = `
-      ${me ? `
-      <section class="hero hero-personal">
-        <div class="hero-tag">OWFC Harris · ${esc(S.season)}</div>
-        <h1>Welcome back, <span>${firstName}</span>! 👋</h1>
-        <p class="hero-sub">#${me.number} · ${esc(me.pos)}${me.captain?' · Captain 🧢':''} — you've earned <b>${me.points||0}</b> points this season. Keep climbing! 🚀</p>
-        <div class="hero-actions"><button class="btn btn-gold btn-sm" data-go="players/${me.id}">My player card →</button></div>
+      <section class="hero hero-personal hero-split reveal" style="--i:0">
+        <div class="hero-copy">
+          <div class="hero-tag">OWFC HARRIS · ${esc(S.ageGroup())} · ${esc(S.season)}</div>
+          <h1>${esc(timeGreeting())}, <span>${firstName}</span>.</h1>
+          <p class="hero-sub">${sub}</p>
+          <div class="track hero-track" style="margin:.7rem 0 1.1rem;max-width:340px"><div class="fill" data-fill="${pct}" style="width:0%"></div></div>
+          <div class="hero-actions">
+            <button class="btn btn-gold btn-sm" data-go="players/${me.id}">Open my card</button>
+            <button class="btn btn-ghost btn-sm" data-go="academy/quiz">This week's quiz</button>
+          </div>
+        </div>
+        <div class="hero-card">
+          <div class="fc-card home-mycard" data-player="${me.id}">${fcCardInner(me)}</div>
+        </div>
       </section>
-      ` : `
-      <section class="hero">
-        <div class="hero-tag">${esc(cfg.TEAM_NAME)} · ${esc(S.ageGroup())} · ${esc(S.season)}</div>
-        <h1>Welcome to the <span>Academy</span></h1>
-        <p>Fixtures, training, player cards and progress — all in one place.</p>
-        ${S.isAdmin?`<div class="hero-actions"><button class="btn btn-gold" data-go="admin">⚙ Admin</button><button class="btn btn-ghost" data-go="players">Player cards</button></div>`:""}
-      </section>`}
 
-      <div class="section-head" style="margin-top:1.4rem"><div><div class="eyebrow">Next up</div><h2>${me?`Is ${firstName} playing?`:"Coming up"}</h2></div></div>
-      <div class="agenda">
-        ${me
-          ? `${nextFixIt?agendaRow(nextFixIt):emptyCard("No fixtures just yet — check back soon!")}
-             ${nextTrainIt?agendaRow(nextTrainIt):emptyCard("No training booked in yet — watch this space!")}`
-          : `<div class="card pad-lg">${next?fixtureMini(next):`<p class="muted" style="margin:0">No fixtures just yet.</p>`}<button class="btn btn-dark btn-sm" data-go="schedule/matches" style="margin-top:1rem">All fixtures</button></div>
-             <div class="card pad-lg">${trainingMini(nt)}<button class="btn btn-dark btn-sm" data-go="schedule/training" style="margin-top:1rem">Schedule</button></div>`}
+      <div class="reveal" style="--i:1">
+        <div class="section-head" style="margin-top:1.4rem"><div><div class="eyebrow">This week</div><h2>${firstName}'s homework</h2></div></div>
+        ${homeworkSummary(me)}
       </div>
 
-      <div class="section-head" style="margin-top:1.8rem"><div><div class="eyebrow">${me?"My season":esc(S.season)+" season"}</div><h2>The numbers</h2></div></div>
-      <div class="stat-strip">
-        <div class="stat" title="Won · Drawn · Lost"><div class="n">${W}-${D}-${L}</div><div class="l">Won · Drawn · Lost</div></div>
-        <div class="stat"><div class="n">${goals}</div><div class="l">Goals scored</div></div>
-        <div class="stat"><div class="n">${ros.length}</div><div class="l">Squad size</div></div>
-        <div class="stat"><div class="n">${top?top.goals:0}</div><div class="l">Top scorer${top?` (${esc(firstNameOf(top))})`:""}</div></div>
-        <div class="stat stat-link" data-go="academy"><div class="n">${fifth.n}</div><div class="l">${fifth.l} →</div></div>
+      <div class="reveal" style="--i:2">
+        <div class="section-head" style="margin-top:1.8rem"><div><div class="eyebrow">Next up</div><h2>Is ${firstName} playing?</h2></div></div>
+        <div class="agenda">
+          ${nextFixIt||nextTrainIt
+            ? `${nextFixIt?agendaRow(nextFixIt):""}${nextTrainIt?agendaRow(nextTrainIt):""}`
+            : emptyState("📅","Nothing booked in just yet","As soon as the next match or training session is set, it'll show here — tap to tell us if "+firstName+" is coming.", { label:"See the schedule", go:"schedule" })}
+        </div>
       </div>
 
-      ${honours.length ? `
-      <div class="section-head" style="margin-top:1.8rem"><div><div class="eyebrow">${esc(S.season)} · Trophy cabinet</div><h2>Club Honours</h2></div></div>
-      <div class="honours">
-        ${honours.map(hn=>`<div class="honour ${hn.win?'honour-win':''}"><div class="honour-ic">${hn.icon||"🏅"}</div><div><b>${esc(hn.comp)}</b><div class="muted" style="font-size:.84rem">${esc(hn.result)}</div></div></div>`).join("")}
+      <div class="reveal" style="--i:3">
+        <div class="section-head" style="margin-top:1.8rem"><div><div class="eyebrow">This month · the only ranking</div><h2>Mover of the Month</h2></div></div>
+        ${moverCard()}
+      </div>
+
+      ${myVids.length ? `
+      <div class="reveal" style="--i:4">
+        <div class="section-head" style="margin-top:1.8rem"><div><div class="eyebrow">Picked for ${firstName}</div><h2>Your videos</h2></div>
+          <button class="btn btn-ghost btn-sm" data-go="development/${me.id}">My plan →</button></div>
+        <div class="home-vids">${myVids.map(v=>videoThumb(v, "#development/"+me.id, false)).join("")}</div>
       </div>` : ""}
 
-      ${me && myVids.length ? `
-      <div class="section-head" style="margin-top:1.8rem"><div><div class="eyebrow">Picked just for ${firstName}</div><h2>My Development</h2></div>
-        <button class="btn btn-ghost btn-sm" data-go="development/${me.id}">My plan →</button></div>
-      <p class="muted" style="margin-top:-.6rem;font-size:.86rem">Videos your coach chose for <b>you</b> — tap one, watch it to the end and earn points! 🎬</p>
-      <div class="home-vids">${myVids.map(v=>videoThumb(v, "#development/"+me.id, false)).join("")}</div>` : ""}
-
-      ${teamVids.length ? `
-      <div class="section-head" style="margin-top:1.8rem"><div><div class="eyebrow">For the whole squad</div><h2>Team Training Videos</h2></div></div>
-      <p class="muted" style="margin-top:-.6rem;font-size:.86rem">Drills for everyone to practise at home — not personal homework.</p>
-      <div class="home-vids">${teamVids.map(v=>videoThumb(v, v.url, true)).join("")}</div>` : ""}
+      ${honours.length ? `
+      <div class="reveal" style="--i:4">
+        <div class="section-head" style="margin-top:1.8rem"><div><div class="eyebrow">${esc(S.season)} · Trophy cabinet</div><h2>Club Honours</h2></div></div>
+        <div class="honours">
+          ${honours.map(hn=>`<div class="honour ${hn.win?'honour-win':''}"><div class="honour-ic">${hn.icon||"🏅"}</div><div><b>${esc(hn.comp)}</b><div class="muted" style="font-size:.84rem">${esc(hn.result)}</div></div></div>`).join("")}
+        </div>
+      </div>` : ""}
     `;
-    wireRsvp(); wireGo();
+    wireRsvp(); wireHomework(); wireGo();
+    view.querySelectorAll(".home-mycard").forEach(c => c.addEventListener("click", () => location.hash = "#players/"+c.dataset.player));
+    enhanceHome();
+  }
+
+  /* ---- Variant B: coach / admin with no linked child (control tower) ---- */
+  function HomeCoach() {
+    const nextFix = S.fixtures("upcoming")[0];
+    const nt = nextTraining();
+    const fixBreak = nextFix ? attendanceBreakdown("m"+nextFix.id) : null;
+    const trainBreak = nt ? attendanceBreakdown(nt.key) : null;
+
+    // "Needs your attention" — only rows that actually apply.
+    const todos = [];
+    S.fixtures("past").forEach(f => {
+      if (f.our_score == null) todos.push({ label:`Add the score vs ${esc(f.opponent)}`, go:"admin/result" });
+    });
+    const mover = S.moverOfMonth(S.monthId());
+    if (mover.winner && !S.moverAwarded(S.monthId())) {
+      todos.push({ label:`Award Mover of the Month — ${esc(safeName(mover.winner.player))} (+${mover.winner.gain})`, go:"admin/points" });
+    }
+    if (fixBreak && fixBreak.noreply.length) {
+      todos.push({ label:`${fixBreak.noreply.length} haven't replied for ${esc("vs "+nextFix.opponent)}`, go:"admin/attendance" });
+    }
+
+    const breakRow = (b, fallback) => b ? `
+      <div class="coach-counts">
+        <div class="cc cc-go"><b>${b.going.length}</b><span>Going</span></div>
+        <div class="cc cc-lift"><b>${b.lift.size}</b><span>Need a lift</span></div>
+        <div class="cc cc-no"><b>${b.cant.length}</b><span>Can't</span></div>
+        <div class="cc cc-na"><b>${b.noreply.length}</b><span>No reply</span></div>
+      </div>` : `<p class="muted" style="margin:.2rem 0 0">${fallback}</p>`;
+
+    view.innerHTML = `
+      <section class="hero hero-coach reveal" style="--i:0">
+        <div class="hero-tag">${esc(cfg.TEAM_NAME)} · ${esc(S.ageGroup())} · ${esc(S.season)}</div>
+        <h1>Sunday squad at a glance</h1>
+      </section>
+
+      <div class="grid cols-2 reveal" style="--i:1;margin-top:1.4rem;align-items:start">
+        <div class="card pad-lg">
+          <div class="section-head" style="margin-bottom:.5rem"><div><div class="eyebrow">Next fixture · who's coming</div><h2 style="font-size:1.4rem">${nextFix?esc("vs "+nextFix.opponent):"No fixture yet"}</h2></div></div>
+          ${nextFix?`<p class="muted" style="margin:0 0 .6rem;font-size:.84rem">${fdate(nextFix.date)} · ${esc(nextFix.home_away==='H'?'Home':'Away')}</p>`:""}
+          ${breakRow(fixBreak, "Add a fixture and replies will show here.")}
+          ${nextFix?`<a class="btn btn-ghost btn-sm" href="#admin/attendance" style="margin-top:.9rem">See full roster →</a>`:`<a class="btn btn-gold btn-sm" href="#admin/fixtures" style="margin-top:.9rem">Add a fixture</a>`}
+        </div>
+        <div class="card pad-lg">
+          <div class="section-head" style="margin-bottom:.5rem"><div><div class="eyebrow">Next training · who's coming</div><h2 style="font-size:1.4rem">${nt?esc(nt.label||"Training"):"No session yet"}</h2></div></div>
+          ${nt?`<p class="muted" style="margin:0 0 .6rem;font-size:.84rem">${fdate(nt.date)} · ${fmt12(nt.start)}–${fmt12(nt.end)}</p>`:""}
+          ${breakRow(trainBreak, "Plan a session and replies will show here.")}
+          ${nt?`<a class="btn btn-ghost btn-sm" href="#admin/attendance" style="margin-top:.9rem">See full roster →</a>`:`<a class="btn btn-gold btn-sm" href="#admin/training" style="margin-top:.9rem">Plan training</a>`}
+        </div>
+      </div>
+
+      <div class="reveal" style="--i:2">
+        <div class="section-head" style="margin-top:1.8rem"><div><div class="eyebrow">Action list</div><h2>Needs your attention</h2></div></div>
+        <div class="card pad-lg">
+          ${todos.length
+            ? `<div class="todo-list">${todos.map(td=>`<button class="todo-row" data-go="${esc(td.go)}"><span class="todo-dot">!</span><span>${td.label}</span><span class="todo-arrow">→</span></button>`).join("")}</div>`
+            : `<p class="muted" style="margin:0">All caught up ✓ — nothing needs you right now.</p>`}
+        </div>
+      </div>
+
+      <div class="reveal" style="--i:3">
+        <div class="section-head" style="margin-top:1.8rem"><div><div class="eyebrow">One tap away</div><h2>Quick admin</h2></div></div>
+        <div class="quick-admin">
+          <button class="qa-tile" data-go="admin/fixtures"><span class="qa-ic">📅</span>Add fixture</button>
+          <button class="qa-tile" data-go="admin/result"><span class="qa-ic">⚽</span>Enter result</button>
+          <button class="qa-tile" data-go="admin/register"><span class="qa-ic">✅</span>Register</button>
+          <button class="qa-tile" data-go="admin/training"><span class="qa-ic">🏃</span>Plan training</button>
+        </div>
+      </div>
+    `;
+    wireGo();
+    enhanceHome();
+  }
+
+  /* ---- Brand-new account (not linked, not admin): minimal friendly hero + pick child ---- */
+  function HomeGuest() {
+    view.innerHTML = `
+      <section class="hero reveal" style="--i:0">
+        <div class="hero-tag">${esc(cfg.TEAM_NAME)} · ${esc(S.ageGroup())} · ${esc(S.season)}</div>
+        <h1>Welcome to the <span>Academy</span></h1>
+        <p>Fixtures, training, player cards and progress — all in one place. Tell us which player is yours to make this page personal.</p>
+        <div class="hero-actions"><button class="btn btn-gold" data-go-pick>Choose my child</button></div>
+      </section>
+    `;
+    view.querySelectorAll("[data-go-pick]").forEach(b => b.addEventListener("click", e => { e.preventDefault(); showChildPicker(true); }));
+    wireGo();
+    enhanceHome();
+  }
+
+  /* ---- Home animation enhancers (progressive: final values are already in the DOM) ---- */
+  function enhanceHome() {
+    if (typeof window === "undefined") return;
+    const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    // Tier bar fills from 0 → target via the CSS width transition.
+    view.querySelectorAll("[data-fill]").forEach(el => {
+      const target = el.getAttribute("data-fill") + "%";
+      if (reduce) { el.style.width = target; return; }
+      requestAnimationFrame(() => requestAnimationFrame(() => { el.style.width = target; }));
+    });
+    // Count-up on the hero AP number. Final value is already written in the DOM.
+    view.querySelectorAll("[data-count]").forEach(el => {
+      const final = parseInt(el.getAttribute("data-count"), 10) || 0;
+      if (reduce || final <= 0) { el.textContent = final; return; }
+      const dur = 800, t0 = (window.performance && performance.now) ? performance.now() : Date.now();
+      el.textContent = "0";
+      const tick = now => {
+        const p = Math.min(1, ((now||Date.now()) - t0) / dur);
+        const eased = 1 - Math.pow(1 - p, 3);
+        el.textContent = Math.round(final * eased);
+        if (p < 1) requestAnimationFrame(tick); else el.textContent = final;
+      };
+      requestAnimationFrame(tick);
+    });
+    // One-shot celebratory pop after homework was just marked done on Home.
+    if (_hwPop) {
+      _hwPop = false;
+      const target = view.querySelector(".ap-pop-target") || view.querySelector(".hero-ap");
+      if (target && !reduce) {
+        target.classList.add("ap-pop");
+        target.addEventListener("animationend", () => target.classList.remove("ap-pop"), { once: true });
+      }
+    }
   }
 
   function fixtureMini(f) {
@@ -1142,8 +1309,7 @@
       <div class="fc-stats">
         <div><span>GOALS</span>${p.goals||0}</div><div><span>ASSISTS</span>${p.assists||0}</div>
         <div><span title="Player of the Match awards">POTM</span>${p.motm||0}</div><div><span>TRAINING</span>${p.sessions||0}</div>
-      </div>
-      <img class="fc-crest" src="assets/crest.svg?v=2" alt=""/></div>`; }
+      </div></div>`; }
 
   /* ============================ ACADEMY (kid-safe) ============================ */
   // §11: NO absolute leaderboard. This page shows the child's OWN card + standing,
@@ -1360,8 +1526,10 @@
       const pid = +b.dataset.hwChallenge;
       const shown = !!(view.querySelector(`#hw-shown-${pid}`) && view.querySelector(`#hw-shown-${pid}`).checked);
       const res = await S.tickChallenge(pid, shown);
-      if (res.ok) { toast(res.dup ? "Already done this week" : "Challenge done! 🎯"); rerenderCurrent(); }
-      else toast("Error: " + res.msg);
+      if (res.ok) {
+        if (!res.dup && view.querySelector(".ap-pop-target, .hero-ap")) _hwPop = true;  // celebrate on Home re-render
+        toast(res.dup ? "Already done this week" : "Challenge done! 🎯"); rerenderCurrent();
+      } else toast("Error: " + res.msg);
     }));
   }
 

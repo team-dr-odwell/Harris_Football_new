@@ -177,7 +177,35 @@ img{max-width:100%}
 .hero-personal h1{margin-bottom:.35rem}
 .hero-sub{color:var(--ink-2);font-size:.96rem;margin:0}
 .hero-sub b{color:var(--gold-ink)}
-.home-mycard{margin:-.4rem 0 1.4rem}
+.home-mycard{margin:0;max-width:230px;width:100%}
+/* Slim split hero: copy left, the child's card right (stacks on mobile) */
+.hero-split{display:grid;grid-template-columns:1fr minmax(0,230px);gap:clamp(1.2rem,4vw,2.4rem);align-items:center}
+.hero-split .hero-copy{position:relative;z-index:2}
+.hero-split .hero-card{display:flex;justify-content:center}
+.hero-ap{color:var(--gold-ink);font-feature-settings:"tnum" 1}
+.hero-track{width:100%}
+@media (max-width:760px){ .hero-split{grid-template-columns:1fr} .hero-split .hero-card{order:-1;margin-bottom:.4rem} .home-mycard{max-width:200px} }
+/* Coach control-tower */
+.hero-coach h1{margin-bottom:0}
+.coach-counts{display:grid;grid-template-columns:repeat(4,1fr);gap:.5rem;margin:.2rem 0}
+.cc{background:var(--surface-sunk);border:1px solid var(--line);border-radius:var(--radius-sm);padding:.6rem .4rem;text-align:center}
+.cc b{display:block;font-family:var(--display);font-size:1.5rem;line-height:1;font-feature-settings:"tnum" 1}
+.cc span{font-size:.7rem;color:var(--muted);font-weight:500}
+.cc-go b{color:var(--gold-ink)} .cc-no b{color:var(--ink-2)} .cc-na b{color:var(--muted)}
+.todo-list{display:flex;flex-direction:column;gap:.5rem}
+.todo-row{display:flex;align-items:center;gap:.7rem;width:100%;text-align:left;background:#fff;border:1px solid var(--line);border-radius:var(--radius-sm);padding:.7rem .8rem;cursor:pointer;font:inherit;color:var(--ink);transition:border-color .15s}
+.todo-row:hover{border-color:var(--gold-ring)}
+.todo-dot{flex:none;width:22px;height:22px;border-radius:50%;background:var(--gold);color:#0b0b0b;font-weight:700;display:flex;align-items:center;justify-content:center;font-size:.8rem}
+.todo-arrow{margin-left:auto;color:var(--muted)}
+.quick-admin{display:grid;grid-template-columns:repeat(4,1fr);gap:.8rem}
+.qa-tile{display:flex;flex-direction:column;align-items:center;gap:.4rem;background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:1.1rem .6rem;cursor:pointer;font:inherit;font-weight:600;font-size:.85rem;color:var(--ink);transition:border-color .15s,transform .15s}
+.qa-tile:hover{border-color:var(--gold-ring);transform:translateY(-2px)}
+.qa-ic{font-size:1.6rem;line-height:1}
+@media (max-width:520px){ .quick-admin{grid-template-columns:repeat(2,1fr)} }
+/* Homework summary on Home (upside-only) */
+.hw-summary .hw-done{display:flex;align-items:center;gap:.6rem;font-weight:600;font-size:1.05rem}
+.hw-summary .hw-tick{flex:none;width:26px;height:26px;border-radius:50%;background:var(--gold);color:#0b0b0b;display:flex;align-items:center;justify-content:center;font-weight:700}
+.hw-summary .hw-done b{color:var(--gold-ink)}
 .home-vids{display:grid;grid-template-columns:1fr 1fr;gap:.9rem;margin-top:.4rem}
 .vthumb{display:block;text-decoration:none;color:inherit}
 .vthumb-img{display:flex;align-items:center;justify-content:center;aspect-ratio:16/9;border-radius:var(--radius-sm);background:var(--surface-sunk) center/cover no-repeat;border:1px solid var(--line);position:relative}
@@ -250,8 +278,10 @@ img{max-width:100%}
 .fc-rating{font-family:var(--display);font-weight:700;font-size:2rem;color:var(--ink);font-feature-settings:"tnum" 1}
 .fc-pos{font-weight:600;font-size:.78rem;margin-top:3px;letter-spacing:.04em;color:var(--muted)}
 .fc-num{font-weight:600;font-size:1rem;color:var(--ink-2);font-feature-settings:"tnum" 1}
-.fc-photo{flex:1;display:grid;place-items:center;position:relative}
-.fc-photo .avatar{width:72%;aspect-ratio:1;border-radius:50%;background:#ececec;display:grid;place-items:center;font-family:var(--display);font-weight:700;font-size:2.2rem;color:var(--ink-2);border:none}
+.fc-photo{flex:1;min-height:0;display:grid;place-items:center;position:relative;overflow:hidden}
+/* Size the avatar by the available HEIGHT (not card width) so it never overflows
+   downward and clips the name on wide grid cards. */
+.fc-photo .avatar{height:100%;width:auto;aspect-ratio:1;max-width:88%;border-radius:50%;background:#ececec;display:grid;place-items:center;font-family:var(--display);font-weight:700;font-size:clamp(1.3rem,4.5vw,2.2rem);color:var(--ink-2);border:none}
 .fc-name{font-family:var(--display);font-weight:600;font-size:clamp(.9rem,3.2vw,1.05rem);text-align:center;letter-spacing:-0.01em;border-top:1px solid var(--line);padding-top:.4rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink)}
 .fc-stats{display:grid;grid-template-columns:1fr 1fr;gap:.15rem .7rem;font-size:.74rem;font-weight:600;padding:.45rem .15rem 0}
 .fc-stats div{display:flex;justify-content:space-between}
@@ -316,6 +346,9 @@ img{max-width:100%}
 .attr-bar .row{display:flex;justify-content:space-between;font-size:.82rem;margin-bottom:.25rem;font-weight:700}
 .attr-bar .track{height:8px;background:var(--surface-sunk);border-radius:999px;overflow:hidden}
 .attr-bar .fill{height:100%;background:var(--gold);border-radius:999px}
+/* Generic gold progress bar (tier progress, squad goals, hero) */
+.track{height:8px;background:var(--surface-sunk);border-radius:999px;overflow:hidden}
+.track>.fill{height:100%;background:var(--gold);border-radius:999px;transition:width .6s cubic-bezier(.2,.6,.2,1)}
 .program-step{display:flex;gap:.7rem;padding:.7rem 0;border-bottom:1px solid var(--line)}
 .program-step .dot{width:26px;height:26px;border-radius:50%;background:var(--gold-soft);color:var(--gold-ink);display:grid;place-items:center;font-weight:600;flex:none;border:1px solid var(--gold-ring)}
 
@@ -489,3 +522,20 @@ img{max-width:100%}
   .btn-sm{padding:.5rem .7rem}
   .empty-state{padding:1.8rem 1rem}
 }
+
+/* ============================ MOTION ============================
+   GPU-cheap (transform/opacity/width only), short, never blocks reading:
+   every animation enhances values that are ALREADY in the DOM. */
+/* Global kill-switch — honours the user's reduced-motion preference. */
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{ animation-duration:.001ms !important; animation-iteration-count:1 !important; transition-duration:.001ms !important; }
+}
+/* Staggered fade-in of the hero, then each Home block. Content is present even
+   if animations are off (opacity is only lowered while the keyframe runs). */
+@keyframes reveal{ to{ opacity:1; transform:none } }
+.reveal{ opacity:0; transform:translateY(8px); animation:reveal .32s cubic-bezier(.2,.6,.2,1) forwards; animation-delay:calc(var(--i,0) * .07s) }
+/* Cap the stagger so nothing past ~5 blocks waits noticeably. */
+.reveal[style*="--i:5"],.reveal[style*="--i:6"],.reveal[style*="--i:7"]{ animation-delay:.35s }
+/* One-shot celebratory pop on an AP number when homework is marked done. */
+@keyframes ap-pop{ 0%{transform:scale(1)} 40%{transform:scale(1.12);color:var(--gold-bright)} 100%{transform:scale(1)} }
+.ap-pop{ display:inline-block; animation:ap-pop .28s ease-out }
