@@ -60,9 +60,15 @@ function run(code, label) { try { window.eval(code); } catch (e) { errors.push(`
   S._applySeason();
 
   const hashes = [];
-  ["home", "fixtures", "fixtures/upcoming", "fixtures/past", "fixtures/league",
-   "training", "events", "players", "development", "league",
-   "matches", "squad", "academy", "schedule",
+  ["home",
+   // new IA
+   "schedule", "schedule/matches", "schedule/matches/upcoming", "schedule/matches/past",
+   "schedule/training", "schedule/events", "about",
+   "academy", "academy/progress", "academy/quiz", "academy/tasks", "academy/videos",
+   "players", "development", "league",
+   // kept legacy aliases (so old WhatsApp/shared links never break)
+   "fixtures", "fixtures/upcoming", "fixtures/past", "results",
+   "training", "events", "matches", "squad",
    "family", "parents", "home_team"].forEach(h => hashes.push(h));
   (S.state.players || []).forEach(p => { hashes.push("players/" + p.id); hashes.push("development/" + p.id); });
   ["attendance", "fixtures", "result", "register", "teamsheet", "points", "skillladder",
@@ -91,11 +97,15 @@ function run(code, label) { try { window.eval(code); } catch (e) { errors.push(`
     window.dispatchEvent(new window.Event("hashchange"));
     await new Promise(r => setTimeout(r, 40));
     const fam = window.document.querySelector("#view").innerHTML || "";
+    // After the IA restructure, Family is parent CONTROL only: confirm homework +
+    // set/tick chores + child switcher + a link to the child's full card. The quiz
+    // itself is now TAKEN in Academy, so it is intentionally NOT embedded here.
     [["Home Challenges", "parent home-challenges card"],
      ["data-kid=", "child switcher for multiple children"],
-     ["quiz-host", "quiz embedded for parents"],
+     ["This week's homework", "the parent homework-confirm card"],
      ["full card", "link to the child's full card"]]
       .forEach(([needle, label]) => { if (!fam.includes(needle)) errors.push(`Family(parent) missing ${label} ("${needle}")`); });
+    if (fam.includes("quiz-host")) errors.push("Family should NOT embed the quiz (quiz-taking moved to Academy)");
     if (window.document.querySelector("#nav-family").classList.contains("hidden"))
       errors.push("Family nav tab hidden for a linked parent");
   } catch (e) { errors.push(`THROW rendering Family as parent: ${e.stack || e}`); }

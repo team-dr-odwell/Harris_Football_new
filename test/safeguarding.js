@@ -76,8 +76,15 @@ const FIXED_NOW = new RealDate("2026-09-14T09:00:00Z");   // a Monday in 2026/27
   await new Promise(r => setTimeout(r, 20));
   const kidHtml = window.document.querySelector("#view").innerHTML;
   eq((kidHtml.match(/<td class="rank/g) || []).length, 0, "§11.1 kid Academy page renders no ranked AP table");
-  ok(/Mover of the Month/.test(kidHtml), "§11.1 Mover of the Month present (the only ranked list)");
-  ok(/Squad Goals/.test(kidHtml), "§11.1 Squad Goals present");
+  // Mover of the Month + Squad Goals moved to the Squad page in the IA restructure.
+  // They must still be present there, and Mover stays the ONLY ranked list (no
+  // absolute leaderboard) on any kid-facing page.
+  window.location.hash = "#players"; window.dispatchEvent(new window.Event("hashchange"));
+  await new Promise(r => setTimeout(r, 20));
+  const squadHtml = window.document.querySelector("#view").innerHTML;
+  eq((squadHtml.match(/<td class="rank/g) || []).length, 0, "§11.1 Squad page renders no ranked AP table");
+  ok(/Mover of the Month/.test(squadHtml), "§11.1 Mover of the Month present on Squad (the only ranked list)");
+  ok(/Squad Goals/.test(squadHtml), "§11.1 Squad Goals present on Squad");
 
   /* ============ §11.2 OUTCOME CAP — 5-goal game ============ */
   const striker = ros.find(p => p.pos === "ST") || ros[1];

@@ -284,8 +284,16 @@ function unpinNow() { global.Date = RealDate; window.Date = RealDate; }
   const viewHtml = window.document.querySelector("#view").innerHTML;
   const rankedRows = (viewHtml.match(/<td class="rank/g) || []).length;
   eq(rankedRows, 0, "§11 no absolute leaderboard rendered on the kid Academy page");
-  ok(/Mover of the Month/.test(viewHtml), "§11 Academy page shows Mover of the Month instead");
-  ok(/Squad Goals/.test(viewHtml), "§4 Academy page shows Squad Goals");
+  // Mover of the Month + Squad Goals were moved to the Squad page in the IA
+  // restructure. They must still appear there, and Mover must remain the ONLY
+  // ranked list anywhere kid-facing (no absolute leaderboard).
+  window.location.hash = "#players";
+  window.dispatchEvent(new window.Event("hashchange"));
+  await new Promise(r => setTimeout(r, 20));
+  const squadHtml = window.document.querySelector("#view").innerHTML;
+  eq((squadHtml.match(/<td class="rank/g) || []).length, 0, "§11 no absolute leaderboard on the Squad page either");
+  ok(/Mover of the Month/.test(squadHtml), "§11 Squad page shows Mover of the Month (the only ranked list)");
+  ok(/Squad Goals/.test(squadHtml), "§4 Squad page shows Squad Goals");
 
   // ---- report ----
   unpinNow();

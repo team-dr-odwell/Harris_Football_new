@@ -95,6 +95,7 @@
       this._applyPoints();
     },
     seasonRange(id) { return (cfg.SEASONS || []).find(s => s.id === (id || this.season)); },
+    ageGroup(id) { const r = this.seasonRange(id); return (r && r.age) || cfg.AGE_GROUP; },
     inSeason(iso) {
       const r = this.seasonRange();
       return r ? (iso >= r.from && iso <= r.to) : true;

@@ -26,6 +26,15 @@
   const initials = (p) => (p && p.init) || fullName(p).split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase();
 
   /* ============================ AUTH / SHELL ============================ */
+  // A simple, themed loading state for boot + season switches (crest + "Loading…").
+  function showLoading(msg) {
+    if (!view) return;
+    view.innerHTML = `<div class="loading-state">
+      <img src="assets/crest.svg?v=2" alt="" class="loading-crest"/>
+      <p>${esc(msg || "Loading…")}</p>
+    </div>`;
+  }
+
   async function boot() {
     const authed = await S.init();
     if (authed) { await enterApp(); } else { showGate(); }
@@ -38,6 +47,7 @@
     $("#gate").classList.add("hidden");
     $("#app").classList.remove("hidden");
     if (S.MODE === "preview") $("#demo-banner").classList.remove("hidden");
+    showLoading("Loading the Academy…");
     await S.load();
     populateSeasonSelect();
     $("#nav-admin").classList.toggle("hidden", !S.isAdmin);
@@ -69,7 +79,12 @@
     $("#logout-btn").addEventListener("click", async () => { await S.logout(); location.hash = "#home"; showGate(); });
     $("#myplayer-btn").addEventListener("click", () => showChildPicker(true));
     const ssel = $("#season-select");
-    if (ssel) ssel.addEventListener("change", e => { S.setSeason(e.target.value); updateMyPlayerChip(); route(); });
+    if (ssel) ssel.addEventListener("change", e => {
+      const id = e.target.value;
+      showLoading("Loading " + id + " season…");
+      // Defer so the loading state paints before the (synchronous) reprojection.
+      setTimeout(() => { S.setSeason(id); updateMyPlayerChip(); route(); }, 0);
+    });
     $("#hamburger").addEventListener("click", () => $("#nav").classList.toggle("open"));
     document.querySelectorAll("[data-route]").forEach(a =>
       a.addEventListener("click", () => { location.hash = "#" + a.dataset.route; $("#nav").classList.remove("open"); }));
@@ -169,27 +184,37 @@
   }
 
   // Canonical view map (function declarations below are hoisted, so this is safe).
-  const VIEWS = { home:Home, fixtures:Fixtures, training:Schedule, events:Events,
+  // Information architecture: Home | Schedule | Squad | Academy | Family | About (+ Admin).
+  //   schedule  -> one page with Matches / Training / Events tabs
+  //   academy   -> the signed-in child's development WORK (League() renders it)
+  const VIEWS = { home:Home, schedule:Schedule, about:About,
+                  fixtures:Fixtures, training:TrainingView, events:Events,
                   players:Players, development:Development, league:League, academy:League,
                   family:Family, admin:Admin };
-  // Old hashes kept alive so existing WhatsApp links never break.
-  // (Only aliases for hashes WITHOUT their own view; #league and #development keep
-  //  their own pages but are surfaced under the Matches / Squad nav items.)
+  // Old hashes kept alive so existing WhatsApp / shared links never break.
+  // Everything time-based now lives under #schedule; league/development map to their pages.
   const ROUTE_ALIASES = {
-    matches: "fixtures", results: "fixtures",
+    fixtures: "schedule", matches: "schedule", results: "schedule",
+    training: "schedule", events: "schedule",
     squad: "players",
-    schedule: "training",
+    league: "academy", development: "academy",
     parents: "family", home_team: "family"
   };
   // Maps a canonical view key to the top-nav item that should appear "active".
-  const NAV_OF = { league: "fixtures", academy: "fixtures", development: "players" };
+  const NAV_OF = {
+    schedule:"schedule", fixtures:"schedule", training:"schedule", events:"schedule",
+    players:"players", squad:"players", development:"academy",
+    league:"academy", academy:"academy",
+    family:"family", about:"about", home:"home", admin:"admin"
+  };
   function route() {
     let parts = (location.hash.replace("#", "") || "home").split("/");
     let key = parts[0];
-    // Resolve aliases to a canonical destination (e.g. #academy -> players, #matches -> fixtures).
+    // Resolve aliases to a canonical destination, EXCEPT where the alias key still
+    // owns its own view function (fixtures/training/events render Schedule sub-tabs).
     if (ROUTE_ALIASES[key] && !VIEWS[key]) key = ROUTE_ALIASES[key];
-    // Which top-nav item lights up for this route (league/results live under Matches; development under Squad).
-    const navMatch = NAV_OF[key] || (ROUTE_ALIASES[parts[0]] || parts[0]);
+    // Which top-nav item lights up for this route.
+    const navMatch = NAV_OF[parts[0]] || NAV_OF[key] || key;
     document.querySelectorAll(".nav-link").forEach(l => l.classList.toggle("active", l.dataset.route === navMatch));
     updateMyPlayerChip();
     window.scrollTo(0, 0);
@@ -198,12 +223,16 @@
     // A single bad record (e.g. a player with a missing name) must never freeze
     // the page. Catch any render error, show a friendly fallback, log for coaches.
     try {
-      fn(parts[1]);
+      fn(parts[1], parts[2]);
     } catch (err) {
       console.error("View render failed for #" + (location.hash || "") , err);
       renderViewError(err);
     }
   }
+  // Re-render whatever view is currently on screen (used after an action like
+  // ticking homework/chores or finishing the quiz). Fixes the old bug where these
+  // always re-rendered the Academy/League page even when invoked from Family.
+  function rerenderCurrent() { route(); }
   function renderViewError(err) {
     try {
       view.innerHTML = `
@@ -261,7 +290,7 @@
       </section>
       ` : `
       <section class="hero">
-        <div class="hero-tag">${esc(cfg.TEAM_NAME)} · ${esc(cfg.AGE_GROUP)} · ${esc(S.season)}</div>
+        <div class="hero-tag">${esc(cfg.TEAM_NAME)} · ${esc(S.ageGroup())} · ${esc(S.season)}</div>
         <h1>Welcome to the <span>Academy</span></h1>
         <p>Fixtures, training, player cards and progress — all in one place.</p>
         ${S.isAdmin?`<div class="hero-actions"><button class="btn btn-gold" data-go="admin">⚙ Admin</button><button class="btn btn-ghost" data-go="players">Player cards</button></div>`:""}
@@ -272,8 +301,8 @@
         ${me
           ? `${nextFixIt?agendaRow(nextFixIt):emptyCard("No fixtures just yet — check back soon!")}
              ${nextTrainIt?agendaRow(nextTrainIt):emptyCard("No training booked in yet — watch this space!")}`
-          : `<div class="card pad-lg">${next?fixtureMini(next):`<p class="muted" style="margin:0">No fixtures just yet.</p>`}<button class="btn btn-dark btn-sm" data-go="fixtures" style="margin-top:1rem">All fixtures</button></div>
-             <div class="card pad-lg">${trainingMini(nt)}<button class="btn btn-dark btn-sm" data-go="training" style="margin-top:1rem">Schedule</button></div>`}
+          : `<div class="card pad-lg">${next?fixtureMini(next):`<p class="muted" style="margin:0">No fixtures just yet.</p>`}<button class="btn btn-dark btn-sm" data-go="schedule/matches" style="margin-top:1rem">All fixtures</button></div>
+             <div class="card pad-lg">${trainingMini(nt)}<button class="btn btn-dark btn-sm" data-go="schedule/training" style="margin-top:1rem">Schedule</button></div>`}
       </div>
 
       <div class="section-head" style="margin-top:1.8rem"><div><div class="eyebrow">${me?"My season":esc(S.season)+" season"}</div><h2>The numbers</h2></div></div>
@@ -282,7 +311,7 @@
         <div class="stat"><div class="n">${goals}</div><div class="l">Goals scored</div></div>
         <div class="stat"><div class="n">${ros.length}</div><div class="l">Squad size</div></div>
         <div class="stat"><div class="n">${top?top.goals:0}</div><div class="l">Top scorer${top?` (${esc(firstNameOf(top))})`:""}</div></div>
-        <div class="stat stat-link" data-go="league"><div class="n">${fifth.n}</div><div class="l">${fifth.l} →</div></div>
+        <div class="stat stat-link" data-go="academy"><div class="n">${fifth.n}</div><div class="l">${fifth.l} →</div></div>
       </div>
 
       ${honours.length ? `
@@ -340,37 +369,35 @@
   // A previous leaguePreview()/S.leagueRows() helper that ranked players by total
   // AP was removed — an absolute ranking must never reappear on a child screen.
 
-  /* ============================ MATCHES (fixtures + results + league) ============================ */
-  // Shared sub-nav so Upcoming / Results / League feel like one "Matches" section.
+  /* ============================ MATCHES (fixtures + results) ============================ */
+  // Sub-nav for the Matches tab inside Schedule: Upcoming vs Results.
   function matchesTabs(active) {
-    return `<div class="badge-row">
+    return `<div class="badge-row" style="margin-bottom:1rem">
       <button class="btn ${active==='upcoming'?'btn-gold':'btn-ghost'} btn-sm" data-tab="upcoming">Upcoming</button>
       <button class="btn ${active==='past'?'btn-gold':'btn-ghost'} btn-sm" data-tab="past">Results</button>
-      <button class="btn ${active==='league'?'btn-gold':'btn-ghost'} btn-sm" data-tab="league">Academy</button>
     </div>`;
   }
-  function Fixtures(tab) {
-    tab = tab || "upcoming";
-    // The League tab reuses the standalone League page (nothing lost in nav consolidation).
-    if (tab === "league") { location.hash = "#league"; return; }
+  // Legacy entry points — funnel into the Schedule page on the right tab.
+  // #fixtures/past (and #results) land on Matches → Results, fixing the old
+  // bug where results links opened on Upcoming.
+  function Fixtures(tab) { Schedule("matches", tab); }
+  function Events() { Schedule("events"); }
+
+  // Render the Matches section body into a container (used by the Schedule page).
+  function renderMatchesInto(el, tab) {
+    tab = (tab === "past" || tab === "upcoming") ? tab : "upcoming";
     const list = S.fixtures(tab);
     const tabsBar = matchesTabs(tab);
-
     if (tab === "past") {
-      view.innerHTML = `
-        <div class="section-head"><div><div class="eyebrow">${esc(S.season)} Season</div><h2>Matches</h2></div>${tabsBar}</div>
-        ${resultsFormStrip(list)}
-        ${resultsGrouped(list)}`;
+      el.innerHTML = `${tabsBar}${resultsFormStrip(list)}${resultsGrouped(list)}`;
     } else {
-      view.innerHTML = `
-        <div class="section-head"><div><div class="eyebrow">${esc(S.season)} Season</div><h2>Matches</h2></div>${tabsBar}</div>
-        ${list.length
-          ? `<div class="grid cols-2">${list.map(upcomingCard).join("")}</div>`
-          : emptyState("⚽", "No matches booked in yet",
-              "As soon as the next fixture is set, it'll appear here with kick-off, meet time and the ground.",
-              S.isAdmin ? { label:"Add a fixture", go:"admin/fixtures" } : { label:"See past results", go:"fixtures/past" })}`;
+      el.innerHTML = `${tabsBar}${list.length
+        ? `<div class="grid cols-2">${list.map(upcomingCard).join("")}</div>`
+        : emptyState("⚽", "No matches booked in yet",
+            "As soon as the next fixture is set, it'll appear here with kick-off, meet time and the ground.",
+            S.isAdmin ? { label:"Add a fixture", go:"admin/fixtures" } : { label:"See past results", go:"schedule/matches/past" })}`;
     }
-    view.querySelectorAll("[data-tab]").forEach(b => b.addEventListener("click", () => location.hash = "#fixtures/"+b.dataset.tab));
+    el.querySelectorAll("[data-tab]").forEach(b => b.addEventListener("click", () => location.hash = "#schedule/matches/"+b.dataset.tab));
     wireRsvp(); wireMedia(); wireGo();
   }
 
@@ -395,8 +422,8 @@
   // Group results by month, newest month first; within a month newest first.
   function resultsGrouped(list) {
     if (!list.length) return emptyState("📋", "No results to show yet",
-      "Once we've played a match, the score, scorers and Man of the Match land here.",
-      S.isAdmin ? { label:"Enter a result", go:"admin/result" } : { label:"See upcoming matches", go:"fixtures/upcoming" });
+      "Once we've played a match, the score, scorers and Player of the Match land here.",
+      S.isAdmin ? { label:"Enter a result", go:"admin/result" } : { label:"See upcoming matches", go:"schedule/matches/upcoming" });
     const byMonth = {};
     [...list].sort((a,b)=>(b.date||"").localeCompare(a.date||"")).forEach(f => {
       const d = new Date((f.date||"") + "T00:00:00");
@@ -637,16 +664,58 @@
     return rows;
   }
 
-  function Schedule() {
+  // Legacy entry point — funnel into the Schedule page on the Training tab.
+  function TrainingView() { Schedule("training"); }
+
+  // Render the Training section body into a container (used by the Schedule page).
+  function renderTrainingInto(el) {
     const rows = buildAgenda(["training"], 28);
-    view.innerHTML = `
-      <div class="section-head"><div><div class="eyebrow">Next 4 weeks</div><h2>Training Schedule</h2></div>
+    el.innerHTML = `
+      <div class="section-head" style="margin-top:0"><div><div class="eyebrow">Next 4 weeks</div><h3 style="font-family:var(--display);font-size:1.5rem;margin:0">Training sessions</h3></div>
         <a class="btn btn-ghost btn-sm" href="${weekShareUrl()}" target="_blank" rel="noopener">💬 Share week to WhatsApp</a></div>
-      <p class="muted" style="margin-top:-.6rem;max-width:64ch">Upcoming training sessions, with the drills we'll be working on. ${S.isAdmin&&!S.hasLinkedPlayer()?"Each session shows how many players have replied — open Admin → Attendance for the full roster.":`Tap to tell us if ${esc(playerFirst())} is going — and whether they'll need a lift.`}</p>
+      <p class="muted" style="margin-top:.2rem;max-width:64ch">Upcoming training sessions, with the drills we'll be working on. ${S.isAdmin&&!S.hasLinkedPlayer()?"Each session shows how many players have replied — open Admin → Attendance for the full roster.":`Tap to tell us if ${esc(playerFirst())} is going — and whether they'll need a lift.`}</p>
       <div class="agenda" style="margin-top:1.2rem">
         ${rows.length ? rows.map(agendaRow).join("") : emptyState("🏃","No training booked in the next four weeks","Sessions appear here as soon as they're scheduled — with the drills and any videos to watch first.", S.isAdmin?{label:"Plan a session",go:"admin/training"}:null)}
       </div>`;
     wireRsvp(); wireGo();
+  }
+
+  /* ============================ SCHEDULE (Matches · Training · Events) ============================ */
+  // One page that ties together everything time-based. The tab strip swaps between
+  // the Matches view (with its own Upcoming/Results sub-tabs), Training and Events.
+  // Deep links supported: #schedule, #schedule/matches[/upcoming|/past], #schedule/training,
+  // #schedule/events — plus the legacy #fixtures, #training, #events, #results, #fixtures/past.
+  function Schedule(tab, sub) {
+    // Normalise: which big tab + (for Matches) which sub-tab.
+    // Callers: Schedule(tab, sub) from the router (#schedule/<tab>/<sub>);
+    //          Fixtures(t) -> Schedule("matches", t); Events() -> Schedule("events").
+    const hashKey = (location.hash.replace("#","").split("/"))[0];
+    let bigTab = tab, matchSub = sub;
+    if (hashKey === "training") { bigTab = "training"; }
+    else if (hashKey === "events") { bigTab = "events"; }
+    // Legacy #fixtures/<sub> and #results both land on Matches; #results forces Results.
+    else if (hashKey === "fixtures") { bigTab = "matches"; matchSub = sub; }
+    else if (hashKey === "results") { bigTab = "matches"; matchSub = "past"; }
+    else if (hashKey === "matches") { bigTab = "matches"; }
+    if (!bigTab || !["matches","training","events"].includes(bigTab)) bigTab = "matches";
+
+    view.innerHTML = `
+      <div class="section-head"><div><div class="eyebrow">${esc(S.season)} Season</div><h2>Schedule</h2></div></div>
+      <div class="sched-tabs badge-row" style="margin:-.2rem 0 1.1rem">
+        <button class="btn ${bigTab==='matches'?'btn-gold':'btn-ghost'} btn-sm" data-sched="matches">Matches</button>
+        <button class="btn ${bigTab==='training'?'btn-gold':'btn-ghost'} btn-sm" data-sched="training">Training</button>
+        <button class="btn ${bigTab==='events'?'btn-gold':'btn-ghost'} btn-sm" data-sched="events">Events</button>
+      </div>
+      <div id="sched-body"></div>`;
+    view.querySelectorAll("[data-sched]").forEach(b => b.addEventListener("click", () => {
+      location.hash = "#schedule/" + b.dataset.sched;
+    }));
+    // Each section renders into #view (they fully replace innerHTML) — so we render
+    // the tab strip, then call the section, which rewrites the page with its own
+    // content. To keep the strip we instead render the section into #sched-body.
+    if (bigTab === "matches") renderMatchesInto($("#sched-body"), matchSub);
+    else if (bigTab === "training") renderTrainingInto($("#sched-body"));
+    else renderEventsInto($("#sched-body"));
   }
 
   function toCal(it) {
@@ -746,30 +815,177 @@
   }
 
   /* ============================ EVENTS (rows) ============================ */
-  function Events() {
+  // Render the Events section body into a container (used by the Schedule page).
+  function renderEventsInto(el) {
     const rows = buildAgenda(["event"], 220);
-    view.innerHTML = `
-      <div class="section-head"><div><div class="eyebrow">Beyond the pitch</div><h2>Events</h2></div></div>
-      <p class="muted" style="margin-top:-.6rem;max-width:62ch">Fundraisers, days out and celebrations. ${S.isAdmin&&!S.hasLinkedPlayer()?"Open Admin → Attendance to see who's replied.":`Tap to let us know if ${esc(playerFirst())} is coming.`}</p>
+    el.innerHTML = `
+      <div class="section-head" style="margin-top:0"><div><div class="eyebrow">Beyond the pitch</div><h3 style="font-family:var(--display);font-size:1.5rem;margin:0">Events</h3></div></div>
+      <p class="muted" style="margin-top:.2rem;max-width:62ch">Fundraisers, days out and celebrations. ${S.isAdmin&&!S.hasLinkedPlayer()?"Open Admin → Attendance to see who's replied.":`Tap to let us know if ${esc(playerFirst())} is coming.`}</p>
       <div class="agenda" style="margin-top:1.2rem">
-        ${rows.length ? rows.map(agendaRow).join("") : emptyState("🎉","No events coming up just yet","When there's a tournament, fundraiser or day out, it'll show here with a tap-to-RSVP.", S.isAdmin?{label:"Add an event",go:"admin/events"}:null)}
+        ${rows.length ? rows.map(agendaRow).join("") : emptyState("🎉","No events coming up just yet","When there's a tournament, fundraiser or day out, it'll show here with a tap-to-let-us-know.", S.isAdmin?{label:"Add an event",go:"admin/events"}:null)}
       </div>`;
-    wireRsvp();
+    wireRsvp(); wireGo();
+  }
+
+  /* ============================ ABOUT ============================ */
+  // PLACEHOLDER page — real wording to be supplied by the club. Uses existing
+  // card/section classes so the later reskin flows straight through.
+  function About() {
+    const sec = (eyebrow, title, body) => `
+      <div class="section-head" style="margin-top:1.6rem"><div><div class="eyebrow">${esc(eyebrow)}</div><h2 style="font-size:1.5rem">${esc(title)}</h2></div></div>
+      <div class="card pad-lg">${body}</div>`;
+    view.innerHTML = `
+      <section class="hero">
+        <div class="hero-tag">${esc(cfg.TEAM_NAME)} · ${esc(S.ageGroup())}</div>
+        <h1>About <span>our team</span></h1>
+        <p>Who we are, how we play, and how we keep everyone safe and having fun.</p>
+      </section>
+      <div class="card pad-lg" style="margin-top:1.2rem">
+        <p style="margin:0">We're <b>${esc(cfg.TEAM_NAME)} ${esc(S.ageGroup())}</b>, a friendly grassroots team for boys and girls in south-east England. We train hard, play fair and, above all, we love the game. At this age it's about getting better, making friends and enjoying every match — <b>development over winning</b>. If our players finish the season more confident, more skilful and still buzzing to play, we've done our job.</p>
+        <p style="margin:.7rem 0 0"><b>For our players:</b> football should be fun. You'll learn loads, you'll make mistakes — everyone does, that's how you improve — and your coaches and teammates have got your back. Try your best, be a good teammate, and enjoy it. ⚽</p>
+      </div>
+      ${sec("Where we play","Our league — the Tandridge League", `
+        <p style="margin:0">We play in the <b>Tandridge Youth Football League</b>, an England Football accredited Sunday league based in Surrey that runs football for boys and girls from Under-7 to Under-18.</p>
+        <p style="margin:.7rem 0 0">It's organised by age and format: at our age we play <b>7-a-side mini-soccer</b>, before the squad moves up to 9-a-side and then 11-a-side as the players get older. The season runs from September to May, with home and away fixtures most Sundays. At mini-soccer age the league doesn't publish results or tables — and that's the point: it keeps everyone focused on learning and enjoying the game, not the scoreboard.</p>`)}
+      ${sec("The rules","How we play — FA mini-soccer rules", `
+        <p style="margin:0 0 .5rem">At our age we follow The FA's mini-soccer format, designed to fit young players:</p>
+        <ul style="margin:0;padding-left:1.1rem;line-height:1.65">
+          <li><b>7 v 7</b> — seven players a side including the goalkeeper, on a small pitch.</li>
+          <li><b>Size 4 ball</b> — the right size and weight for this age.</li>
+          <li><b>The retreat line</b> — when our keeper has the ball or at goal kicks, the other team drops back to the retreat line, so our players get time and space to play out instead of booting it long.</li>
+          <li><b>No deliberate heading</b> — heading is taken out of the game at this age to protect young players; a deliberate header gives the other team a free kick.</li>
+          <li><b>No league tables</b> — at mini-soccer age results and tables aren't published; we play to enjoy it and to get better.</li>
+          <li><b>Fair game time</b> — every player gets a meaningful share of every match, with roll-on, roll-off subs so everyone starts, comes on and tries different positions.</li>
+        </ul>`)}
+      ${sec("Respect","Codes of conduct", `
+        <p style="margin:0 0 .6rem">We follow The FA's Respect programme — enjoy the game, give respect, be inclusive, work together and play safe.</p>
+        <div class="grid cols-2" style="gap:1rem;align-items:start">
+          <div><b>Players</b><ul style="margin:.3rem 0 0;padding-left:1.1rem;line-height:1.55"><li>Play fair and try your best.</li><li>Never argue with the referee.</li><li>Support your teammates, win or lose.</li><li>Shake hands and say "well played".</li></ul></div>
+          <div><b>Parents &amp; spectators</b><ul style="margin:.3rem 0 0;padding-left:1.1rem;line-height:1.55"><li>Cheer effort, not just goals.</li><li>Let the coaches coach and the referee referee.</li><li>Stay behind the spectator line.</li><li>Never criticise players, officials or other parents.</li></ul></div>
+          <div><b>Coaches</b><ul style="margin:.3rem 0 0;padding-left:1.1rem;line-height:1.55"><li>Put the children's wellbeing and enjoyment first.</li><li>Give every player a fair chance to play.</li><li>Set a positive example to all.</li><li>Hold the right FA qualifications, DBS check and safeguarding training.</li></ul></div>
+        </div>`)}
+      ${sec("Safeguarding","Keeping children safe", `
+        <p style="margin:0">The safety and welfare of every child comes first. Like all FA-affiliated youth teams we have safeguarding policies in place, and anyone working with the children holds an up-to-date FA-accepted DBS check and safeguarding training. On this site, children's full surnames are never shown on player cards. If you ever have a worry about a child's welfare, please speak to our coaches or Club Welfare Officer straight away.</p>`)}
+      <div style="margin-top:1.4rem"><button class="btn btn-gold btn-sm" data-go="home">← Back to home</button></div>`;
+    wireGo();
   }
 
   /* ============================ ACADEMY ============================ */
   const DEV_AREAS = [["passing","Passing"],["shooting","Shooting"],["dribbling","Dribbling"],["defending","Defending"],["fitness","Fitness"],["teamwork","Teamwork"]];
   const DEF_POS = ["GK","CB","LB","RB","RWB","LWB","CDM"];
 
+  // Season stats line for a player (goals / assists / Player of the Match / appearances).
+  // Abbreviations are spelled out where first used per page (see playerStats()).
+  function seasonStatRow(p) {
+    return [
+      ["Goals", p.goals||0],
+      ["Assists", p.assists||0],
+      ["Player of the Match", p.motm||0],
+      ["Appearances", S.appearances(p.id)]
+    ];
+  }
+  // A compact stats strip; firstUse=true spells the abbreviations out for the page.
+  function statsStrip(rows) {
+    return `<div class="stat-strip" style="grid-template-columns:repeat(auto-fit,minmax(96px,1fr))">
+      ${rows.map(([k,v])=>`<div class="stat"><div class="n">${v}</div><div class="l">${esc(k)}</div></div>`).join("")}</div>`;
+  }
+  // Earned badges block for a player (read-only, used on Squad + profile).
+  function badgesBlock(p, heading) {
+    const earned = S.earnedAchievements(p.id);
+    const all = S.state.achievements || [];
+    return `<div class="section-head" style="margin-top:1.4rem"><div><div class="eyebrow">${esc(heading||"Earned along the way")}</div><h2 style="font-size:1.5rem">Badges</h2></div></div>
+      <div class="card"><div class="badge-row">
+        ${all.map(a=>{const got=earned.includes(a.key);return `<div class="ach ${got?'':'locked'}"><span class="em">${a.emoji}</span><div><b>${esc(a.name)}</b>${got?' <span class="tag green">Earned</span>':''}<br><span class="muted" style="font-size:.74rem">${esc(a.desc)}</span></div></div>`;}).join("")}
+      </div></div>`;
+  }
+  // Mover of the Month card (the ONLY ranked list, §11) — reusable across pages.
+  function moverCard() {
+    const mover = S.moverOfMonth(S.monthId());
+    return `<div class="card pad-lg">
+      <div class="section-head" style="margin-bottom:.6rem"><div><div class="eyebrow">This month · the only ranking</div><h2 style="font-size:1.5rem">Mover of the Month</h2></div></div>
+      <p class="muted" style="margin:0 0 .8rem;font-size:.86rem">Most Academy Points (AP) <b>gained this month</b> — not who has the most overall. Everyone starts level on the 1st.</p>
+      ${mover.rows.filter(r=>r.gain>0).length ? `<div class="badge-row" style="flex-direction:column;text-align:left">
+        ${mover.rows.slice(0,5).map((r,i)=>`<div class="ach" style="justify-content:space-between"><div><span class="em">${i===0?'👑':(i+1)}</span> <b>${esc(safeName(r.player))}</b></div><b style="color:var(--gold-bright)">+${r.gain}</b></div>`).join("")}
+      </div>` : `<p class="muted" style="margin:0">No AP gained yet this month — first to get moving leads the spotlight!</p>`}
+    </div>`;
+  }
+  // Squad Goals card (shared squad target) — reusable across pages.
+  function squadGoalsCard() {
+    const goals = S.squadGoals();
+    return `<div class="card pad-lg">
+      <div class="section-head" style="margin-bottom:.6rem"><div><div class="eyebrow">Together as a squad</div><h2 style="font-size:1.5rem">Squad Goals</h2></div></div>
+      ${goals.length ? goals.map(g=>{
+        const prog = S.squadGoalProgress(g), pct = g.target?Math.min(100,Math.round(prog/g.target*100)):0;
+        return `<div style="margin-bottom:1rem"><b>${esc(g.title)}</b> <span class="muted" style="font-size:.8rem">${prog}/${g.target} AP</span>
+          <div class="track" style="margin:.3rem 0"><div class="fill" style="width:${pct}%"></div></div>
+          <span class="muted" style="font-size:.82rem">🎁 Unlocks: ${esc(g.reward)}${g.unlocked||pct>=100?' <span class="tag green">Unlocked!</span>':''}</span></div>`;
+      }).join("") : `<p class="muted" style="margin:0">Your coach will set a shared squad target soon — hit it together to unlock a reward!</p>`}
+    </div>`;
+  }
+  // A small tappable "highlight" card for another squad member (card + AP/tier only).
+  function squadHighlightCard(p) {
+    const t = S.tierOf(p.id);
+    return `<div class="fc-card" data-player="${p.id}">${fcCardInner(p)}</div>`;
+  }
+
   function Players(id) {
-    if (id) return AcademyProfile(+id);
+    if (id) return PlayerProfile(+id);
+    const me = S.hasLinkedPlayer() ? S.player(S.me) : null;
+    const roster = S.roster().sort((a,b)=>a.number-b.number);
+
+    // Coach with no linked child → the full card wall + squad motivation.
+    if (!me) {
+      view.innerHTML = `
+        <div class="section-head"><div><div class="eyebrow">${esc(S.season)} Squad</div><h2>The Squad</h2></div></div>
+        <p class="muted" style="margin-top:-.6rem;max-width:62ch">Every player has a card and an academy profile. Tap a card for their season stats and badges. <b>AP</b> means Academy Points.</p>
+        <div class="players-grid" style="margin-top:1.3rem">
+          ${roster.map(fcCard).join("") || emptyState("👟","No players in the "+esc(S.season)+" squad yet","Once the squad is set for this season, every player gets their own card here.", S.isAdmin?{label:"Add a player",go:"admin/players"}:null)}
+        </div>
+        <div class="grid cols-2" style="margin-top:1.6rem;align-items:start">${moverCard()}${squadGoalsCard()}</div>`;
+      view.querySelectorAll("[data-player]").forEach(c => c.addEventListener("click", () => location.hash = "#players/"+c.dataset.player));
+      wireGo();
+      return;
+    }
+
+    // Logged-in child / parent → the active child's own platform first.
+    const kids = S.myChildren();
+    const others = roster.filter(p => p.id !== me.id);
+    const fn = esc(firstNameOf(me));
     view.innerHTML = `
-      <div class="section-head"><div><div class="eyebrow">${esc(S.season)} Squad</div><h2>The Academy</h2></div></div>
-      <p class="muted" style="margin-top:-.6rem;max-width:62ch">Every player has a card and an academy profile. Tap a card for season stats, development progress and their goals to achieve.</p>
-      <div class="players-grid" style="margin-top:1.3rem">
-        ${S.roster().sort((a,b)=>a.number-b.number).map(fcCard).join("") || emptyState("👟","No players in the "+esc(S.season)+" squad yet","Once the squad is set for this season, every player gets their own card here.", S.isAdmin?{label:"Add a player",go:"admin/players"}:null)}
+      <div class="section-head"><div><div class="eyebrow">${esc(S.season)} · ${fn}'s platform</div><h2>Squad</h2></div></div>
+      <p class="muted" style="margin-top:-.6rem;max-width:62ch">${fn}'s own player card, season stats and badges — then how the whole squad is doing. <b>AP</b> means Academy Points.</p>
+
+      ${kids.length>1 ? `<div class="badge-row" style="margin:1rem 0 .2rem">
+        <span class="muted" style="align-self:center;font-size:.8rem;margin-right:.2rem">Showing:</span>
+        ${kids.map(k=>`<button class="btn ${k.id===me.id?'btn-gold':'btn-ghost'} btn-sm" data-kid="${k.id}">${esc(firstNameOf(k))}</button>`).join("")}
+      </div>` : ""}
+
+      <div class="grid cols-2" style="margin-top:1.1rem;align-items:start">
+        <div class="card pad-lg" style="text-align:center">
+          <div class="fc-card" style="max-width:230px;margin:0 auto">${fcCardInner(me)}</div>
+          <button class="btn btn-gold btn-sm" data-go="players/${me.id}" style="margin-top:1rem">${fn}'s full card &amp; profile →</button>
+        </div>
+        <div>
+          ${tierProgressCard(me)}
+          <div class="card pad-lg" style="margin-top:1.2rem">
+            <div class="section-head" style="margin-bottom:.4rem"><div><div class="eyebrow">${esc(S.season)} so far</div><h2 style="font-size:1.4rem">${fn}'s season</h2></div></div>
+            ${statsStrip(seasonStatRow(me))}
+          </div>
+        </div>
+      </div>
+
+      ${badgesBlock(me, fn+"'s badges")}
+
+      <div class="grid cols-2" style="margin-top:1.6rem;align-items:start">${moverCard()}${squadGoalsCard()}</div>
+
+      <div class="section-head" style="margin-top:1.6rem"><div><div class="eyebrow">Tap a card to see their stats</div><h2>Rest of the squad</h2></div></div>
+      <div class="players-grid" style="margin-top:1rem">
+        ${others.map(squadHighlightCard).join("") || `<div class="card"><p class="muted" style="margin:0">No other players in the ${esc(S.season)} squad yet.</p></div>`}
       </div>`;
     view.querySelectorAll("[data-player]").forEach(c => c.addEventListener("click", () => location.hash = "#players/"+c.dataset.player));
+    view.querySelectorAll("[data-kid]").forEach(b => b.addEventListener("click", async () => {
+      await S.setMyPlayer(+b.dataset.kid); updateMyPlayerChip(); Players();
+    }));
     wireGo();
   }
 
@@ -797,37 +1013,47 @@
       ${rows}</div>`;
   }
 
-  function AcademyProfile(id) {
+  // Player identity profile (#players/:id). Card + season stats + badges for
+  // everyone. Development bars, Skill Ladder, IDP and the link into Academy are
+  // PRIVATE — shown only for the signed-in own child, or to a coach. A parent
+  // opening ANOTHER kid sees highlights only.
+  function PlayerProfile(id) {
     const p = S.player(id); if (!p) return Players();
-    const stats = [["AP",p.points||0],["Tier",S.tierOf(p.id).label],["Apps",S.appearances(p.id)],["Quiz AP",S.quizPoints(p.id)],["Training AP",S.trainingPoints(p.id)],["Badges",S.earnedAchievements(p.id).length]];
+    const full = (p.id === S.me) || S.isAdmin;   // own child or coach → full view
     const dev = p.dev || {}; const targets = p.targets || [];
+    // Season stats: Player of the Match and Appearances spelled out in full.
+    const stats = [["Goals",p.goals||0],["Assists",p.assists||0],["Player of the Match",p.motm||0],
+                   ["Appearances",S.appearances(p.id)],["Academy Points (AP)",p.points||0],["Badges",S.earnedAchievements(p.id).length]];
+    const isOther = !full;
     view.innerHTML = `
-      <button class="btn btn-ghost btn-sm" data-go="players" style="margin-bottom:1rem">← Academy</button>
+      <button class="btn btn-ghost btn-sm" data-go="players" style="margin-bottom:1rem">← Squad</button>
       <div class="player-detail">
         <div><div class="fc-card" style="max-width:230px;margin:0 auto">${fcCardInner(p)}</div></div>
         <div>
-          <div class="eyebrow" style="color:var(--gold)">${esc(p.pos)} · Squad #${p.number}${p.captain?' · Captain 🧢':''}</div>
+          <div class="eyebrow" style="color:var(--gold-ink)">${esc(p.pos)} · Squad #${p.number}${p.captain?' · Captain 🧢':''}</div>
           <h2 style="font-family:var(--display);font-size:2.2rem;margin:.1rem 0 1rem">${esc(safeName(p))}</h2>
-          <div class="stat-strip" style="grid-template-columns:repeat(auto-fit,minmax(88px,1fr))">
-            ${stats.map(([k,v])=>`<div class="stat"><div class="n">${v}</div><div class="l">${k}</div></div>`).join("")}
-          </div>
-
+          ${statsStrip(stats)}
+          ${full ? `
           <div class="card pad-lg" style="margin-top:1.2rem">
             <h3 style="margin:0 0 .2rem;font-family:var(--display)">Development progress</h3>
             <p class="muted" style="margin:0 0 .9rem;font-size:.86rem">How ${esc(firstNameOf(p))} is progressing toward their own targets — set by the coaches.</p>
             ${DEV_AREAS.map(([k,label])=>{const v=dev[k]||0;return `<div class="attr-bar"><div class="row"><span>${label}</span><span style="color:var(--gold-bright)">${v}%</span></div><div class="track"><div class="fill" style="width:${v}%"></div></div></div>`;}).join("")}
           </div>
-
           ${targets.length?`<div class="card pad-lg" style="margin-top:1.2rem">
             <h3 style="margin:0 0 .6rem;font-family:var(--display)">Goals to achieve</h3>
             ${targets.map(t=>`<div class="program-step"><div class="dot">★</div><div>${esc(t)}</div></div>`).join("")}
           </div>`:""}
-
-          ${(p.id===S.me || S.isAdmin) ? skillLadderCard(p) : ""}
-
-          <button class="btn btn-gold btn-sm" data-go="development/${p.id}" style="margin-top:1.2rem">${p.id===S.me?"My":esc(firstNameOf(p))+"'s"} development plan &amp; videos →</button>
+          ${skillLadderCard(p)}
+          ${S.isAdmin && p.id!==S.me
+            ? `<button class="btn btn-gold btn-sm" data-go="development/${p.id}" style="margin-top:1.2rem">Manage ${esc(firstNameOf(p))}'s development plan &amp; videos →</button>`
+            : `<button class="btn btn-gold btn-sm" data-go="academy" style="margin-top:1.2rem">My Academy — development plan, videos &amp; quiz →</button>`}
+          ` : `
+          <div class="card pad-lg" style="margin-top:1.2rem">
+            <p class="muted" style="margin:0">This is a squad highlight — card and season stats only. ${esc(firstNameOf(p))}'s development plan, skill ladder and personal targets are private to their family.</p>
+          </div>`}
         </div>
-      </div>`;
+      </div>
+      ${badgesBlock(p, (isOther?esc(firstNameOf(p))+"'s":"Earned along the way"))}`;
     wireGo();
   }
 
@@ -857,7 +1083,7 @@
         <p class="muted" style="margin:0">Your coach will set your two focus areas for this half-term soon — one skill, plus one other thing to work on.</p></div>`;
     }
     const block = (f) => `<div class="card" style="margin-bottom:.7rem">
-      <div class="lbl" style="font-size:.7rem;color:var(--gold);font-weight:800;letter-spacing:1px;margin-bottom:.25rem">${esc((cornerLabel[f.corner]||f.corner||"").toUpperCase())}</div>
+      <div class="lbl" style="font-size:.7rem;color:var(--gold-ink);font-weight:800;letter-spacing:1px;margin-bottom:.25rem">${esc((cornerLabel[f.corner]||f.corner||"").toUpperCase())}</div>
       <b style="display:block;margin-bottom:.4rem">${esc(f.area)}</b>
       ${f.drillUrl?`<div class="muted" style="font-size:.8rem;margin-bottom:.4rem">🎥 Drill: ${esc(f.drillTitle||"Watch and copy this")}</div>${videoEmbed(f.drillUrl)}`:""}
       ${f.feedback?`<div class="quiz-explain ok" style="margin-top:.6rem">💬 Coach: ${esc(f.feedback)}</div>`:""}
@@ -941,72 +1167,98 @@
     ];
   }
 
-  // The kid-facing Academy page (route: #academy / #league kept as aliases).
-  function League() {
+  // The Academy page (#academy) = the signed-in child's own development WORK.
+  //   Progress: development bars + skill ladder + "my focus this half-term" (IDP)
+  //   Quiz:     the weekly quiz (the CHILD takes it here)
+  //   Tasks:    this week's challenge to DO (+ quiz status) and how points work
+  //   Videos:   team videos + videos picked for the child
+  // Mover of the Month, Squad Goals and Badges live on Squad now; chores live on Family.
+  function League(tab) {
     const me = S.hasLinkedPlayer() ? S.player(S.me) : null;
-    const month = S.monthId();
-    const mover = S.moverOfMonth(month);
-    const goals = S.squadGoals();
-    view.innerHTML = `
-      <div class="section-head"><div><div class="eyebrow">${esc(S.season)} Season</div><h2>Academy</h2></div>${matchesTabs("league")}</div>
-      <p class="muted" style="margin-top:-.6rem;max-width:64ch">Earn Academy Points (AP) for turning up, trying hard, practising at home, helping your Home Team and improving. Every player can reach the top — compete with yourself, win together with the squad.</p>
 
-      ${me ? `<div class="grid cols-2" style="margin-top:1.2rem;align-items:start">
-        <div class="card pad-lg" style="text-align:center">
-          <div class="fc-card" style="max-width:230px;margin:0 auto">${fcCardInner(me)}</div>
-          <button class="btn btn-gold btn-sm" data-go="players/${me.id}" style="margin-top:1rem">My full card &amp; profile →</button>
-        </div>
-        <div>
-          ${tierProgressCard(me)}
-          ${homeworkCard(me)}
-          ${choresCard(me)}
-        </div>
-      </div>` : `<div class="card pad-lg" style="margin-top:1.2rem"><p class="muted" style="margin:0">Pick which child is yours from the top bar to see their card and weekly tasks.</p></div>`}
+    // Coach with no linked child → a friendly note + a link to Admin.
+    if (!me) {
+      view.innerHTML = `
+        <div class="section-head"><div><div class="eyebrow">${esc(S.season)} Season</div><h2>Academy</h2></div></div>
+        <div class="card pad-lg" style="max-width:560px">
+          <p class="muted" style="margin:0 0 ${S.isAdmin?'1rem':'1rem'}">The Academy is each child's own development space — their progress, this week's quiz and challenge, and the videos picked for them. ${S.isAdmin?"Your coach account isn't linked to a child, so there's nothing personal to show here. Manage everyone's development from Admin.":"Pick which child is yours from the top bar to get started."}</p>
+          ${S.isAdmin?`<button class="btn btn-gold" data-go="admin/academy">⚙ Manage development in Admin</button>`:`<button class="btn btn-gold" data-go-pick>Choose my child</button>`}
+        </div>`;
+      view.querySelectorAll("[data-go-pick]").forEach(b => b.addEventListener("click", e => { e.preventDefault(); showChildPicker(true); }));
+      wireGo();
+      return;
+    }
 
-      <div class="grid cols-2" style="margin-top:1.4rem;align-items:start">
-        <div class="card pad-lg">
-          <div class="section-head" style="margin-bottom:.6rem"><div><div class="eyebrow">This month · the only ranking</div><h2 style="font-size:1.5rem">Mover of the Month</h2></div></div>
-          <p class="muted" style="margin:0 0 .8rem;font-size:.86rem">Most AP <b>gained this month</b> — not who has the most overall. Everyone starts level on the 1st.</p>
-          ${mover.rows.filter(r=>r.gain>0).length ? `<div class="badge-row" style="flex-direction:column;text-align:left">
-            ${mover.rows.slice(0,5).map((r,i)=>`<div class="ach" style="justify-content:space-between"><div><span class="em">${i===0?'👑':(i+1)}</span> <b>${esc(safeName(r.player))}</b></div><b style="color:var(--gold-bright)">+${r.gain}</b></div>`).join("")}
-          </div>` : `<p class="muted" style="margin:0">No AP gained yet this month — first to get moving leads the spotlight!</p>`}
-        </div>
-        <div class="card pad-lg">
-          <div class="section-head" style="margin-bottom:.6rem"><div><div class="eyebrow">Together as a squad</div><h2 style="font-size:1.5rem">Squad Goals</h2></div></div>
-          ${goals.length ? goals.map(g=>{
-            const prog = S.squadGoalProgress(g), pct = g.target?Math.min(100,Math.round(prog/g.target*100)):0;
-            return `<div style="margin-bottom:1rem"><b>${esc(g.title)}</b> <span class="muted" style="font-size:.8rem">${prog}/${g.target} AP</span>
-              <div class="track" style="margin:.3rem 0"><div class="fill" style="width:${pct}%"></div></div>
-              <span class="muted" style="font-size:.82rem">🎁 Unlocks: ${esc(g.reward)}${g.unlocked||pct>=100?' <span class="tag green">Unlocked!</span>':''}</span></div>`;
-          }).join("") : `<p class="muted" style="margin:0">Your coach will set a shared squad target soon — hit it together to unlock a reward!</p>`}
-        </div>
-      </div>
+    const valid = ["progress","quiz","tasks","videos"];
+    tab = valid.includes(tab) ? tab : "progress";
+    const fn = esc(firstNameOf(me));
+    const dev = me.dev || {}; const targets = me.targets || [];
+    const program = me.program || [];
+    const videos = S.videosForPlayer(me.id).map((v,i)=>({ ...v, domId:`devvid-${me.id}-${i}`, yt:ytId(v.url) }));
+    const teamVids = S.teamVideos().filter(d=>d.url);
 
-      <div class="grid cols-2" style="margin-top:1.4rem;align-items:start">
+    let body = "";
+    if (tab === "progress") {
+      body = `
+        ${tierProgressCard(me)}
+        <div class="card pad-lg" style="margin-top:1.2rem">
+          <h3 style="margin:0 0 .2rem;font-family:var(--display)">Development progress</h3>
+          <p class="muted" style="margin:0 0 .9rem;font-size:.86rem">How ${fn} is progressing toward their own targets — set by the coaches.</p>
+          ${DEV_AREAS.map(([k,label])=>{const v=dev[k]||0;return `<div class="attr-bar"><div class="row"><span>${label}</span><span style="color:var(--gold-bright)">${v}%</span></div><div class="track"><div class="fill" style="width:${v}%"></div></div></div>`;}).join("")}
+        </div>
+        ${targets.length?`<div class="card pad-lg" style="margin-top:1.2rem">
+          <h3 style="margin:0 0 .6rem;font-family:var(--display)">Goals to achieve</h3>
+          ${targets.map(t=>`<div class="program-step"><div class="dot">★</div><div>${esc(t)}</div></div>`).join("")}
+        </div>`:""}
+        ${skillLadderCard(me)}
+        ${idpCard(me, true)}
+        <div class="card pad-lg" style="margin-top:1.2rem">
+          <h3 style="margin:0 0 .5rem;font-family:var(--display)">Personal development plan</h3>
+          ${program.length?program.map((s,i)=>`<div class="program-step"><div class="dot">${i+1}</div><div>${esc(s)}</div></div>`).join("")
+            :`<p class="muted" style="margin:0">Your coach will add your plan here soon.</p>`}
+        </div>`;
+    } else if (tab === "quiz") {
+      body = `
         <div class="card pad-lg" id="quiz-card">
-          <div class="section-head" style="margin-bottom:.6rem"><div><div class="eyebrow">Fresh every week · +${(cfg.SCORING||{}).quizComplete} (+${(cfg.SCORING||{}).quizPerfect} perfect)</div><h2 style="font-size:1.5rem">${esc(S.currentQuiz().title)}</h2></div></div>
+          <div class="section-head" style="margin-bottom:.6rem"><div><div class="eyebrow">Fresh every week · +${(cfg.SCORING||{}).quizComplete} Academy Points (AP) (+${(cfg.SCORING||{}).quizPerfect} for a perfect score)</div><h2 style="font-size:1.5rem">${esc(S.currentQuiz().title)}</h2></div>
+            ${S.state.quizScore!=null?`<span class="tag green">Last score ${S.state.quizScore}/${S.currentQuiz().questions.length}</span>`:""}</div>
+          <p class="muted" style="margin:0 0 .7rem;font-size:.84rem">Have a go — it's marked instantly, and a fresh quiz lands every week.</p>
           <div id="quiz-host"><button class="btn btn-gold" id="start-quiz">Start the quiz</button></div>
-        </div>
-        <div class="card">
-          <div class="lbl" style="color:var(--muted);font-weight:700;font-size:.74rem;letter-spacing:1px">HOW POINTS WORK</div>
+        </div>`;
+    } else if (tab === "tasks") {
+      body = `
+        ${homeworkCard(me)}
+        <div class="card" style="margin-top:1.2rem">
+          <div class="lbl" style="color:var(--muted);font-weight:700;font-size:.74rem;letter-spacing:1px">HOW ACADEMY POINTS (AP) WORK</div>
           <div class="badge-row" style="flex-direction:column;margin-top:.7rem;text-align:left">
             ${pointsRules().map(r=>`<div class="ach"><span class="em">${r.em}</span><div>${r.label} <span class="muted" style="font-weight:800;color:var(--gold-bright)">${r.pts}</span></div></div>`).join("")}
           </div>
-        </div>
+        </div>`;
+    } else {   // videos
+      body = `
+        <div class="section-head" style="margin-top:0"><div><div class="eyebrow">Picked for you</div><h3 style="font-family:var(--display);font-size:1.5rem;margin:0">My videos</h3></div></div>
+        ${videos.length?`<div class="grid cols-2" style="margin-top:.8rem">${videos.map(v=>`<div class="card"><b style="display:block;margin-bottom:${v.description?'.25rem':'.6rem'}">${esc(v.title||"Video")}</b>${v.description?`<div class="muted" style="font-size:.82rem;margin-bottom:.6rem">${esc(v.description)}</div>`:""}${videoEmbed(v.url)}</div>`).join("")}</div>`
+          :`<div class="card" style="margin-top:.8rem"><p class="muted" style="margin:0">No videos yet — your coach will add some skills to work on.</p></div>`}
+        <div class="section-head" style="margin-top:1.6rem"><div><div class="eyebrow">For the whole squad</div><h3 style="font-family:var(--display);font-size:1.5rem;margin:0">Team training videos</h3></div></div>
+        ${teamVids.length?`<div class="grid cols-2" style="margin-top:.8rem">${teamVids.map(v=>`<div class="card"><b style="display:block;margin-bottom:${v.description?'.25rem':'.6rem'}">${esc(v.title||"Video")}</b>${v.description?`<div class="muted" style="font-size:.82rem;margin-bottom:.6rem">${esc(v.description)}</div>`:""}${videoEmbed(v.url)}</div>`).join("")}</div>`
+          :`<div class="card" style="margin-top:.8rem"><p class="muted" style="margin:0">No team videos yet.</p></div>`}`;
+    }
+
+    view.innerHTML = `
+      <div class="section-head"><div><div class="eyebrow">${esc(S.season)} · ${fn}'s Academy</div><h2>Academy</h2></div></div>
+      <p class="muted" style="margin-top:-.6rem;max-width:64ch">${fn}'s own development space — track progress, take this week's quiz, do the weekly challenge and watch the videos picked for them. Earn <b>Academy Points (AP)</b> for trying hard and improving.</p>
+      <div class="acad-tabs badge-row" style="margin:1rem 0 1.2rem">
+        <button class="btn ${tab==='progress'?'btn-gold':'btn-ghost'} btn-sm" data-acad="progress">Progress</button>
+        <button class="btn ${tab==='quiz'?'btn-gold':'btn-ghost'} btn-sm" data-acad="quiz">Quiz</button>
+        <button class="btn ${tab==='tasks'?'btn-gold':'btn-ghost'} btn-sm" data-acad="tasks">Tasks</button>
+        <button class="btn ${tab==='videos'?'btn-gold':'btn-ghost'} btn-sm" data-acad="videos">Videos</button>
       </div>
+      <div id="acad-body">${body}</div>`;
 
-      <div class="section-head" style="margin-top:1.6rem"><div><div class="eyebrow">Unlock them all</div><h2>Badges</h2></div></div>
-      <div class="card"><div class="badge-row">
-        ${(()=>{ const earned=me?S.earnedAchievements(me.id):[]; return S.state.achievements.map(a=>{const got=earned.includes(a.key);return `<div class="ach ${got?'':'locked'}"><span class="em">${a.emoji}</span><div><b>${esc(a.name)}</b>${got?' <span class="tag green">Earned</span>':''}<br><span class="muted" style="font-size:.74rem">${esc(a.desc)}</span></div></div>`;}).join("");})()}
-      </div></div>`;
-
+    view.querySelectorAll("[data-acad]").forEach(b => b.addEventListener("click", () => location.hash = "#academy/"+b.dataset.acad));
     wireGo();
     wireHomework();
-    wireChores();
     const start = $("#start-quiz"); if (start) start.addEventListener("click", runQuiz);
-    view.querySelectorAll("[data-tab]").forEach(b => b.addEventListener("click", () => {
-      location.hash = b.dataset.tab === "league" ? "#academy" : "#fixtures/" + b.dataset.tab;
-    }));
   }
 
   /* ============================ FAMILY (parents' space) ============================ */
@@ -1027,43 +1279,40 @@
     }
     const me = S.player(S.me);
     const kids = S.myChildren();
+    const challengeDone = S.challengeDoneThisWeek(me.id);
+    const quizDone = S.quizDoneThisWeek(me.id);
     view.innerHTML = `
       <div class="section-head"><div><div class="eyebrow">For parents &amp; carers · ${esc(S.season)}</div><h2>Family</h2></div></div>
-      <p class="muted" style="margin-top:-.6rem;max-width:66ch">Everything you need to back ${esc(firstNameOf(me))} this week — see the challenge and quiz, mark homework done, set your own jobs and challenges at home, and follow their card. It's all upside: the kids never see deductions.</p>
+      <p class="muted" style="margin-top:-.6rem;max-width:66ch">Your space to back ${esc(firstNameOf(me))} this week — confirm homework, and set the jobs and challenges you do at home. ${esc(firstNameOf(me))} does the quiz and weekly challenge over in <b>Academy</b>; this is where you confirm and oversee. It's all upside — the kids never see deductions.</p>
 
       ${kids.length>1 ? `<div class="badge-row" style="margin:1rem 0 .2rem">
         <span class="muted" style="align-self:center;font-size:.8rem;margin-right:.2rem">Showing:</span>
         ${kids.map(k=>`<button class="btn ${k.id===me.id?'btn-gold':'btn-ghost'} btn-sm" data-kid="${k.id}">${esc(firstNameOf(k))}</button>`).join("")}
       </div>` : ""}
 
-      <div class="grid cols-2" style="margin-top:1.1rem;align-items:start">
-        <div class="card pad-lg" style="text-align:center">
-          <div class="fc-card" style="max-width:230px;margin:0 auto">${fcCardInner(me)}</div>
-          <button class="btn btn-gold btn-sm" data-go="players/${me.id}" style="margin-top:1rem">${esc(firstNameOf(me))}'s full card &amp; profile →</button>
-        </div>
-        <div>
-          ${tierProgressCard(me)}
-          ${homeworkCard(me)}
-        </div>
+      <div class="card" style="margin-top:1.1rem;display:flex;gap:1rem;align-items:center;flex-wrap:wrap">
+        <span class="club-badge us" style="flex:none">${esc(initials(me))}</span>
+        <div style="flex:1;min-width:160px"><b style="display:block">${esc(firstNameOf(me))}</b><span class="muted" style="font-size:.84rem">#${me.number} · ${esc(me.pos)} · ${esc(S.tierOf(me.id).label)} · ${me.points||0} Academy Points (AP)</span></div>
+        <button class="btn btn-gold btn-sm" data-go="players/${me.id}">${esc(firstNameOf(me))}'s full card &amp; profile →</button>
       </div>
 
-      <div class="grid cols-2" style="margin-top:1.4rem;align-items:start">
-        <div class="card pad-lg" id="quiz-card">
-          <div class="section-head" style="margin-bottom:.6rem"><div><div class="eyebrow">This week's quiz · +${(cfg.SCORING||{}).quizComplete} (+${(cfg.SCORING||{}).quizPerfect} perfect)</div><h2 style="font-size:1.5rem">${esc(S.currentQuiz().title)}</h2></div></div>
-          <p class="muted" style="margin:0 0 .7rem;font-size:.84rem">Sit with ${esc(firstNameOf(me))} and have a go together — it's marked instantly.</p>
-          <div id="quiz-host"><button class="btn btn-gold" id="start-quiz">Start the quiz</button></div>
-        </div>
+      <div class="grid cols-2" style="margin-top:1.2rem;align-items:start">
+        <div>${homeworkCard(me)}</div>
         <div>${choresCard(me)}</div>
       </div>
 
-      ${idpCard(me, true)}`;
+      <div class="card pad-lg" style="margin-top:1.2rem">
+        <div class="section-head" style="margin-bottom:.4rem"><div><div class="eyebrow">This week at a glance</div><h2 style="font-size:1.4rem">${esc(firstNameOf(me))}'s homework status</h2></div></div>
+        <div class="ach" style="justify-content:space-between;margin-bottom:.4rem"><div><span class="em">🎯</span> <b>Weekly challenge</b></div>${challengeDone?'<span class="tag green">✓ Done</span>':'<span class="muted">Not yet</span>'}</div>
+        <div class="ach" style="justify-content:space-between"><div><span class="em">🧠</span> <b>Weekly quiz</b></div>${quizDone?'<span class="tag green">✓ Done</span>':'<span class="muted">Not yet</span>'}</div>
+        ${(!challengeDone||!quizDone)?`<button class="btn btn-ghost btn-sm" data-go="academy/quiz" style="margin-top:.8rem">Open ${esc(firstNameOf(me))}'s Academy to do them →</button>`:''}
+      </div>`;
 
     wireGo();
     wireHomework();
     wireChores();
-    const start = $("#start-quiz"); if (start) start.addEventListener("click", runQuiz);
     view.querySelectorAll("[data-kid]").forEach(b => b.addEventListener("click", async () => {
-      await S.setMyPlayer(+b.dataset.kid); updateMyPlayerChip(); Family();
+      await S.setMyPlayer(+b.dataset.kid); updateMyPlayerChip(); rerenderCurrent();
     }));
   }
 
@@ -1100,7 +1349,7 @@
       ${challengeDone?'':`${ch&&ch.skillToShow?`<p class="muted" style="margin:.1rem 0 .4rem;font-size:.8rem">📹 To earn the bonus: ${esc(ch.skillToShow)}</p>`:''}<label class="field" style="flex-direction:row;align-items:center;gap:.4rem;margin:-.2rem 0 .6rem"><input type="checkbox" id="hw-shown-${p.id}" style="width:auto"/> <span style="margin:0;font-size:.82rem">We also showed the coach / sent a clip (+${(cfg.SCORING||{}).challengeShown})</span></label>`}
       <div class="ach" style="justify-content:space-between">
         <div><span class="em">🧠</span> <b>Quiz:</b> this week's quiz</div>
-        ${quizDone?'<span class="tag green">✓ Done</span>':`<button class="btn btn-ghost btn-sm" onclick="location.hash='#academy'">Take it below ↓</button>`}
+        ${quizDone?'<span class="tag green">✓ Done</span>':`<button class="btn btn-ghost btn-sm" onclick="location.hash='#academy/quiz'">Take the quiz →</button>`}
       </div>
     </div>`;
   }
@@ -1111,7 +1360,7 @@
       const pid = +b.dataset.hwChallenge;
       const shown = !!(view.querySelector(`#hw-shown-${pid}`) && view.querySelector(`#hw-shown-${pid}`).checked);
       const res = await S.tickChallenge(pid, shown);
-      if (res.ok) { toast(res.dup ? "Already done this week" : "Challenge done! 🎯"); League(); }
+      if (res.ok) { toast(res.dup ? "Already done this week" : "Challenge done! 🎯"); rerenderCurrent(); }
       else toast("Error: " + res.msg);
     }));
   }
@@ -1134,11 +1383,11 @@
   function wireChores() {
     view.querySelectorAll(".chore-tick").forEach(c => c.addEventListener("change", async () => {
       const res = await S.tickChore(+c.dataset.p, +c.dataset.i, c.checked);
-      if (res.ok) { toast(c.checked ? "+"+(cfg.SCORING||{}).chore+" AP 🧹" : "Unticked"); League(); }
+      if (res.ok) { toast(c.checked ? "+"+(cfg.SCORING||{}).chore+" AP 🧹" : "Unticked"); rerenderCurrent(); }
       else toast("Error: " + res.msg);
     }));
     view.querySelectorAll("[data-chore-default]").forEach(b => b.addEventListener("click", async () => {
-      const res = await S.reissueChores(+b.dataset.choreDefault); if (res.ok) { toast("Default jobs set ✓"); League(); }
+      const res = await S.reissueChores(+b.dataset.choreDefault); if (res.ok) { toast("Default jobs set ✓"); rerenderCurrent(); }
     }));
     view.querySelectorAll("[data-chore-edit]").forEach(b => b.addEventListener("click", () => choreEditor(+b.dataset.choreEdit)));
   }
@@ -1157,7 +1406,7 @@
     $("#chore-save").addEventListener("click", async () => {
       const list = [0,1,2].slice(0,max).map(i=>($("#chore-"+i)||{}).value||"").map(s=>s.trim()).filter(Boolean);
       const res = await S.setChores(pid, list);
-      root.innerHTML = ""; if (res.ok) { toast("Jobs saved ✓"); League(); }
+      root.innerHTML = ""; if (res.ok) { toast("Jobs saved ✓"); rerenderCurrent(); }
     });
   }
 
@@ -1178,9 +1427,10 @@
         host.innerHTML = `<div style="text-align:center;padding:1rem">
           <div class="progress-ring" style="--p:${Math.round(score/total*100)};margin:0 auto 1rem"><div class="inner">${score}/${total}</div></div>
           <h3 style="font-family:var(--display);margin:.2rem 0">${perfect?'Perfect! 🧠':score>=Math.ceil(total/2)?'Great work! ⚽':'Nice try — you learned something! 💪'}</h3>
-          <p class="muted">You earned <b>+${earned} AP</b> for completing it${perfect?' with a perfect score':''}. Come back next week for a brand-new quiz!</p>
-          <button class="btn btn-dark btn-sm" onclick="location.hash='#academy'">Back to Academy</button></div>`;
-        League();
+          <p class="muted">You earned <b>+${earned} Academy Points (AP)</b> for completing it${perfect?' with a perfect score':''}. Come back next week for a brand-new quiz!</p>
+          <button class="btn btn-dark btn-sm" onclick="location.hash='#academy/tasks'">Back to my tasks</button></div>`;
+        // Leave the celebratory score on screen — AP is already banked. The next
+        // visit re-renders fresh state via the router.
         return;
       }
       const q = qz.questions[idx];
@@ -1227,7 +1477,7 @@
   function toast(msg) {
     const t = document.createElement("div");
     t.textContent = msg;
-    t.style.cssText = "position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:linear-gradient(180deg,var(--gold-bright),var(--gold));color:#171205;font-weight:800;padding:.7rem 1.2rem;border-radius:999px;z-index:200;box-shadow:0 10px 30px rgba(0,0,0,.4)";
+    t.style.cssText = "position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#0b0b0b;color:#fff;font-weight:600;padding:.7rem 1.2rem;border-radius:999px;z-index:200;box-shadow:0 8px 24px rgba(0,0,0,.18)";
     document.body.appendChild(t); setTimeout(()=>t.remove(), 2200);
   }
   const playerOpts = (sel) => S.roster(true).sort((a,b)=>a.number-b.number).map(p=>`<option value="${p.id}" ${sel===p.id?'selected':''}>#${p.number} ${esc(p.name)}</option>`).join("");
@@ -1484,10 +1734,10 @@
       </div>
       <button class="btn btn-gold btn-block" id="pt-save">Add AP</button>
       ${mover.winner?`<p class="muted" style="font-size:.82rem;margin:.6rem 0 0">This month's top AP-gainer: <b>${esc(safeName(mover.winner.player))}</b> (+${mover.winner.gain}). One tap above awards the +${SC.moverOfMonth} spotlight bonus.</p>`:""}
-      ${(()=>{ const quiet=S.quietPlayers(); return quiet.length?`<div class="card" style="background:#2a2410;border:1px solid var(--gold);margin:1.2rem 0 .2rem;padding:.8rem 1rem">
-        <div class="lbl" style="font-size:.74rem;color:var(--gold-bright);font-weight:700;letter-spacing:1px;margin:0 0 .35rem">🔇 QUIET-PLAYER WATCH — COACH ONLY</div>
+      ${(()=>{ const quiet=S.quietPlayers(); return quiet.length?`<div class="card" style="background:var(--gold-soft);border:1px solid var(--gold-ring);margin:1.2rem 0 .2rem;padding:.8rem 1rem">
+        <div class="lbl" style="font-size:.74rem;color:var(--gold-ink);font-weight:700;letter-spacing:1px;margin:0 0 .35rem">🔇 QUIET-PLAYER WATCH — COACH ONLY</div>
         <p class="muted" style="margin:0 0 .5rem;font-size:.82rem">Bottom-quartile AP <b>and</b> no award in the last 3 weeks. Not a problem with the player — a nudge to spread an award or have a friendly word. Never shown to families.</p>
-        <div class="badge-row" style="flex-wrap:wrap">${quiet.map(p=>`<span class="tag" style="background:#5a4a1a;color:#fff">${esc(p.name)} <span style="opacity:.8">#${p.number}</span></span>`).join("")}</div>
+        <div class="badge-row" style="flex-wrap:wrap">${quiet.map(p=>`<span class="tag gold">${esc(p.name)} <span style="opacity:.8">#${p.number}</span></span>`).join("")}</div>
       </div>`:`<p class="muted" style="font-size:.8rem;margin:1.2rem 0 .2rem">🔇 Quiet-player watch: nobody flagged this week — every player is either out of the bottom quartile or has had a recent award. ✓</p>`; })()}
       <div class="lbl" style="font-size:.74rem;color:var(--muted);font-weight:700;letter-spacing:1px;margin:1.2rem 0 .4rem">AP STANDINGS — COACH VIEW (${esc(S.season)})</div>
       <div class="table-wrap"><table class="league-table"><thead><tr><th>#</th><th>Player</th><th>Tier</th><th>AP</th></tr></thead>
@@ -1525,10 +1775,10 @@
           const bench=S.benchFlag(p.id, week), over=S.homeworkOverridden(p.id, week);
           const pattern=S.homeworkPatternFlag(p.id);
           return `<tr>
-            <td><b>${esc(p.name)}</b> <span class="muted">#${p.number}</span>${pattern?` <span class="tag" style="background:#5a2; color:#fff" title="3+ consecutive missed weeks — a conversation with the family, not more deductions">⚑ 3-week pattern</span>`:""}</td>
+            <td><b>${esc(p.name)}</b> <span class="muted">#${p.number}</span>${pattern?` <span class="tag green" title="3+ consecutive missed weeks — a conversation with the family, not more deductions">⚑ 3-week pattern</span>`:""}</td>
             <td>${ch?'<span class="tag green">✓</span>':'<span class="tag">—</span>'}</td>
             <td>${qz?'<span class="tag green">✓</span>':'<span class="tag">—</span>'}</td>
-            <td>${over?'<span class="tag">Waived</span>':bench?'<span class="tag" style="background:#a33;color:#fff">🪑 Bench start</span>':(ch&&qz?'<span class="tag green">Ready</span>':'<span class="muted">pending</span>')}</td>
+            <td>${over?'<span class="tag">Waived</span>':bench?'<span class="tag loss">🪑 Bench start</span>':(ch&&qz?'<span class="tag green">Ready</span>':'<span class="muted">pending</span>')}</td>
             <td>${over?`<button class="btn btn-ghost btn-sm" data-hw-clear="${p.id}">Undo waive</button>`:bench?`<button class="btn btn-dark btn-sm" data-hw-waive="${p.id}">Waive</button>`:''}</td>
           </tr>`;
         }).join("")}</tbody></table></div>
@@ -1662,7 +1912,7 @@
     const covLine = (obj) => Object.entries(obj).map(([k,v])=>`${esc(k)} ${v}`).join(" · ");
     body.innerHTML = `<div class="card pad-lg">
       <p class="muted" style="margin-top:0">This week's quiz (<b>${esc(cq.week)}</b>) — ${cq.custom?'<b>a custom set you made</b>':'auto-rotated from the question bank, mixing easy/medium/hard so every reader can score'}. It refreshes on its own each week; here you can shuffle a fresh set, add your own questions, or reset to automatic.</p>
-      <div class="card" style="margin-bottom:1rem;background:rgba(255,255,255,.03)"><div class="lbl" style="font-size:.7rem;color:var(--muted);font-weight:700;letter-spacing:1px">QUESTION BANK COVERAGE · ${cov.total} QUESTIONS</div>
+      <div class="card" style="margin-bottom:1rem;background:var(--surface-soft)"><div class="lbl" style="font-size:.7rem;color:var(--muted);font-weight:700;letter-spacing:1px">QUESTION BANK COVERAGE · ${cov.total} QUESTIONS</div>
         <div class="muted" style="font-size:.8rem;margin-top:.3rem"><b>Bands:</b> ${esc(covLine(cov.band))}<br><b>Football topics:</b> ${esc(covLine(cov.topic))}<br><b>Skill corners:</b> ${esc(covLine(cov.corner))}</div></div>
       <div class="badge-row" style="margin-bottom:1rem">
         <button class="btn btn-gold btn-sm" id="qz-shuffle">🔀 New random set</button>
@@ -1754,7 +2004,7 @@
     const f0 = idp.focus[0] || {}; const f1 = idp.focus[1] || {};
     const corners = S.IDP_CORNERS.filter(c => c.key !== "technical");   // 2nd focus = a DIFFERENT corner
     const focusBlock = (i, f, lockCorner) => `<div class="card" style="margin-bottom:.8rem">
-      <div class="lbl" style="font-size:.72rem;color:var(--gold);font-weight:800;letter-spacing:1px;margin-bottom:.4rem">FOCUS ${i+1} · ${lockCorner?'TECHNICAL (required)':'PICK ANOTHER CORNER'}</div>
+      <div class="lbl" style="font-size:.72rem;color:var(--gold-ink);font-weight:800;letter-spacing:1px;margin-bottom:.4rem">FOCUS ${i+1} · ${lockCorner?'TECHNICAL (required)':'PICK ANOTHER CORNER'}</div>
       ${lockCorner?'':F("Corner",`<select id="idp-corner-${i}">${corners.map(c=>`<option value="${c.key}" ${ (f.corner||'physical')===c.key?'selected':''}>${esc(c.label)}</option>`).join("")}</select>`)}
       ${F("Focus area (one short line)",`<input id="idp-area-${i}" value="${esc(f.area||"")}" placeholder="${lockCorner?'e.g. First touch under pressure':'e.g. Sprint recovery to get back'}"/>`)}
       ${F("Linked drill video (paste a link)",`<input id="idp-url-${i}" value="${esc(f.drillUrl||"")}" placeholder="https://..."/>`)}

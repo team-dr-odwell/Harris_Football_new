@@ -24,7 +24,7 @@ window.HARRIS_CONFIG = {
 
   // --- Identity (shown in the UI) ---
   TEAM_NAME: "OWFC Harris",
-  AGE_GROUP: "Under-11s",
+  AGE_GROUP: "Under-11s",   // fallback only — the live label follows the season's `age` below
   CURRENT_SEASON: "2025/26",
 
   // --- Seasons ---
@@ -32,9 +32,10 @@ window.HARRIS_CONFIG = {
   // season automatically by date, so anything from 1 Jul 2026 lands in 2026/27.
   // The top-bar dropdown switches the view; it defaults to whichever season
   // today falls in. Add a new season here each summer.
+  // `age` is the age-group label for that season (the squad moves up each year).
   SEASONS: [
-    { id: "2025/26", from: "2025-07-01", to: "2026-06-30" },
-    { id: "2026/27", from: "2026-07-01", to: "2027-06-30" }
+    { id: "2025/26", from: "2025-07-01", to: "2026-06-30", age: "Under-10s" },
+    { id: "2026/27", from: "2026-07-01", to: "2027-06-30", age: "Under-11s" }
   ],
 
   // --- Club honours per season (shown on the Home page "Trophy cabinet") ---
