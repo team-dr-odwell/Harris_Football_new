@@ -148,83 +148,161 @@ window.HARRIS_DATA = {
     { key:"quizace",      emoji:"🧠", name:"Quiz Ace",       desc:"Scored 100% on a team quiz" },
     { key:"topscorer",    emoji:"⚽", name:"Top Scorer",     desc:"Most goals in the squad" },
     { key:"hattrick",     emoji:"🎩", name:"Hat-trick Hero", desc:"Scored 3 in a game" },
-    { key:"motm4",        emoji:"⭐", name:"Star Player",     desc:"4+ Man of the Match awards" },
+    { key:"motm4",        emoji:"⭐", name:"Star Player",     desc:"4+ Player of the Match awards" },
+    { key:"quizwhizz",    emoji:"🦉", name:"Quiz Whizz",     desc:"4 perfect weekly quizzes" },
+    { key:"hometeamhero", emoji:"🏠", name:"Home Team Hero", desc:"Outstanding Home Team contribution (monthly)" },
     { key:"playmaker",    emoji:"🎯", name:"Playmaker",      desc:"Most assists in a month" },
     { key:"captain",      emoji:"🧢", name:"Leader",         desc:"Led the team as captain" },
     { key:"wall",         emoji:"🧱", name:"The Wall",       desc:"The defensive rock of the season" },
     { key:"goldengloves", emoji:"🧤", name:"Golden Gloves",  desc:"Kept a clean sheet — nothing got past!" },
-    { key:"perfect",      emoji:"💯", name:"100% Club",      desc:"Attended every session in a month (+20)", locked:true }
+    { key:"perfect",      emoji:"💯", name:"100% Club",      desc:"Attended every session in a month", locked:true }
   ],
 
   // Quiz meta. The actual questions are drawn fresh each week from quizBank
   // (5 skills + 5 general + 10 football), rotating by ISO week so it changes
   // automatically. Coaches can override a given week in Admin → Quiz.
+  //
+  // §1E: every question is tagged with a difficulty `band` so every reading level
+  // in a 9–13 squad can score — the weekly pick mixes starter/standard/stretch.
+  //   band: "starter"  — everyone should get it (read once, obvious)
+  //   band: "standard" — needs a moment's thought / basic knowledge
+  //   band: "stretch"  — for the older / keener readers
+  // Football questions are also tagged by what they teach:
+  //   topic: "laws" | "club" | "game" (game understanding) | "fact"
+  // and skill questions carry the FA four-corner they build:
+  //   corner: "technical" | "physical" | "psychological" | "social"
   quiz: { title:"Weekly Quiz — Skills, Brains & Football", perWeek:{ skill:5, gen:5, foot:10 } },
 
   // The question bank to rotate through. cat: "skill" | "gen" | "foot".
   quizBank: [
-    /* ---------- SKILLS & DEVELOPMENT ---------- */
-    { cat:"skill", q:"To keep the ball away from a defender, the best thing to do is…", opts:["Shield it with your body","Kick it as hard as you can","Stop and stand still","Pick it up"], answer:0 },
-    { cat:"skill", q:"What's the best way to get better at a football skill?", opts:["Only play matches","Watch TV","Practise it regularly","Never try it"], answer:2 },
-    { cat:"skill", q:"To strike a powerful shot, you usually hit the ball with…", opts:["Your toe","Your heel","Your knee","The laces of your boot"], answer:3 },
-    { cat:"skill", q:"A good first touch helps you to…", opts:["Lose the ball","Control the ball and keep possession","Give away a foul","Waste time"], answer:1 },
-    { cat:"skill", q:"When defending one-against-one, you should…", opts:["Dive in straight away","Turn your back","Stay on your feet and jockey","Stop watching the ball"], answer:2 },
-    { cat:"skill", q:"For an accurate short pass, which part of the foot is best?", opts:["The inside of the foot","The toe","The heel","The studs"], answer:0 },
-    { cat:"skill", q:"What's the FIRST thing a smart player does before they get the ball?", opts:["Close their eyes","Look around and scan","Shout","Stand still"], answer:1 },
-    { cat:"skill", q:"Why is it useful to be able to use BOTH feet?", opts:["It isn't useful","You can only shoot harder","You have more options and are harder to defend","Referees give you more time"], answer:2 },
-    { cat:"skill", q:"Why do we warm up before training and games?", opts:["To waste time","To get the ball dirty","To get our bodies ready and avoid injury","Because the coach is bored"], answer:2 },
-    { cat:"skill", q:"When dribbling at speed, where should your eyes mostly be?", opts:["Closed","Only on the ball","Up, scanning the pitch","On the crowd"], answer:2 },
-    { cat:"skill", q:"What helps a team keep possession best?", opts:["Everyone chasing the ball","Good communication and passing","Booting it long every time","Standing still"], answer:1 },
-    { cat:"skill", q:"If you make a mistake in a game, the best thing to do is…", opts:["Give up","Blame a team-mate","Reset and get back into the game","Walk off"], answer:2 },
+    /* ---------- SKILLS & DEVELOPMENT (four-corner, banded) ---------- */
+    /* -- starter -- */
+    { cat:"skill", corner:"technical", band:"starter", q:"To keep the ball away from a defender, the best thing to do is…", opts:["Shield it with your body","Kick it as hard as you can","Stop and stand still","Pick it up"], answer:0, explain:"Put your body between the defender and the ball — that's shielding." },
+    { cat:"skill", corner:"psychological", band:"starter", q:"What's the best way to get better at a football skill?", opts:["Only play matches","Watch TV","Practise it regularly","Never try it"], answer:2, explain:"Practising on purpose, again and again, is how skills stick." },
+    { cat:"skill", corner:"technical", band:"starter", q:"A good first touch helps you to…", opts:["Lose the ball","Control the ball and keep possession","Give away a foul","Waste time"], answer:1, explain:"A soft first touch sets the ball where you want it next." },
+    { cat:"skill", corner:"physical", band:"starter", q:"Why do we warm up before training and games?", opts:["To waste time","To get the ball dirty","To get our bodies ready and avoid injury","Because the coach is bored"], answer:2, explain:"A warm-up wakes your muscles up so you move better and stay safe." },
+    { cat:"skill", corner:"social", band:"starter", q:"A team-mate misses an easy chance. The best thing to do is…", opts:["Shout at them","Encourage them — next time!","Roll your eyes","Stop passing to them"], answer:1, explain:"Lifting team-mates up is what great teams do." },
+    /* -- standard -- */
+    { cat:"skill", corner:"technical", band:"standard", q:"To strike a powerful shot, you usually hit the ball with…", opts:["Your toe","Your heel","Your knee","The laces of your boot"], answer:3, explain:"The laces give the cleanest, most powerful contact." },
+    { cat:"skill", corner:"technical", band:"standard", q:"For an accurate short pass, which part of the foot is best?", opts:["The inside of the foot","The toe","The heel","The studs"], answer:0, explain:"The inside of the foot gives the biggest, flattest surface for accuracy." },
+    { cat:"skill", corner:"psychological", band:"standard", q:"What's the FIRST thing a smart player does before they get the ball?", opts:["Close their eyes","Look around and scan","Shout","Stand still"], answer:1, explain:"Scanning before you receive means you already know your next move." },
+    { cat:"skill", corner:"technical", band:"standard", q:"When defending one-against-one, you should…", opts:["Dive in straight away","Turn your back","Stay on your feet and jockey","Stop watching the ball"], answer:2, explain:"Jockeying keeps you balanced so the attacker can't go past." },
+    { cat:"skill", corner:"social", band:"standard", q:"What helps a team keep possession best?", opts:["Everyone chasing the ball","Good communication and passing","Booting it long every time","Standing still"], answer:1, explain:"Talking and passing keeps the ball moving and the team together." },
+    { cat:"skill", corner:"physical", band:"standard", q:"When dribbling at speed, where should your eyes mostly be?", opts:["Closed","Only on the ball","Up, scanning the pitch","On the crowd"], answer:2, explain:"Eyes up lets you see passes, space and defenders coming." },
+    /* -- stretch -- */
+    { cat:"skill", corner:"technical", band:"stretch", q:"Why is it useful to be able to use BOTH feet?", opts:["It isn't useful","You can only shoot harder","You have more options and are harder to defend","Referees give you more time"], answer:2, explain:"Two good feet double your options and make you unpredictable." },
+    { cat:"skill", corner:"psychological", band:"stretch", q:"If you make a mistake in a game, the best thing to do is…", opts:["Give up","Blame a team-mate","Reset and get back into the game","Walk off"], answer:2, explain:"The best players forget the mistake fast and get on with the game." },
+    { cat:"skill", corner:"physical", band:"stretch", q:"Why do players do change-of-direction (agility) work?", opts:["To get tired","To turn and accelerate quickly in games","To look good","It doesn't help"], answer:1, explain:"Games are full of quick turns — agility makes those sharper." },
 
-    /* ---------- GENERAL KNOWLEDGE (age 11) ---------- */
-    { cat:"gen", q:"What is the capital city of France?", opts:["Paris","London","Rome","Madrid"], answer:0 },
-    { cat:"gen", q:"What is the capital city of Spain?", opts:["Barcelona","Madrid","Lisbon","Seville"], answer:1 },
-    { cat:"gen", q:"What is the capital city of Italy?", opts:["Milan","Naples","Rome","Turin"], answer:2 },
-    { cat:"gen", q:"Which planet is known as the Red Planet?", opts:["Venus","Mars","Jupiter","Saturn"], answer:1 },
-    { cat:"gen", q:"How many sides does a hexagon have?", opts:["5","7","8","6"], answer:3 },
-    { cat:"gen", q:"Animals that eat only plants are called…", opts:["Carnivores","Herbivores","Omnivores","Predators"], answer:1 },
-    { cat:"gen", q:"How many minutes are there in one hour?", opts:["30","45","60","90"], answer:2 },
-    { cat:"gen", q:"How many days are there in a week?", opts:["5","6","7","8"], answer:2 },
-    { cat:"gen", q:"What is the largest ocean on Earth?", opts:["Atlantic","Indian","Arctic","Pacific"], answer:3 },
-    { cat:"gen", q:"How many continents are there on Earth?", opts:["5","6","7","8"], answer:2 },
-    { cat:"gen", q:"Which gas do humans need to breathe in to live?", opts:["Oxygen","Helium","Carbon dioxide","Hydrogen"], answer:0 },
-    { cat:"gen", q:"In which direction does the sun rise?", opts:["West","North","East","South"], answer:2 },
-    { cat:"gen", q:"How many legs does a spider have?", opts:["6","8","10","12"], answer:1 },
-    { cat:"gen", q:"What do bees make?", opts:["Milk","Honey","Bread","Silk"], answer:1 },
+    /* ---------- GENERAL / FUN (the always-winnable easy band) ---------- */
+    { cat:"gen", band:"starter", q:"What is the capital city of France?", opts:["Paris","London","Rome","Madrid"], answer:0 },
+    { cat:"gen", band:"starter", q:"What is the capital city of Spain?", opts:["Barcelona","Madrid","Lisbon","Seville"], answer:1 },
+    { cat:"gen", band:"standard", q:"What is the capital city of Italy?", opts:["Milan","Naples","Rome","Turin"], answer:2 },
+    { cat:"gen", band:"starter", q:"Which planet is known as the Red Planet?", opts:["Venus","Mars","Jupiter","Saturn"], answer:1 },
+    { cat:"gen", band:"standard", q:"How many sides does a hexagon have?", opts:["5","7","8","6"], answer:3 },
+    { cat:"gen", band:"standard", q:"Animals that eat only plants are called…", opts:["Carnivores","Herbivores","Omnivores","Predators"], answer:1 },
+    { cat:"gen", band:"starter", q:"How many minutes are there in one hour?", opts:["30","45","60","90"], answer:2 },
+    { cat:"gen", band:"starter", q:"How many days are there in a week?", opts:["5","6","7","8"], answer:2 },
+    { cat:"gen", band:"standard", q:"What is the largest ocean on Earth?", opts:["Atlantic","Indian","Arctic","Pacific"], answer:3 },
+    { cat:"gen", band:"stretch", q:"How many continents are there on Earth?", opts:["5","6","7","8"], answer:2 },
+    { cat:"gen", band:"standard", q:"Which gas do humans need to breathe in to live?", opts:["Oxygen","Helium","Carbon dioxide","Hydrogen"], answer:0 },
+    { cat:"gen", band:"starter", q:"In which direction does the sun rise?", opts:["West","North","East","South"], answer:2 },
+    { cat:"gen", band:"standard", q:"How many legs does a spider have?", opts:["6","8","10","12"], answer:1 },
+    { cat:"gen", band:"starter", q:"What do bees make?", opts:["Milk","Honey","Bread","Silk"], answer:1 },
 
-    /* ---------- FOOTBALL (evergreen) ---------- */
-    { cat:"foot", q:"How many players are on the pitch for each team in a full 11-a-side game?", opts:["9","10","11","12"], answer:2 },
-    { cat:"foot", q:"Which country has won the most men's World Cups?", opts:["Germany","Brazil","Argentina","Italy"], answer:1 },
-    { cat:"foot", q:"What is it called when one player scores three goals in a game?", opts:["A treble-top","A hat-trick","A triple","A super-goal"], answer:1 },
-    { cat:"foot", q:"How many points do you get for winning a league game?", opts:["1","2","3","4"], answer:2 },
-    { cat:"foot", q:"What does a red card mean?", opts:["A warning","A corner","Sent off","A goal"], answer:2 },
-    { cat:"foot", q:"Which player is allowed to handle the ball in their own box?", opts:["The captain","The goalkeeper","The striker","Nobody"], answer:1 },
-    { cat:"foot", q:"How long is a normal professional match (both halves)?", opts:["60 minutes","75 minutes","90 minutes","120 minutes"], answer:2 },
-    { cat:"foot", q:"In which country is the Premier League played?", opts:["Spain","England","Germany","France"], answer:1 },
-    { cat:"foot", q:"From where is a penalty taken?", opts:["The corner","The halfway line","The penalty spot","The touchline"], answer:2 },
-    { cat:"foot", q:"Which official can show yellow and red cards?", opts:["The manager","The referee","The captain","A ball-boy"], answer:1 },
-    { cat:"foot", q:"The Champions League is a competition for the best clubs in…", opts:["Africa","Europe","Asia","South America"], answer:1 },
-    { cat:"foot", q:"In which city is Wembley Stadium?", opts:["Manchester","Liverpool","London","Leeds"], answer:2 },
-    /* ---------- FOOTBALL (2020 onwards) ---------- */
-    { cat:"foot", q:"Which country won the 2022 World Cup in Qatar?", opts:["Argentina","France","Brazil","England"], answer:0 },
-    { cat:"foot", q:"Spain beat which country 2–1 to win Euro 2024?", opts:["France","England","Germany","Italy"], answer:1 },
-    { cat:"foot", q:"Which club won the 2024 Champions League — a record 15th title?", opts:["Borussia Dortmund","Manchester City","Liverpool","Real Madrid"], answer:3 },
-    { cat:"foot", q:"Who won the 2024 Ballon d'Or (best men's player)?", opts:["Vinícius Júnior","Kylian Mbappé","Rodri","Jude Bellingham"], answer:2 },
-    { cat:"foot", q:"England's Lionesses won which trophy in 2022?", opts:["The Women's World Cup","The Women's Euros","Olympic gold","The Champions League"], answer:1 },
-    { cat:"foot", q:"Which country won the 2023 Women's World Cup?", opts:["Spain","England","USA","Australia"], answer:0 },
-    { cat:"foot", q:"Erling Haaland broke the Premier League goal record in 2022/23. Which club is he at?", opts:["Arsenal","Manchester United","Chelsea","Manchester City"], answer:3 },
-    { cat:"foot", q:"Lionel Messi joined which American club in 2023?", opts:["LA Galaxy","Inter Miami","New York City","Toronto FC"], answer:1 },
-    { cat:"foot", q:"Italy beat England in the Euro 2020 final. How was the winner decided?", opts:["A last-minute goal","On penalties","4–0","Golden goal"], answer:1 },
-    { cat:"foot", q:"Which club won the 2023/24 Premier League — four titles in a row?", opts:["Manchester City","Arsenal","Liverpool","Manchester United"], answer:0 }
+    /* ---------- FOOTBALL — LAWS OF THE GAME (evergreen, banded) ---------- */
+    { cat:"foot", topic:"laws", band:"starter", q:"What does a red card mean?", opts:["A warning","A corner","Sent off","A goal"], answer:2, explain:"A red card means the player is sent off and their team plays with one fewer." },
+    { cat:"foot", topic:"laws", band:"starter", q:"Which player is allowed to handle the ball in their own box?", opts:["The captain","The goalkeeper","The striker","Nobody"], answer:1, explain:"Only the goalkeeper can use their hands, and only inside their own penalty area." },
+    { cat:"foot", topic:"laws", band:"starter", q:"From where is a penalty taken?", opts:["The corner","The halfway line","The penalty spot","The touchline"], answer:2 },
+    { cat:"foot", topic:"laws", band:"starter", q:"What does a yellow card mean?", opts:["A goal","A caution (warning)","Half-time","A substitution"], answer:1, explain:"A yellow card is a caution — two in a game means a red." },
+    { cat:"foot", topic:"laws", band:"standard", q:"The ball goes out over the side line. Play restarts with a…", opts:["Corner","Goal kick","Throw-in","Penalty"], answer:2, explain:"Out over the touchline (side line) = a throw-in." },
+    { cat:"foot", topic:"laws", band:"standard", q:"A defender puts the ball out over their own goal line. The restart is a…", opts:["Throw-in","Corner kick","Goal kick","Free kick"], answer:1, explain:"A defender sending it behind their own goal line gives the attackers a corner." },
+    { cat:"foot", topic:"laws", band:"stretch", q:"You can be offside if you are…", opts:["In your own half","Level with the last defender","Beyond the last defender when the ball is played","Behind the ball"], answer:2, explain:"Offside is about being past the last defender when the ball is played forward to you." },
+    { cat:"foot", topic:"laws", band:"stretch", q:"Can you be offside straight from a corner kick?", opts:["Yes, always","No","Only in extra time","Only the striker"], answer:1, explain:"There is no offside directly from a corner, throw-in or goal kick." },
+
+    /* ---------- FOOTBALL — CLUB KNOWLEDGE (OWFC Harris) ---------- */
+    { cat:"foot", topic:"club", band:"starter", q:"What are our team's home shirt colours?", opts:["Red and white","Gold and black","Blue and yellow","Green and white"], answer:1, explain:"OWFC Harris play in gold and black — the colours on your card!" },
+    { cat:"foot", topic:"club", band:"starter", q:"What does the 'W' stand for in OWFC?", opts:["Wanderers","Wood","Wednesday","West"], answer:1, explain:"Old Wilsonians FC — the club our Harris team is part of." },
+    { cat:"foot", topic:"club", band:"standard", q:"How many Academy Points (AP) do you earn just for turning up to training?", opts:["5","10","20","50"], answer:2, explain:"Turning up to train is worth +20 AP — effort always counts." },
+    { cat:"foot", topic:"club", band:"standard", q:"Doing your weekly Challenge AND Quiz before the deadline is called your…", opts:["Warm-up","Homework","Match report","Captaincy"], answer:1, explain:"Challenge + Quiz = your weekly homework, worth a bonus when both are done in time." },
+    { cat:"foot", topic:"club", band:"stretch", q:"Which card tier is the very top one you can reach?", opts:["Silver","Gold","Black & Gold Icon","Diamond"], answer:2, explain:"The Black & Gold Icon card is the top tier — earned through development, not just talent." },
+
+    /* ---------- FOOTBALL — GENERAL FACTS (evergreen, banded) ---------- */
+    { cat:"foot", topic:"fact", band:"starter", q:"How many players are on the pitch for each team in a full 11-a-side game?", opts:["9","10","11","12"], answer:2 },
+    { cat:"foot", topic:"fact", band:"starter", q:"What is it called when one player scores three goals in a game?", opts:["A treble-top","A hat-trick","A triple","A super-goal"], answer:1 },
+    { cat:"foot", topic:"fact", band:"starter", q:"How many points do you get for winning a league game?", opts:["1","2","3","4"], answer:2, explain:"A win is 3 points, a draw is 1, a loss is 0." },
+    { cat:"foot", topic:"fact", band:"standard", q:"How long is a normal professional match (both halves)?", opts:["60 minutes","75 minutes","90 minutes","120 minutes"], answer:2 },
+    { cat:"foot", topic:"fact", band:"standard", q:"In which country is the Premier League played?", opts:["Spain","England","Germany","France"], answer:1 },
+    { cat:"foot", topic:"fact", band:"standard", q:"The Champions League is a competition for the best clubs in…", opts:["Africa","Europe","Asia","South America"], answer:1 },
+    { cat:"foot", topic:"fact", band:"standard", q:"In which city is Wembley Stadium?", opts:["Manchester","Liverpool","London","Leeds"], answer:2 },
+    { cat:"foot", topic:"fact", band:"stretch", q:"Which country has won the most men's World Cups?", opts:["Germany","Brazil","Argentina","Italy"], answer:1, explain:"Brazil have won the men's World Cup five times — more than anyone." },
+    { cat:"foot", topic:"fact", band:"stretch", q:"Which country won the 2022 World Cup in Qatar?", opts:["Argentina","France","Brazil","England"], answer:0 },
+    { cat:"foot", topic:"fact", band:"stretch", q:"England's Lionesses won which trophy in 2022?", opts:["The Women's World Cup","The Women's Euros","Olympic gold","The Champions League"], answer:1 },
+    { cat:"foot", topic:"fact", band:"stretch", q:"Which country won the 2023 Women's World Cup?", opts:["Spain","England","USA","Australia"], answer:0 }
   ],
 
-  /* fun off-pitch challenges that earn league points */
+  /* ---------------- WEEKLY CHALLENGE LIBRARY (§1B) ----------------
+     One challenge per week, doable alone with one ball in 10–15 minutes, written
+     so a 9-year-old can follow it. The library ROTATES the FA four corners across
+     the month in order: technical → ball mastery → movement/physical → game
+     understanding (cornerOrder below). weeklyChallenge() picks one per ISO week so
+     the rotation is automatic — future weeks are just more rows here, no code change.
+
+     Each row:
+       name        short kid-friendly title (corner shown as a prefix)
+       desc        what to do, in plain words a 9-year-old can follow unaided
+       skillToShow what to show the coach / film for the +5 bonus
+       icon        emoji for the card
+       corner      technical | ball | physical | game  (the FA corner it builds)
+       video       OPTIONAL external clip to demo it — we LINK, never re-host. The
+                   defaults point at England Football's free "Improve Your Game"
+                   home-practice hub; the coach can paste a more specific clip.
+       minutes     how long it should take (10–15)
+     AP is fixed by the spec (challenge +15, +5 if shown to coach / clip uploaded). */
+  cornerOrder: ["technical","ball","physical","game"],
+  cornerLabel: { technical:"Technical", ball:"Ball mastery", physical:"Movement", game:"Game brain" },
   exercises: [
-    { id:1, name:"Make Your Bed", desc:"Make your bed every morning, Monday to Sunday. Small habits build responsible young men — a full week earns the points.", points:5, icon:"🛏️", weekly:true },
-    { id:2, name:"Keepy-Uppy Challenge", desc:"Film your best keepy-uppy streak and post it in the team chat.", points:10, icon:"🤹" },
-    { id:3, name:"Wall Pass Reps", desc:"100 two-footed passes against a wall — tick it off when you're done!", points:10, icon:"🧱" },
-    { id:4, name:"Skill of the Week", desc:"Learn this week's skill move and show a coach at training.", points:10, icon:"✨" },
-    { id:5, name:"Daily Mile", desc:"Run or jog a mile to build your engine. Log every one!", points:10, icon:"🏃" }
+    /* ----- Month cycle 1 ----- */
+    { id:1, corner:"technical", weekly:true, icon:"🧱", minutes:12,
+      name:"Technical: 100 wall passes",
+      desc:"Find a flat wall. Pass the ball against it and control the ball when it comes back. Use your RIGHT foot 50 times, then your LEFT foot 50 times. Keep your passes low and your first touch soft.",
+      skillToShow:"Film 10 passes in a row where you control it then pass again without it bouncing away.",
+      video:"https://www.englandfootball.com/play/Improve-your-game" },
+    { id:2, corner:"ball", weekly:true, icon:"⚽", minutes:10,
+      name:"Ball mastery: toe-taps & sole rolls",
+      desc:"Tap the top of the ball with the bottom of one foot, then the other, like running on the spot — do 50 toe-taps. Then roll the ball side to side under your foot 25 times each foot. Quick feet, eyes up!",
+      skillToShow:"Show your coach 30 fast toe-taps without the ball rolling away.",
+      video:"https://www.englandfootball.com/play/Improve-your-game" },
+    { id:3, corner:"physical", weekly:true, icon:"🏃", minutes:15,
+      name:"Movement: speedy ladder runs",
+      desc:"Put down 6 markers (socks, shoes, anything) in a line, a big step apart. Run through doing fast little steps between each one, turn, and come back. Do it 8 times. Pump your arms and stay on your toes!",
+      skillToShow:"Film one run through the markers as fast as you can with quick, light feet.",
+      video:"https://www.englandfootball.com/play/Improve-your-game" },
+    { id:4, corner:"game", weekly:true, icon:"🧠", minutes:12,
+      name:"Game brain: watch & spot the run",
+      desc:"Watch 10 minutes of any football match (TV or online with a grown-up). Watch a STRIKER when their team has the ball. Spot one clever run they make to get away from a defender. Could you do that run?",
+      skillToShow:"Tell your coach about the run you spotted, or copy it in the garden and film it.",
+      video:"https://www.englandfootball.com/play/Improve-your-game" },
+    /* ----- Month cycle 2 (keeps a 4+ week month fresh) ----- */
+    { id:5, corner:"technical", weekly:true, icon:"🎯", minutes:12,
+      name:"Technical: target shooting",
+      desc:"Pick a target — a corner of a goal, a bin, a tree. Place the ball and aim for it. Take 20 shots with your strong foot, then 10 with your weaker foot. Aim, don't just blast it. Count how many you hit.",
+      skillToShow:"Film 5 shots and show how many hit your target.",
+      video:"https://www.englandfootball.com/play/Improve-your-game" },
+    { id:6, corner:"ball", weekly:true, icon:"🪄", minutes:10,
+      name:"Ball mastery: the dribble box",
+      desc:"Make a small box with 4 markers. Dribble around the inside of the box using lots of little touches — inside foot, outside foot. Keep the ball close, like it's glued to your boot. Go for 5 minutes.",
+      skillToShow:"Show your coach you can dribble round the box twice without the ball leaving the box.",
+      video:"https://www.englandfootball.com/play/Improve-your-game" },
+    { id:7, corner:"physical", weekly:true, icon:"🦘", minutes:12,
+      name:"Movement: jumps & balance",
+      desc:"Do 10 two-footed jumps over a line (or a rope). Then stand on ONE leg and count to 20 — swap legs. Then do 10 jumps landing on one foot and holding it still. Strong and steady wins the header!",
+      skillToShow:"Film yourself balancing on one leg for 20 seconds without wobbling over.",
+      video:"https://www.englandfootball.com/play/Improve-your-game" },
+    { id:8, corner:"game", weekly:true, icon:"👀", minutes:10,
+      name:"Game brain: heads up scanning",
+      desc:"Get a ball and dribble slowly around your garden or a room. Every few touches, look UP and shout out something you see — a tree, a window, a colour. This trains your habit of looking up in a game.",
+      skillToShow:"Show your coach you can dribble and call out 5 things you see without looking down.",
+      video:"https://www.englandfootball.com/play/Improve-your-game" }
   ]
 };

@@ -106,6 +106,7 @@
         if (!Array.isArray(p.seasons)) p.seasons = ["2025/26", "2026/27"];
         if (p.signed === undefined || p.signed === null) p.signed = true;
         if (!p.stats || typeof p.stats !== "object") p.stats = {};
+        if (!p.idp || typeof p.idp !== "object") p.idp = {};
         if (!p.stats["2025/26"]) {
           p.stats["2025/26"] = {
             goals: p.goals || 0, assists: p.assists || 0, motm: p.motm || 0,
@@ -153,6 +154,8 @@
       base.completedExercises = base.completedExercises || [];
       base.ledger = JSON.parse(localStorage.getItem(LS_LEDGER) || "[]");
       base.quizzes = JSON.parse(localStorage.getItem("harris_quizzes") || "{}");
+      base.chores = JSON.parse(localStorage.getItem("harris_chores") || "{}");
+      base.squadGoals = JSON.parse(localStorage.getItem("harris_squadgoals") || "[]");
       const kids = JSON.parse(localStorage.getItem("harris_my_kids") || "null");
       const myp = localStorage.getItem("harris_my_player");
       this.myKids = Array.isArray(kids) && kids.length ? kids : (myp ? [+myp] : []);
@@ -183,6 +186,10 @@
       try { const { data } = await sb.from("point_events").select("*"); ledger = data || []; } catch (e) { /* point_events not created yet */ }
       let quizzes = {};
       try { const { data } = await sb.from("quizzes").select("*"); (data || []).forEach(r => { quizzes[r.week] = r.questions; }); } catch (e) { /* quizzes table not created yet */ }
+      let chores = {};
+      try { const { data } = await sb.from("chores").select("*"); (data || []).forEach(r => { chores[`${r.week}:${r.player_id}`] = { list: r.list || [], done: r.done || [] }; }); } catch (e) { /* chores table not created yet */ }
+      let squadGoals = [];
+      try { const { data } = await sb.from("squad_goals").select("*"); squadGoals = data || []; } catch (e) { /* squad_goals not created yet */ }
       // who am I, and am I an admin?
       let allProfiles = [];
       try {
@@ -208,7 +215,7 @@
         attendance: att,
         training: training.data || [],
         trainingSchedule: window.HARRIS_DATA.trainingSchedule,
-        drills, profiles: allProfiles, ledger,
+        drills, profiles: allProfiles, ledger, chores, squadGoals,
         events: (events.data || []).map(e => ({ ...e, desc: e.description, media_list: e.media, media: 0 })),
         gamePoints: (points.data || []).map(g => ({ ...g, playerId: g.player_id })),
         achievements: window.HARRIS_DATA.achievements,
@@ -304,34 +311,81 @@
       return { ok:true };
     },
 
+    // Clean-sheet AP by a player's position (§1C): GK 15 / defenders 10 / others 5.
+    _cleanSheetPoints(pos) {
+      const SC = cfg.SCORING || {};
+      const P = String(pos || "").toUpperCase();
+      if (P === "GK") return SC.cleanSheetGK;
+      // Defenders: any back-line / wing-back / defensive-mid role.
+      if (["CB","LB","RB","RWB","LWB","CDM","DEF"].includes(P)) return SC.cleanSheetDef;
+      return SC.cleanSheetOther;
+    },
+
     async saveResult(fixtureId, r) {
-      // r: { our_score, their_score, motm, goals:[{scorer,assist}], cleanSheets:[playerId] }
+      // r: { our_score, their_score, motm, moment, goals:[{scorer,assist}],
+      //      cleanSheets:[playerId], saves:[playerId], lineup:[playerId] }
       const result = r.our_score > r.their_score ? "W" : r.our_score < r.their_score ? "L" : "D";
       const fx = this.state.fixtures.find(x => x.id === fixtureId);
       const season = this._seasonForDate(fx ? fx.date : this.season);
       const opp = fx ? fx.opponent : "";
       const SC = cfg.SCORING || {};
-      // Build the match's point events (regenerated each save).
-      const events = [];
-      (r.goals || []).forEach((g, i) => {
-        if (g.scorer) events.push({ player_id: g.scorer, season, category: "goal", points: SC.goal, note: "Goal vs " + opp, ref: `match:${fixtureId}:g${i}:scorer` });
-        if (g.assist) events.push({ player_id: g.assist, season, category: "assist", points: SC.assist, note: "Assist vs " + opp, ref: `match:${fixtureId}:g${i}:assist` });
-      });
-      if (r.motm) events.push({ player_id: r.motm, season, category: "motm", points: SC.motm, note: "Man of the Match vs " + opp, ref: `match:${fixtureId}:motm` });
-      (r.cleanSheets || []).forEach(pid => events.push({ player_id: pid, season, category: "cleansheet", points: SC.cleanSheet, note: "Clean sheet vs " + opp, ref: `match:${fixtureId}:cs${pid}` }));
-
       const lineup = Array.isArray(r.lineup) ? r.lineup : (fx && fx.lineup) || [];
+      const events = [];
+
+      // (C) Appearance + win/draw — EVERYONE in the lineup, equally.
+      lineup.forEach(pid => {
+        events.push({ player_id: pid, season, category: "appearance", points: SC.appearance, note: "Played vs " + opp, ref: `match:${fixtureId}:app:${pid}` });
+        if (result === "W") events.push({ player_id: pid, season, category: "win", points: SC.win, note: "Win vs " + opp, ref: `match:${fixtureId}:win:${pid}` });
+        else if (result === "D") events.push({ player_id: pid, season, category: "draw", points: SC.draw, note: "Draw vs " + opp, ref: `match:${fixtureId}:draw:${pid}` });
+      });
+
+      // (C) Goals + assists — but capped at +30/match per player COMBINED.
+      // Build raw goal/assist rows, then trim each player's combined total to the cap.
+      const ga = [];
+      (r.goals || []).forEach((g, i) => {
+        if (g.scorer) ga.push({ player_id: g.scorer, category: "goal", points: SC.goal, note: "Goal vs " + opp, ref: `match:${fixtureId}:g${i}:scorer` });
+        if (g.assist) ga.push({ player_id: g.assist, category: "assist", points: SC.assist, note: "Assist vs " + opp, ref: `match:${fixtureId}:g${i}:assist` });
+      });
+      const cap = SC.outcomeCapPerMatch || 30;
+      const used = {};
+      ga.forEach(e => {
+        const u = used[e.player_id] || 0;
+        const allow = Math.max(0, Math.min(e.points, cap - u));
+        if (allow > 0) {
+          used[e.player_id] = u + allow;
+          events.push({ player_id: e.player_id, season, category: e.category, points: allow,
+            note: e.note + (allow < e.points ? " (capped)" : ""), ref: e.ref });
+        }
+        // if allow === 0 the row is dropped entirely (player already at the cap)
+      });
+
+      // (D) Coach awards — POTM and Moment must be different players.
+      if (r.motm) events.push({ player_id: r.motm, season, category: "motm", points: SC.motm, note: "Player of the Match vs " + opp, ref: `match:${fixtureId}:motm` });
+      if (r.moment && r.moment !== r.motm) events.push({ player_id: r.moment, season, category: "moment", points: SC.momentOfMatch, note: "Moment of the Match vs " + opp, ref: `match:${fixtureId}:moment` });
+
+      // (C) Clean sheet — only if we conceded 0, position-banded, lineup players only.
+      if (r.their_score === 0) {
+        (r.cleanSheets || []).forEach(pid => {
+          const p = this.player(pid);
+          events.push({ player_id: pid, season, category: "cleansheet", points: this._cleanSheetPoints(p && p.pos),
+            note: "Clean sheet vs " + opp, ref: `match:${fixtureId}:cs${pid}` });
+        });
+      }
+
+      // (C) Save of the Day — GK, coach tap.
+      (r.saves || []).forEach(pid => events.push({ player_id: pid, season, category: "saveoftheday", points: SC.saveOfTheDay, note: "Save of the Day vs " + opp, ref: `match:${fixtureId}:sotd${pid}` }));
+
       if (LIVE) {
         const { error } = await this.sb.from("fixtures")
-          .update({ status:"past", our_score:r.our_score, their_score:r.their_score, result, motm:r.motm, lineup })
+          .update({ status:"past", our_score:r.our_score, their_score:r.their_score, result, motm:r.motm, moment:r.moment||null, lineup })
           .eq("id", fixtureId);
         if (error) return { ok:false, msg:error.message };
         await this.sb.from("goals").delete().eq("fixture_id", fixtureId);
-        if (r.goals.length) await this.sb.from("goals").insert(r.goals.map(g => ({ fixture_id:fixtureId, scorer:g.scorer, assist:g.assist })));
+        if ((r.goals||[]).length) await this.sb.from("goals").insert(r.goals.map(g => ({ fixture_id:fixtureId, scorer:g.scorer, assist:g.assist })));
         await this.replacePoints(`match:${fixtureId}:`, events);
         await this.load();
       } else {
-        Object.assign(fx, { status:"past", our_score:r.our_score, their_score:r.their_score, result, motm:r.motm, goals:r.goals, lineup });
+        Object.assign(fx, { status:"past", our_score:r.our_score, their_score:r.their_score, result, motm:r.motm, moment:r.moment||null, goals:r.goals, lineup });
         this._persistContent();
         await this.replacePoints(`match:${fixtureId}:`, events);
       }
@@ -543,13 +597,10 @@
       return { going: v.filter(x => x === "yes" || x === "lift").length, lifts: v.filter(x => x === "lift").length };
     },
 
-    /* league table: rank the current season's signed squad by league points */
-    leagueRows() {
-      return this.roster().map(p => ({
-        player: p, playerId: p.id, total: p.points || 0,
-        goals: p.goals || 0, assists: p.assists || 0, motm: p.motm || 0, sessions: p.sessions || 0
-      })).sort((a, b) => b.total - a.total);
-    },
+    /* §11 safeguard: NO absolute squad leaderboard. The former leagueRows() helper,
+       which ranked the whole squad by total AP, was removed so an absolute ranking
+       can never be wired back into a kid-facing view. The only ranked list is
+       moverOfMonth() (AP gained this month). */
 
     /* admin: set a player's development (dev %, targets, plan, videos) for the selected season */
     async updatePlayerAcademy(id, a) {
@@ -562,6 +613,59 @@
         if (error) return { ok: false, msg: error.message };
       } else { this._persistContent(); }
       return { ok: true };
+    },
+
+    /* ================= MINI-IDPs (§5) =================
+       Two focus areas per player per half-term: one Technical + one from another
+       FA corner, each linked to one drill video, plus one sentence of post-match
+       coach feedback. Refreshed each half-term window. Stored on players.idp keyed
+       by half-term so history is kept and a new window starts blank. */
+    IDP_CORNERS: [
+      { key: "technical",     label: "Technical" },
+      { key: "physical",      label: "Physical" },
+      { key: "psychological", label: "Psychological" },
+      { key: "social",        label: "Social" }
+    ],
+    // The IDP for a player in a half-term window (defaults to the current one).
+    // Returns { ht, focus:[{corner, area, drillUrl, drillTitle, feedback}, ...] }.
+    idpFor(playerId, ht) {
+      ht = ht || this._halfTermKey();
+      const p = this.player(playerId) || {};
+      const all = p.idp || {};
+      const rec = all[ht] || { focus: [] };
+      return { ht, focus: Array.isArray(rec.focus) ? rec.focus : [] };
+    },
+    // Has this player got a current-half-term IDP set (both focus areas filled)?
+    idpNeedsRefresh(playerId) {
+      const cur = this.idpFor(playerId);
+      return cur.focus.filter(f => f && f.area).length < 2;
+    },
+    // Save the 2 focus areas for the current (or given) half-term. `focus` is an
+    // array of up to 2 {corner, area, drillUrl, drillTitle, feedback}. We enforce
+    // the spec: at most 2, the first is Technical.
+    async saveIdp(playerId, focus, ht) {
+      const p = this.player(playerId); if (!p) return { ok: false, msg: "Player not found" };
+      ht = ht || this._halfTermKey();
+      const clean = (Array.isArray(focus) ? focus : []).slice(0, 2).map((f, i) => ({
+        corner: i === 0 ? "technical" : (f.corner || "physical"),
+        area: (f.area || "").trim(),
+        drillUrl: (f.drillUrl || "").trim(),
+        drillTitle: (f.drillTitle || "").trim(),
+        feedback: (f.feedback || "").trim()
+      })).filter(f => f.area);
+      p.idp = { ...(p.idp || {}), [ht]: { focus: clean } };
+      if (LIVE) {
+        const { error } = await this.sb.from("players").update({ idp: p.idp }).eq("id", playerId);
+        if (error) return { ok: false, msg: error.message };
+      } else { this._persistContent(); }
+      return { ok: true };
+    },
+    // One-sentence post-match coach feedback slot, set per focus area (§5).
+    async setIdpFeedback(playerId, focusIndex, feedback, ht) {
+      const cur = this.idpFor(playerId, ht);
+      if (!cur.focus[focusIndex]) return { ok: false, msg: "No focus area there" };
+      cur.focus[focusIndex].feedback = (feedback || "").trim();
+      return this.saveIdp(playerId, cur.focus, cur.ht);
     },
 
     /* admin: set a player's SEASON TOTALS for the viewed season (for past seasons where
@@ -665,6 +769,25 @@
     // The real, live season today falls in (NOT the season being viewed) — so a
     // child earning quiz/video/challenge points always banks them in the right season.
     currentSeason() { return this._seasonForDate(new Date().toISOString().slice(0, 10)); },
+
+    // Calendar month key "2026-06" — used for Mover of the Month (§4) & monthly badges.
+    monthId(dateLike) {
+      const d = dateLike ? new Date(dateLike) : new Date();
+      return d.getUTCFullYear() + "-" + String(d.getUTCMonth() + 1).padStart(2, "0");
+    },
+    // Half-term key (§8: 6 half-terms/season). Approximate English school half-terms by
+    // splitting the season into 6 ~bimonthly windows from 1 July. Used for streak freezes
+    // and the Trainer-of-the-Day rotation rule.
+    _halfTermKey(dateLike) {
+      const d = dateLike ? new Date(dateLike + (typeof dateLike === "string" && dateLike.length === 10 ? "T00:00:00Z" : "")) : new Date();
+      if (isNaN(d)) return "ht?";
+      const cs = this._seasonForDate(d.toISOString().slice(0, 10));
+      const r = (cfg.SEASONS || []).find(s => s.id === cs);
+      const start = r ? new Date(r.from + "T00:00:00Z") : new Date(Date.UTC(d.getUTCFullYear(), 6, 1));
+      const months = (d.getUTCFullYear() - start.getUTCFullYear()) * 12 + (d.getUTCMonth() - start.getUTCMonth());
+      const idx = Math.max(0, Math.min(5, Math.floor(months / 2)));
+      return cs + ":ht" + idx;
+    },
     _urlKey(url) {
       // Prefer the stable YouTube video id; fall back to a normalised tail.
       const m = String(url || "").match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([\w-]{11})/);
@@ -686,7 +809,7 @@
       return this.ledgerFor(playerId, season).filter(e => e.category === category).reduce((n, e) => n + (e.points || 0), 0);
     },
     quizPoints(playerId, season) { return this.catPoints(playerId, "quiz", season); },
-    trainingPoints(playerId, season) { return this.catPoints(playerId, "attendance", season) + this.catPoints(playerId, "performance", season); },
+    trainingPoints(playerId, season) { return this.catPoints(playerId, "attendance", season) + this.catPoints(playerId, "trainer", season) + this.catPoints(playerId, "streak", season); },
     videoWatches(playerId, season) { return this.countCat(playerId, "video", season); },
 
     // Achievements/badges earned, computed from the ledger (no manual marking).
@@ -703,8 +826,12 @@
         const m = e.ref.split(":").slice(0, 2).join(":"); byMatch[m] = (byMatch[m] || 0) + 1;
       });
       if (Object.values(byMatch).some(c => c >= 3)) out.push("hattrick");
-      const total = (this.currentQuiz().questions || []).length || 0;
-      if (total && this.ledgerFor(playerId, season).some(e => e.category === "quiz" && e.points === total)) out.push("quizace");
+      // Quiz Ace = at least one perfect quiz; Quiz Whizz = 4 perfect quizzes (§7).
+      const perfectQuizzes = this.ledgerFor(playerId, season).filter(e => e.category === "quiz" && /perfect/i.test(e.note || "")).length;
+      if (perfectQuizzes >= 1) out.push("quizace");
+      if (perfectQuizzes >= 4) out.push("quizwhizz");
+      // Home Team Hero — coach-awarded monthly badge, stored as a manual badge row.
+      if (this.ledgerFor(playerId, season).some(e => e.category === "badge" && /home team hero/i.test(e.note || ""))) out.push("hometeamhero");
       if (this.ledgerFor(playerId, season).some(e => e.category === "manual" && /perfect month/i.test(e.note || ""))) out.push("perfect");
       return out;
     },
@@ -724,6 +851,183 @@
         p.motm     = this.countCat(p.id, "motm", s);
         p.sessions = this.countCat(p.id, "attendance", s);
       });
+    },
+
+    /* ================= STREAKS (§1A/B/E) =================
+       Generic weekly-streak engine. A streak bonus is awarded for every block of
+       4 consecutive "active weeks" for a category. One freeze per half-term means a
+       single missed week inside a half-term does NOT break the run. Recomputed
+       idempotently from the ledger (ref `streak:<sourceCat>:<playerId>:<weekId>`). */
+    _activeWeeksFor(playerId, sourceCat, season) {
+      // Returns a sorted array of {week, ht} for which the player has a qualifying event.
+      const wks = {};
+      this.ledgerFor(playerId, season).filter(e => e.category === sourceCat && e.ref).forEach(e => {
+        const w = this._weekFromRef(e.ref);
+        if (w) wks[w] = true;
+      });
+      return Object.keys(wks).sort();
+    },
+    _weekFromRef(ref) {
+      // attendance: train:YYYY-MM-DD:...  → derive ISO week
+      let m = String(ref || "").match(/^train:(\d{4}-\d{2}-\d{2}):/);
+      if (m) return this.weekId(m[1]);
+      // quiz / challenge / homework store the week directly: cat:season:YYYY-Www:...
+      m = String(ref || "").match(/(\d{4}-W\d{2})/);
+      return m ? m[1] : null;
+    },
+    _allWeeksBetween(weeks) {
+      // Build the full ordered list of ISO weeks spanned, so we can detect gaps.
+      if (!weeks.length) return [];
+      const toDate = w => {
+        const [y, ww] = w.split("-W").map(Number);
+        const simple = new Date(Date.UTC(y, 0, 1 + (ww - 1) * 7));
+        const dow = simple.getUTCDay() || 7;
+        simple.setUTCDate(simple.getUTCDate() - dow + 1);
+        return simple;
+      };
+      const start = toDate(weeks[0]), end = toDate(weeks[weeks.length - 1]);
+      const out = [];
+      for (let d = new Date(start); d <= end; d.setUTCDate(d.getUTCDate() + 7)) out.push(this.weekId(d));
+      return out;
+    },
+    // Recompute streak bonuses for a category across the whole roster.
+    async _recomputeStreakFor(sourceCat, bonusKey, season) {
+      const SC = cfg.SCORING || {};
+      const bonus = SC[bonusKey] || 0;
+      const refPrefix = `streak:${sourceCat}:`;
+      const newEvents = [];
+      this.roster(true).forEach(p => {
+        const active = new Set(this._activeWeeksFor(p.id, sourceCat, season));
+        if (!active.size) return;
+        const ordered = [...active].sort();
+        const span = this._allWeeksBetween(ordered);
+        let run = 0, freezeUsedHT = {}, awardedBlocks = 0;
+        span.forEach(wk => {
+          if (active.has(wk)) {
+            run++;
+          } else {
+            // missed week — try to spend the one freeze for this half-term
+            const ht = this._halfTermKey(this._weekStartIso(wk));
+            if (run > 0 && !freezeUsedHT[ht]) { freezeUsedHT[ht] = true; /* freeze: run continues */ }
+            else { run = 0; }
+          }
+          if (run > 0 && run % 4 === 0) {
+            awardedBlocks++;
+            newEvents.push({ player_id: p.id, season, category: "streak", points: bonus,
+              note: `${sourceCat} 4-streak`, ref: `${refPrefix}${p.id}:${wk}` });
+          }
+        });
+      });
+      // Replace all streak rows for this source category in one idempotent pass.
+      this.state.ledger = this.state.ledger || [];
+      if (LIVE) { await this.sb.from("point_events").delete().like("ref", refPrefix + "%"); }
+      this.state.ledger = this.state.ledger.filter(e => !(e.ref && e.ref.startsWith(refPrefix)));
+      for (const ev of newEvents) {
+        const row = { player_id: ev.player_id, season: ev.season, category: "streak", points: ev.points, note: ev.note, ref: ev.ref };
+        if (LIVE) { const { data, error } = await this.sb.from("point_events").insert(row).select().single(); if (!error) this.state.ledger.push(data); }
+        else { row.id = this._nextId(this.state.ledger); this.state.ledger.push(row); }
+      }
+      if (!LIVE) this._persistLedger();
+    },
+    _weekStartIso(wk) {
+      const [y, ww] = wk.split("-W").map(Number);
+      const simple = new Date(Date.UTC(y, 0, 1 + (ww - 1) * 7));
+      const dow = simple.getUTCDay() || 7;
+      simple.setUTCDate(simple.getUTCDate() - dow + 1);
+      return simple.toISOString().slice(0, 10);
+    },
+    async _recomputeStreaks(season) {
+      season = season || this.season;
+      await this._recomputeStreakFor("attendance", "trainingStreak", season);
+      await this._recomputeStreakFor("challenge", "challengeStreak", season);
+      await this._recomputeStreakFor("quiz", "quizStreak", season);
+      this._applyPoints();
+    },
+
+    /* ================= CARD TIERS (§6) =================
+       Season AP thresholds, one-way. Icon also requires 2 Gold skill checks. */
+    skillGoldCount(playerId, season) {
+      season = season || this.season;
+      return this.ledgerFor(playerId, season).filter(e => e.category === "skill" && /gold/i.test(e.note || "")).length;
+    },
+    tierOf(playerId, season) {
+      season = season || this.season;
+      const ap = this.ledgerFor(playerId, season).length ? this.ledgerSum(playerId, season) : ((this.player(playerId) || {}).points || 0);
+      const golds = this.skillGoldCount(playerId, season);
+      const tiers = cfg.TIERS || [];
+      let cur = tiers[0];
+      tiers.forEach(t => {
+        if (ap >= t.min && (!t.goldSkillChecks || golds >= t.goldSkillChecks)) cur = t;
+      });
+      return { ...cur, ap, golds };
+    },
+    // Last season's tier, for the "legacy crest" on a fresh Bronze card (§6).
+    legacyTier(playerId) {
+      const seasons = (cfg.SEASONS || []).map(s => s.id);
+      const idx = seasons.indexOf(this.season);
+      if (idx <= 0) return null;
+      const prev = seasons[idx - 1];
+      const t = this.tierOf(playerId, prev);
+      return t && t.ap > 0 ? t : null;
+    },
+
+    /* ================= MOVER OF THE MONTH (§4) =================
+       AP gained this calendar month (the ONLY ranked list). Winner = home spotlight +25.
+       Computed from created_at where available, else from ref-embedded dates. */
+    _eventMonth(e) {
+      if (e.created_at) return this.monthId(e.created_at);
+      const m = String(e.ref || "").match(/(\d{4}-\d{2}-\d{2})/);
+      if (m) return this.monthId(m[1] + "T00:00:00Z");
+      const w = String(e.ref || "").match(/(\d{4})-W(\d{2})/);
+      if (w) return this.monthId(this._weekStartIso(w[1] + "-W" + w[2]) + "T00:00:00Z");
+      return this.monthId();
+    },
+    moverOfMonth(month, season) {
+      month = month || this.monthId();
+      season = season || this.season;
+      const gains = {};
+      (this.state.ledger || []).filter(e => e.season === season && this._eventMonth(e) === month)
+        .forEach(e => { gains[e.player_id] = (gains[e.player_id] || 0) + (e.points || 0); });
+      const rows = this.roster(true).map(p => ({ player: p, playerId: p.id, gain: gains[p.id] || 0 }))
+        .sort((a, b) => b.gain - a.gain);
+      const top = rows.find(r => r.gain > 0) || null;
+      return { month, rows, winner: top };
+    },
+
+    /* ================= QUIET-PLAYER DASHBOARD FLAG (§11) =================
+       Coach-only signal (NOT shown to families): a player whose season AP is in
+       the bottom quartile of the squad AND who has had no award (coach award or
+       badge) in the last 3 weeks. It's a "have a quiet word / spread an award"
+       prompt for the coach, never a punishment and never surfaced to kids. */
+    // Categories that count as an "award" for the quiet-player check.
+    _AWARD_CATEGORIES: ["motm", "moment", "captains", "mover", "badge"],
+    awardedWithinWeeks(playerId, weeks, season) {
+      season = season || this.currentSeason();
+      const cut = new Date(); cut.setUTCDate(cut.getUTCDate() - weeks * 7);
+      return this.ledgerFor(playerId, season).some(e => {
+        if (!this._AWARD_CATEGORIES.includes(e.category)) return false;
+        // Use created_at when present, else any date embedded in the ref.
+        let when = e.created_at ? new Date(e.created_at) : null;
+        if (!when) { const m = String(e.ref || "").match(/(\d{4}-\d{2}-\d{2})/); if (m) when = new Date(m[1] + "T00:00:00Z"); }
+        if (!when) { const w = String(e.ref || "").match(/(\d{4})-W(\d{2})/); if (w) when = new Date(this._weekStartIso(w[1] + "-W" + w[2]) + "T00:00:00Z"); }
+        return when ? when >= cut : true; // undated award row → treat as recent (safe: fewer false quiet flags)
+      });
+    },
+    quietPlayerFlag(playerId, season) {
+      season = season || this.currentSeason();
+      const ros = this.roster(true);
+      if (ros.length < 4) return false;                       // quartile is meaningless on a tiny squad
+      const ap = this.ledgerSum(playerId, season);
+      const totals = ros.map(p => this.ledgerSum(p.id, season)).sort((a, b) => a - b);
+      // Bottom-quartile threshold: the 25th-percentile AP value.
+      const q1 = totals[Math.floor((totals.length - 1) * 0.25)];
+      const bottomQuartile = ap <= q1;
+      return bottomQuartile && !this.awardedWithinWeeks(playerId, 3, season);
+    },
+    // Convenience: every flagged player, for the coach dashboard.
+    quietPlayers(season) {
+      season = season || this.currentSeason();
+      return this.roster(true).filter(p => this.quietPlayerFlag(p.id, season));
     },
 
     async addPoints(ev) {
@@ -760,41 +1064,77 @@
       return { ok: true };
     },
 
-    // Training register: entries = [{playerId, attended, perf:"good"|"poor"|""}]
-    async saveRegister(date, entries) {
+    // Training register (§1A): attendance +20 + optional Trainer of the Day +10.
+    // entries = [{playerId, attended}], trainerId = playerId | null
+    async saveRegister(date, entries, trainerId) {
       const season = this._seasonForDate(date), SC = cfg.SCORING || {}, events = [];
+      const attendedIds = new Set();
       entries.forEach(en => {
-        if (en.attended) events.push({ player_id: en.playerId, season, category: "attendance",
-          points: SC.trainingAttendance, note: "Training " + date, ref: `train:${date}:${en.playerId}:att` });
-        if (en.perf === "good") events.push({ player_id: en.playerId, season, category: "performance",
-          points: SC.trainingPerformanceGood, note: "Good performance " + date, ref: `train:${date}:${en.playerId}:perf` });
-        if (en.perf === "poor") events.push({ player_id: en.playerId, season, category: "performance",
-          points: SC.trainingPerformancePoor, note: "Poor performance " + date, ref: `train:${date}:${en.playerId}:perf` });
+        if (en.attended) {
+          attendedIds.add(en.playerId);
+          events.push({ player_id: en.playerId, season, category: "attendance",
+            points: SC.trainingAttendance, note: "Training " + date, ref: `train:${date}:${en.playerId}:att` });
+        }
       });
-      return this.replacePoints(`train:${date}:`, events);
+      // Trainer of the Day — coach pick, must have attended.
+      if (trainerId && attendedIds.has(trainerId)) {
+        events.push({ player_id: trainerId, season, category: "trainer",
+          points: SC.trainerOfTheDay, note: "Trainer of the Day " + date, ref: `train:${date}:${trainerId}:trainer` });
+      }
+      const res = await this.replacePoints(`train:${date}:`, events);
+      // After attendance is banked, recompute the 4-week training streak bonuses.
+      await this._recomputeStreaks(season);
+      return res;
     },
     registerState(date) {
       const out = {};
       (this.state.ledger || []).filter(e => e.ref && e.ref.startsWith(`train:${date}:`)).forEach(e => {
-        const st = (out[e.player_id] = out[e.player_id] || { attended: false, perf: "" });
+        const st = (out[e.player_id] = out[e.player_id] || { attended: false, trainer: false });
         if (e.ref.endsWith(":att")) st.attended = true;
-        if (e.ref.endsWith(":perf")) st.perf = e.points >= 0 ? "good" : "poor";
+        if (e.ref.endsWith(":trainer")) st.trainer = true;
       });
       return out;
     },
+    // Who has been Trainer of the Day this half-term (for the rotation hint, §1A).
+    trainerOfDayThisHalfTerm(season) {
+      season = season || this.season;
+      const ht = this._halfTermKey();
+      const counts = {};
+      (this.state.ledger || []).filter(e => e.category === "trainer" && e.season === season &&
+        this._halfTermKey(this._dateFromTrainRef(e.ref)) === ht)
+        .forEach(e => { counts[e.player_id] = (counts[e.player_id] || 0) + 1; });
+      return counts; // { playerId: timesWon }
+    },
+    _dateFromTrainRef(ref) { const m = String(ref || "").match(/^train:(\d{4}-\d{2}-\d{2}):/); return m ? m[1] : null; },
 
-    // Weekly quiz result (1 point per correct). One per child per week, banked in the live season.
-    async recordQuiz(playerId, correct) {
-      const cs = this.currentSeason(), wk = this.weekId();
-      return this.addPoints({ player_id: playerId, season: cs, category: "quiz",
-        points: correct, note: "Quiz " + wk, ref: `quiz:${cs}:${wk}:${playerId}` });
+    // Weekly quiz result (§1E): completion +10, perfect +5. One per child per week,
+    // banked in the live season. `correct`/`total` come from the auto-marked run.
+    async recordQuiz(playerId, correct, total) {
+      const cs = this.currentSeason(), wk = this.weekId(), SC = cfg.SCORING || {};
+      const perfect = total != null && total > 0 && correct >= total;
+      const points = (SC.quizComplete || 0) + (perfect ? (SC.quizPerfect || 0) : 0);
+      const res = await this.addPoints({ player_id: playerId, season: cs, category: "quiz",
+        points, note: `Quiz ${wk} (${correct}/${total}${perfect ? " perfect" : ""})`,
+        ref: `quiz:${cs}:${wk}:${playerId}` });
+      await this._recomputeStreakFor("quiz", "quizStreak", cs);
+      await this._refreshHomework(playerId, wk, cs);
+      this._applyPoints();
+      return res;
     },
     quizDoneThisWeek(playerId) { return this.ledgerHas(`quiz:${this.currentSeason()}:${this.weekId()}:${playerId}`); },
+    // raw quiz score (correct count) parsed from the note, for the results table.
+    quizScoreThisWeek(playerId, week) {
+      week = week || this.weekId();
+      const e = (this.state.ledger || []).find(x => x.category === "quiz" && x.ref && x.ref.includes(`:${week}:${playerId}`));
+      if (!e) return null;
+      const m = String(e.note || "").match(/\((\d+)\/(\d+)/);
+      return m ? { correct: +m[1], total: +m[2], points: e.points } : { correct: null, total: null, points: e.points };
+    },
     quizResults(week) {
       week = week || this.weekId();
       const map = {};
       (this.state.ledger || []).filter(e => e.category === "quiz" && e.season === this.season && e.ref && e.ref.includes(`:${week}:`))
-        .forEach(e => { map[e.player_id] = e.points; });
+        .forEach(e => { const sc = this.quizScoreThisWeek(e.player_id, week); map[e.player_id] = sc; });
       return map;
     },
 
@@ -816,11 +1156,43 @@
       const bank = this.state.quizBank || window.HARRIS_DATA.quizBank || [];
       const per = meta.perWeek || { skill: 5, gen: 5, foot: 10 };
       const questions = [].concat(
-        this._rotatePick(bank.filter(q => q.cat === "skill"), per.skill, "skill"),
-        this._rotatePick(bank.filter(q => q.cat === "gen"), per.gen, "gen"),
-        this._rotatePick(bank.filter(q => q.cat === "foot"), per.foot, "foot")
+        this._bandedPick(bank.filter(q => q.cat === "skill"), per.skill, "skill"),
+        this._bandedPick(bank.filter(q => q.cat === "gen"), per.gen, "gen"),
+        this._bandedPick(bank.filter(q => q.cat === "foot"), per.foot, "foot")
       );
       return { title: meta.title, week: wk, custom: false, questions };
+    },
+    // Pick `n` from `pool` for this week, mixing difficulty bands (§1E) so every
+    // reading level can score. Roughly weights starter > standard > stretch, then
+    // rotates within each band by ISO week so the set still changes automatically.
+    _bandedPick(pool, n, salt) {
+      if (pool.length <= n) return pool.slice();
+      const banded = b => pool.filter(q => (q.band || "standard") === b);
+      const starter = banded("starter"), standard = banded("standard"), stretch = banded("stretch");
+      // target split — bias toward the easier bands so it stays winnable
+      let wantStart = Math.round(n * 0.45), wantStd = Math.round(n * 0.35);
+      let wantStr = n - wantStart - wantStd;
+      const out = []
+        .concat(this._rotatePick(starter, Math.min(wantStart, starter.length), salt + "S"))
+        .concat(this._rotatePick(standard, Math.min(wantStd, standard.length), salt + "M"))
+        .concat(this._rotatePick(stretch, Math.min(wantStr, stretch.length), salt + "T"));
+      // top up from the whole pool if any band was short
+      if (out.length < n) {
+        const have = new Set(out.map(q => q.q));
+        for (const q of this._rotatePick(pool, pool.length, salt + "X")) {
+          if (out.length >= n) break;
+          if (!have.has(q.q)) { out.push(q); have.add(q.q); }
+        }
+      }
+      return out.slice(0, n);
+    },
+    // Coverage audit (§1E + four-corner): counts of the live bank by tag, so the
+    // coach screen can show "every corner and band is covered".
+    quizCoverage() {
+      const bank = this.state.quizBank || window.HARRIS_DATA.quizBank || [];
+      const tally = (key) => bank.reduce((m, q) => { const k = q[key] || "—"; m[k] = (m[k] || 0) + 1; return m; }, {});
+      return { total: bank.length, band: tally("band"), cat: tally("cat"),
+        corner: tally("corner"), topic: tally("topic") };
     },
     // A brand-new random set drawn from the bank (for the "new set" button).
     shuffleQuiz() {
@@ -850,32 +1222,344 @@
       return (this.state.fixtures || []).filter(f => this._seasonForDate(f.date) === season && Array.isArray(f.lineup) && f.lineup.includes(playerId)).length;
     },
 
-    // Video watch: 2 points first full watch, +1 each rewatch.
-    async recordVideoWatch(playerId, url) {
-      const key = this._urlKey(url);
-      const prior = (this.state.ledger || []).filter(e => e.category === "video" &&
-        e.ref && e.ref.startsWith(`video:${playerId}:${key}:`)).length;
+    // Video watch — v1.1 §1 does NOT award AP for watching videos. Videos are content
+    // only now. Kept as a no-op so any existing caller never throws or banks AP.
+    // (FLAGGED to the user: re-enable AP here only on explicit instruction.)
+    async recordVideoWatch(playerId, url) { return { ok: true, dup: true, noop: true }; },
+
+    /* ----- Weekly Challenge (§1B) ----- */
+    // The current week's challenge rotates the FA four corners across the month.
+    weeklyChallenge(week) {
+      const D = (this.state && this.state) || window.HARRIS_DATA || {};
+      const bank = D.exercises || (window.HARRIS_DATA && window.HARRIS_DATA.exercises) || [];
+      const weekly = bank.filter(x => x.weekly !== false);
+      if (!weekly.length) return null;
+      const wk = week || this.weekId();
+      const n = parseInt(wk.split("-W")[1], 10) || 0;
+      // Rotate the FA four corners across the month IN ORDER (technical → ball →
+      // movement → game): the week number picks the corner, and within that corner
+      // we cycle through that corner's challenges so months stay fresh.
+      const order = D.cornerOrder || (window.HARRIS_DATA && window.HARRIS_DATA.cornerOrder) || ["technical","ball","physical","game"];
+      const corner = order[n % order.length];
+      const inCorner = weekly.filter(x => x.corner === corner);
+      if (!inCorner.length) return weekly[n % weekly.length];   // fallback: any
+      // which cycle through this corner are we on (every `order.length` weeks)
+      const cycle = Math.floor(n / order.length);
+      return inCorner[cycle % inCorner.length];
+    },
+    // Coach preview: the 4-corner rotation as it will fall over the next N weeks.
+    challengeRotation(weeks) {
+      weeks = weeks || 4;
+      const base = this.weekId(), [y, ww] = base.split("-W").map(Number), out = [];
+      for (let i = 0; i < weeks; i++) {
+        const wk = y + "-W" + String(ww + i).padStart(2, "0");
+        const c = this.weeklyChallenge(wk);
+        if (c) out.push({ week: wk, challenge: c });
+      }
+      return out;
+    },
+    // Mark this week's challenge done (parent confirm). `shown` = shown to coach / clip (+5).
+    async tickChallenge(playerId, shown) {
+      const cs = this.currentSeason(), wk = this.weekId(), SC = cfg.SCORING || {};
+      const points = (SC.challenge || 0) + (shown ? (SC.challengeShown || 0) : 0);
+      const res = await this.addPoints({ player_id: playerId, season: cs, category: "challenge",
+        points, note: `Weekly challenge ${wk}${shown ? " (shown to coach)" : ""}`,
+        ref: `chal:${cs}:${wk}:${playerId}` });
+      await this._recomputeStreakFor("challenge", "challengeStreak", cs);
+      await this._refreshHomework(playerId, wk, cs);
+      this._applyPoints();
+      return res;
+    },
+    challengeDoneThisWeek(playerId) { return this.ledgerHas(`chal:${this.currentSeason()}:${this.weekId()}:${playerId}`); },
+
+    /* ================= HOMEWORK GATE (§1F) — parent controlled =================
+       Homework = this week's Challenge (§B) + Quiz (§E). Both done by the deadline → +5;
+       not complete → −5 and a private bench flag for the coach. AP floor 0/week, never
+       compounding, never reducing tier, one-tap coach override, 3-week pattern flag. */
+    homeworkDeadline(week) {
+      // Default: 6pm the day before the week's match (we approximate to the week's
+      // Saturday minus DAYS_BEFORE at HOMEWORK_DEADLINE_HOUR). Configurable in config.
+      const ws = this._weekStartIso(week || this.weekId());          // Monday
+      const d = new Date(ws + "T00:00:00Z");
+      d.setUTCDate(d.getUTCDate() + 5 - (cfg.HOMEWORK_DEADLINE_DAYS_BEFORE || 1)); // ~Fri/Sat
+      d.setUTCHours(cfg.HOMEWORK_DEADLINE_HOUR != null ? cfg.HOMEWORK_DEADLINE_HOUR : 18, 0, 0, 0);
+      return d;
+    },
+    homeworkComplete(playerId, week) {
+      week = week || this.weekId();
+      const cs = this.currentSeason();
+      return this.ledgerHas(`chal:${cs}:${week}:${playerId}`) && this.ledgerHas(`quiz:${cs}:${week}:${playerId}`);
+    },
+    homeworkOverridden(playerId, week) {
+      week = week || this.weekId();
+      return this.ledgerHas(`hwoverride:${this.currentSeason()}:${week}:${playerId}`);
+    },
+    // Recompute the homework outcome row for a player/week. Called whenever the
+    // challenge or quiz state changes, and by the deadline sweep.
+    async _refreshHomework(playerId, week, season) {
+      week = week || this.weekId(); season = season || this.currentSeason();
       const SC = cfg.SCORING || {};
-      const points = prior === 0 ? SC.videoFirstWatch : SC.videoRewatch;
-      return this.addPoints({ player_id: playerId, season: this.currentSeason(), category: "video",
-        points, note: "Watched a coach's video", ref: `video:${playerId}:${key}:${prior + 1}` });
+      const ref = `homework:${season}:${week}:${playerId}`;
+      const overridden = this.homeworkOverridden(playerId, week);
+      const complete = this.homeworkComplete(playerId, week);
+      const pastDeadline = new Date() > this.homeworkDeadline(week);
+      let points = 0, note = null;
+      if (overridden) { points = 0; note = `Homework waived ${week} (coach override)`; }
+      else if (complete) { points = SC.homeworkBonus; note = `Homework complete ${week}`; }
+      else if (pastDeadline) {
+        // Missed: −5, but FLOORED so the player's WEEKLY AP can't go below 0.
+        const weeklyBefore = this._weeklyAP(playerId, week, season, ref); // exclude this row
+        points = Math.max(SC.homeworkPenalty, -weeklyBefore);
+        note = `Homework missed ${week}`;
+      } else {
+        // Before the deadline and not yet complete — no row yet (fresh slate).
+        return this._removeRef(ref);
+      }
+      return this._upsertRef({ player_id: playerId, season, category: "homework", points, note, ref });
+    },
+    // Total AP a player earned in a given ISO week (used for the §1F floor).
+    _weeklyAP(playerId, week, season, excludeRef) {
+      season = season || this.currentSeason();
+      return this.ledgerFor(playerId, season)
+        .filter(e => e.ref !== excludeRef && this._weekFromRef(e.ref) === week)
+        .reduce((n, e) => n + (e.points || 0), 0);
+    },
+    async _upsertRef(ev) {
+      this.state.ledger = this.state.ledger || [];
+      const existing = (this.state.ledger || []).find(e => e.ref === ev.ref);
+      if (existing) {
+        existing.points = ev.points; existing.note = ev.note;
+        if (LIVE) await this.sb.from("point_events").update({ points: ev.points, note: ev.note }).eq("ref", ev.ref);
+        else this._persistLedger();
+        return { ok: true };
+      }
+      return this.addPoints(ev);
+    },
+    async _removeRef(ref) {
+      this.state.ledger = (this.state.ledger || []).filter(e => e.ref !== ref);
+      if (LIVE) await this.sb.from("point_events").delete().eq("ref", ref);
+      else this._persistLedger();
+      return { ok: true };
+    },
+    // Private coach-only bench flag: missed homework + past deadline + not overridden.
+    benchFlag(playerId, week) {
+      week = week || this.weekId();
+      if (this.homeworkOverridden(playerId, week)) return false;
+      return !this.homeworkComplete(playerId, week) && new Date() > this.homeworkDeadline(week);
+    },
+    // 3 consecutive missed weeks → private pattern note for the coach (§1F).
+    homeworkPatternFlag(playerId) {
+      const cs = this.currentSeason();
+      let streak = 0;
+      for (let back = 0; back < 8; back++) {
+        const d = new Date(); d.setUTCDate(d.getUTCDate() - back * 7);
+        const wk = this.weekId(d);
+        if (new Date() <= this.homeworkDeadline(wk)) continue;          // current/future week: skip
+        if (this.homeworkOverridden(playerId, wk)) { break; }            // override breaks the pattern
+        if (this.homeworkComplete(playerId, wk)) break;
+        streak++;
+        if (streak >= 3) return true;
+      }
+      return false;
+    },
+    // Coach one-tap override (illness / first week back) — waives the gate for a week.
+    async overrideHomework(playerId, week) {
+      week = week || this.weekId();
+      const cs = this.currentSeason();
+      await this.addPoints({ player_id: playerId, season: cs, category: "hwoverride", points: 0,
+        note: `Homework waived ${week}`, ref: `hwoverride:${cs}:${week}:${playerId}` });
+      return this._refreshHomework(playerId, week, cs);
+    },
+    async clearHomeworkOverride(playerId, week) {
+      week = week || this.weekId();
+      await this._removeRef(`hwoverride:${this.currentSeason()}:${week}:${playerId}`);
+      return this._refreshHomework(playerId, week, this.currentSeason());
     },
 
-    // Challenge tick (honesty). Weekly challenges (make-your-bed) key by ISO week.
-    async tickChallenge(playerId, ex) {
-      const period = ex.weekly ? this.weekId() : "once";
-      return this.addPoints({ player_id: playerId, season: this.currentSeason(), category: "challenge",
-        points: ex.points, note: ex.name, ref: `chal:${playerId}:${ex.id}:${period}` });
+    /* ================= HOME TEAM CHORES (§1G) — parent controlled =================
+       Up to 3 chores/week, +10 each on parent tick, private to the family,
+       deduction-free, with a re-issuable default list. */
+    DEFAULT_CHORES: ["Tidy your room", "Kit washed & packed", "Help with dinner"],
+    choresFor(playerId, week) {
+      week = week || this.weekId();
+      const all = (this.state.chores || {});
+      return (all[`${week}:${playerId}`]) || null;   // {list:[...], done:[bool,bool,bool]}
     },
-    challengeDone(playerId, ex) {
-      const period = ex.weekly ? this.weekId() : "once";
-      return this.ledgerHas(`chal:${playerId}:${ex.id}:${period}`);
+    // Parent sets / re-issues the week's chore list (max 3).
+    async setChores(playerId, list, week) {
+      week = week || this.weekId();
+      list = (list || []).filter(Boolean).slice(0, (cfg.SCORING || {}).choresPerWeek || 3);
+      this.state.chores = this.state.chores || {};
+      const key = `${week}:${playerId}`;
+      const cur = this.state.chores[key] || { list: [], done: [] };
+      const done = list.map((_, i) => !!cur.done[i]);
+      this.state.chores[key] = { list, done };
+      if (LIVE) await this.sb.from("chores").upsert({ week, player_id: playerId, list, done }, { onConflict: "week,player_id" });
+      else localStorage.setItem("harris_chores", JSON.stringify(this.state.chores));
+      await this._syncChorePoints(playerId, week);
+      return { ok: true };
+    },
+    // Re-issue last week's (or the default) chore list to this week.
+    async reissueChores(playerId, week) {
+      week = week || this.weekId();
+      // find the most recent prior week with a list
+      let prior = null;
+      for (let back = 1; back <= 8 && !prior; back++) {
+        const d = new Date(); d.setUTCDate(d.getUTCDate() - back * 7);
+        const c = this.choresFor(playerId, this.weekId(d));
+        if (c && c.list && c.list.length) prior = c.list;
+      }
+      return this.setChores(playerId, prior || this.DEFAULT_CHORES, week);
+    },
+    // Parent ticks/unticks a chore → +10 AP each (deduction-free; max 30/week).
+    async tickChore(playerId, index, done, week) {
+      week = week || this.weekId();
+      const c = this.choresFor(playerId, week);
+      if (!c) return { ok: false, msg: "No chores set this week" };
+      c.done[index] = !!done;
+      this.state.chores[`${week}:${playerId}`] = c;
+      if (LIVE) await this.sb.from("chores").upsert({ week, player_id: playerId, list: c.list, done: c.done }, { onConflict: "week,player_id" });
+      else localStorage.setItem("harris_chores", JSON.stringify(this.state.chores));
+      await this._syncChorePoints(playerId, week);
+      return { ok: true };
+    },
+    // One ledger row per ticked chore (idempotent, capped at 3/week → 30 AP).
+    async _syncChorePoints(playerId, week) {
+      week = week || this.weekId();
+      const cs = this.currentSeason(), SC = cfg.SCORING || {};
+      const c = this.choresFor(playerId, week) || { done: [] };
+      const cap = SC.choresPerWeek || 3;
+      const refPrefix = `chore:${cs}:${week}:${playerId}:`;
+      const events = [];
+      c.done.forEach((d, i) => {
+        if (d && i < cap) events.push({ player_id: playerId, season: cs, category: "chore",
+          points: SC.chore, note: `Home Team chore ${week}`, ref: `${refPrefix}${i}` });
+      });
+      const res = await this.replacePoints(refPrefix, events);
+      this._applyPoints();
+      return res;
     },
 
-    // Coach manual adjustment (perfect month, bottom-of-league challenge, corrections).
+    // Coach manual adjustment (corrections, one-offs).
     async addManual(playerId, points, note) {
       return this.addPoints({ player_id: playerId, season: this.season, category: "manual",
         points, note: note || "Coach adjustment", ref: `manual:${Date.now()}:${playerId}` });
+    },
+
+    /* ----- Coach awards: Captain's Award (§1D), Save of the Day already in match ----- */
+    async awardCaptains(playerId, month) {
+      month = month || this.monthId();
+      const cs = this.currentSeason(), SC = cfg.SCORING || {};
+      return this.addPoints({ player_id: playerId, season: cs, category: "captains",
+        points: SC.captainsAward, note: `Captain's Award ${month}`, ref: `captains:${cs}:${month}` });
+    },
+    // Mover of the Month spotlight bonus (§4): +25 to the month's top AP-gainer.
+    async awardMover(playerId, month) {
+      month = month || this.monthId();
+      const cs = this.currentSeason(), SC = cfg.SCORING || {};
+      return this.addPoints({ player_id: playerId, season: cs, category: "mover",
+        points: SC.moverOfMonth, note: `Mover of the Month ${month}`, ref: `mover:${cs}:${month}` });
+    },
+    // Coach-tap badge (incl. Home Team Hero monthly). 0 AP — badges are separate from AP (§1).
+    async awardBadge(playerId, badgeName, period) {
+      const cs = this.currentSeason();
+      const key = `badge:${cs}:${(badgeName||"").toLowerCase().replace(/[^a-z0-9]+/g,"-")}:${period||this.monthId()}:${playerId}`;
+      return this.addPoints({ player_id: playerId, season: cs, category: "badge", points: 0,
+        note: badgeName, ref: key });
+    },
+
+    /* ----- Skill Ladder AP (§2) — storage only; check-station UI is Phase 4 ----- */
+    SKILL_TRACKS: ["First Touch","Weak Foot","1v1 Moves","Passing","Movement & Agility","GK/Defending"],
+    skillLevel(playerId, track, season) {
+      season = season || this.season;
+      // highest level recorded for this track
+      const rows = this.ledgerFor(playerId, season).filter(e => e.category === "skill" && e.ref && e.ref.includes(`:${this._slug(track)}:`));
+      const order = { bronze: 1, silver: 2, gold: 3 };
+      let best = null, bn = 0;
+      rows.forEach(e => { const m = String(e.ref||"").match(/:(bronze|silver|gold)$/); if (m && order[m[1]] > bn) { bn = order[m[1]]; best = m[1]; } });
+      return best;
+    },
+    _slug(s){ return String(s||"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,""); },
+    // Record a skill check pass. level: "bronze"|"silver"|"gold". One row per track/level.
+    async recordSkill(playerId, track, level) {
+      const cs = this.currentSeason(), SC = cfg.SCORING || {};
+      const pts = { bronze: SC.skillBronze, silver: SC.skillSilver, gold: SC.skillGold }[level] || 0;
+      const res = await this.addPoints({ player_id: playerId, season: cs, category: "skill",
+        points: pts, note: `${track} — ${level[0].toUpperCase()+level.slice(1)}`,
+        ref: `skill:${cs}:${playerId}:${this._slug(track)}:${level}` });
+      this._applyPoints();
+      return res;
+    },
+    // "Personal Best" coach tap +10 any time a player beats their own mark.
+    async recordPersonalBest(playerId, track) {
+      const cs = this.currentSeason(), SC = cfg.SCORING || {};
+      const res = await this.addPoints({ player_id: playerId, season: cs, category: "skill",
+        points: SC.skillPersonalBest, note: `Personal Best — ${track}`,
+        ref: `skill:${cs}:${playerId}:${this._slug(track)}:pb:${Date.now()}` });
+      this._applyPoints();
+      return res;
+    },
+    // The six Skill Ladder tracks (§2). Order is the coach-check station order.
+    SKILL_TRACKS: ["First Touch", "Weak Foot", "1v1 Moves", "Passing", "Movement & Agility", "GK/Defending"],
+    // A player's current level for each track (private to that player), derived
+    // from the ledger. Gold > Silver > Bronze; null = not yet checked. Also returns
+    // how many Personal Bests they've banked on each track.
+    skillLadder(playerId, season) {
+      season = season || this.currentSeason();
+      const order = { bronze: 1, silver: 2, gold: 3 };
+      const out = {};
+      this.SKILL_TRACKS.forEach(t => { out[t] = { level: null, rank: 0, pbs: 0 }; });
+      this.ledgerFor(playerId, season).filter(e => e.category === "skill").forEach(e => {
+        const m = String(e.ref || "").match(/^skill:[^:]+:[^:]+:([^:]+):(bronze|silver|gold|pb)/);
+        if (!m) return;
+        const track = this.SKILL_TRACKS.find(t => this._slug(t) === m[1]);
+        if (!track) return;
+        if (m[2] === "pb") { out[track].pbs++; return; }
+        if ((order[m[2]] || 0) > out[track].rank) { out[track].rank = order[m[2]]; out[track].level = m[2]; }
+      });
+      return out;
+    },
+    // Highest level already banked for one track (so the coach UI / awards know
+    // whether tapping a level would be a new award or a repeat).
+    skillLevelOf(playerId, track, season) {
+      return (this.skillLadder(playerId, season)[track] || { level: null }).level;
+    },
+
+    /* ----- Squad Goals (§4): shared monthly target + real-world unlock ----- */
+    squadGoals() { return (this.state.squadGoals || []).filter(g => g.season === this.season); },
+    squadGoalProgress(goal) {
+      // AP gained this month across the squad (shared progress).
+      const m = goal.month || this.monthId();
+      return this.roster(true).reduce((n, p) => n + (this.moverOfMonth(m, this.season).rows.find(r => r.playerId === p.id)?.gain || 0), 0);
+    },
+    async addSquadGoal(g) {
+      this.state.squadGoals = this.state.squadGoals || [];
+      const row = { season: this.season, month: g.month || this.monthId(), title: g.title,
+        target: +g.target || 0, reward: g.reward || "", unlocked: false };
+      if (LIVE) { const { data, error } = await this.sb.from("squad_goals").insert(row).select().single(); if (error) return { ok:false, msg:error.message }; this.state.squadGoals.push(data); }
+      else { row.id = this._nextId(this.state.squadGoals); this.state.squadGoals.push(row); localStorage.setItem("harris_squadgoals", JSON.stringify(this.state.squadGoals)); }
+      return { ok: true };
+    },
+    async setSquadGoalUnlocked(id, unlocked) {
+      const g = (this.state.squadGoals || []).find(x => x.id === id); if (!g) return { ok:false };
+      g.unlocked = !!unlocked;
+      if (LIVE) await this.sb.from("squad_goals").update({ unlocked: g.unlocked }).eq("id", id);
+      else localStorage.setItem("harris_squadgoals", JSON.stringify(this.state.squadGoals));
+      return { ok: true };
+    },
+    async deleteSquadGoal(id) {
+      this.state.squadGoals = (this.state.squadGoals || []).filter(x => x.id !== id);
+      if (LIVE) await this.sb.from("squad_goals").delete().eq("id", id);
+      else localStorage.setItem("harris_squadgoals", JSON.stringify(this.state.squadGoals));
+      return { ok: true };
+    },
+
+    // Sweep all players' homework for a week (called after the deadline / on load).
+    async sweepHomework(week) {
+      week = week || this.weekId();
+      for (const p of this.roster(true)) { await this._refreshHomework(p.id, week, this.currentSeason()); }
+      this._applyPoints();
+      return { ok: true };
     },
 
     // Undo any single ledger entry (fix a mistake without touching SQL).

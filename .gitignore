@@ -8,3 +8,7 @@ Thumbs.db
 # Logs / temp
 *.log
 node_modules/
+
+# agent temp
+node_modules_tmp/
+test/_dbg.js

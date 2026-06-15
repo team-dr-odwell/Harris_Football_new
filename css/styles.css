@@ -227,6 +227,54 @@ img{max-width:100%}
 .fc-crest{position:absolute;bottom:.5rem;right:.5rem;width:22px;opacity:.55}
 .capt{display:inline-grid;place-items:center;width:17px;height:17px;border-radius:50%;background:#23190a;color:var(--gold-bright);font-size:.66rem;font-weight:900;vertical-align:middle;line-height:1}
 
+/* ---------- Card evolution tiers (§6) ---------- */
+.fc-tier-label{font-family:var(--display);font-size:.62rem;letter-spacing:1.5px;text-align:center;text-transform:uppercase;margin:.1rem 0 -.1rem;opacity:.85}
+.fc-legacy{font-size:.55rem;opacity:.7;font-weight:700}
+/* Bronze (default season-start card) */
+.fc-card:has(.fc-tier-bronze){background:linear-gradient(160deg,#e7c08a 0%,#c08a4e 35%,#9c6a32 65%,#6f4a1e 100%)}
+/* Silver */
+.fc-card:has(.fc-tier-silver){background:linear-gradient(160deg,#f4f6f8 0%,#cfd6dd 32%,#a7b1bb 64%,#7d8893 100%);border-color:rgba(255,255,255,.45)}
+.fc-card:has(.fc-tier-silver) .fc-inner{color:#1f2530}
+/* Gold (the default rich gold) */
+.fc-card:has(.fc-tier-gold){background:linear-gradient(160deg,#f3da7e 0%,#d8b541 30%,#b8922a 60%,#8f6f18 100%)}
+/* Black & Gold Icon — animated shine */
+.fc-card:has(.fc-tier-icon){background:linear-gradient(160deg,#3a2f12 0%,#171205 45%,#0c0a04 100%);border:1.5px solid var(--gold-bright)}
+.fc-card:has(.fc-tier-icon) .fc-inner{color:var(--gold-bright)}
+.fc-card:has(.fc-tier-icon) .fc-name{border-top-color:rgba(231,199,90,.4)}
+.fc-card:has(.fc-tier-icon)::after{background:linear-gradient(115deg,transparent 35%,rgba(231,199,90,.5) 50%,transparent 65%);mix-blend-mode:screen;animation:iconShine 3.2s linear infinite}
+@keyframes iconShine{0%{transform:translateX(-120%)}60%,100%{transform:translateX(120%)}}
+
+/* ---------- Quiz explanatory feedback (§1E teaching tool) ---------- */
+.quiz-explain{border-radius:10px;padding:.6rem .8rem;font-size:.86rem;font-weight:600}
+.quiz-explain.ok{background:rgba(63,185,80,.16);border:1px solid var(--green)}
+.quiz-explain.no{background:rgba(231,199,90,.12);border:1px solid rgba(231,199,90,.4)}
+
+/* ---------- Modal (chore editor) ---------- */
+.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.6);display:grid;place-items:center;z-index:300;padding:1rem}
+.modal{max-width:440px;width:100%}
+
+/* ---------- Empty states ---------- */
+.empty-state{text-align:center;padding:2.2rem 1.4rem;max-width:520px;margin:0 auto}
+.empty-state .empty-ic{font-size:2.6rem;line-height:1;margin-bottom:.4rem}
+.empty-state h3{font-family:var(--display);font-size:1.4rem;margin:.2rem 0 .4rem;letter-spacing:.5px}
+.empty-state p{margin:0 auto 1rem;max-width:40ch}
+
+/* ---------- Results: form strip + month groups ---------- */
+.form-strip{display:flex;align-items:center;gap:1.4rem;flex-wrap:wrap;margin-bottom:1.4rem;padding:1rem 1.2rem}
+.form-stat{text-align:center;flex:none}
+.form-stat .n{font-family:var(--display);font-size:1.6rem;color:var(--gold-bright);line-height:1}
+.form-stat .l{font-size:.66rem;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);font-weight:700;margin-top:.2rem}
+.form-recent{margin-left:auto;display:flex;flex-direction:column;gap:.3rem;align-items:flex-end}
+.form-recent-l{font-size:.66rem;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);font-weight:700}
+.form-dots{display:flex;gap:.3rem}
+.form-dot{width:24px;height:24px;border-radius:7px;display:grid;place-items:center;font-family:var(--display);font-size:.8rem;color:#fff}
+.form-dot.form-w{background:rgba(63,185,80,.85)}
+.form-dot.form-d{background:rgba(217,164,65,.85);color:#221a06}
+.form-dot.form-l{background:rgba(229,83,75,.85)}
+.results-month{margin-bottom:1.6rem}
+.results-month-head{font-family:var(--display);font-size:1.15rem;letter-spacing:.5px;color:var(--gold-bright);margin:.2rem 0 .7rem;padding-bottom:.4rem;border-bottom:1px solid var(--line)}
+.coach-rsvp{gap:.6rem;align-items:center;flex-direction:row;flex-wrap:wrap}
+
 /* ---------- Player detail ---------- */
 .player-detail{display:grid;grid-template-columns:260px 1fr;gap:1.6rem;align-items:start}
 .radar-wrap{display:grid;place-items:center}
@@ -380,4 +428,27 @@ img{max-width:100%}
   .players-grid{grid-template-columns:repeat(2,1fr)}
   .league-table{font-size:.82rem;min-width:480px}
   .league-table th,.league-table td{padding:.55rem .4rem}
+}
+/* ---------- 375px phone pass (Sunday-morning parents) ---------- */
+@media (max-width:400px){
+  .view{padding-left:.85rem;padding-right:.85rem}
+  .nav-link{font-size:1rem}
+  .topbar{gap:.5rem;padding-left:.85rem;padding-right:.85rem}
+  .topbar-right{gap:.35rem}
+  /* Keep the player cards comfortably tappable, not cramped two-up */
+  .players-grid{grid-template-columns:repeat(2,1fr);gap:.7rem}
+  .fc-rating{font-size:1.7rem}
+  .fc-photo .avatar{font-size:1.9rem}
+  /* Form strip: stack the recent-form row under the W/D/L counts */
+  .form-strip{gap:.9rem 1.1rem}
+  .form-recent{margin-left:0;width:100%;flex-direction:row;justify-content:space-between;align-items:center;border-top:1px dashed var(--line);padding-top:.6rem}
+  /* RSVP buttons fill the row so they're easy to tap */
+  .ag-btns{width:100%}
+  .ag-btns .att-btn{flex:1;padding:.5rem .4rem;font-size:.8rem}
+  .coach-rsvp{flex-direction:column;align-items:stretch}
+  .coach-rsvp .att-count{order:-1}
+  .section-head{gap:.6rem}
+  .section-head h2{font-size:1.5rem}
+  .btn-sm{padding:.5rem .7rem}
+  .empty-state{padding:1.8rem 1rem}
 }

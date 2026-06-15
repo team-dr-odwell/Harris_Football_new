@@ -14,7 +14,16 @@
   function fdate(iso) { const d = new Date(iso + "T00:00:00"); return `${DAYS[d.getDay()]} ${d.getDate()} ${MON[d.getMonth()]}`; }
   function fdateLong(iso) { const d = new Date(iso + "T00:00:00"); return `${DAYS[d.getDay()]} ${d.getDate()} ${MON[d.getMonth()]} ${d.getFullYear()}`; }
   const KITNAME = { gold:"Gold (home)", black:"Black (away)", white:"White (third)" };
-  const initials = (p) => p.init || p.name.split(" ").map(w=>w[0]).join("").slice(0,2);
+  // ---- safe name helpers (a bad/empty record must never crash a render) ----
+  const fullName = (p) => (p && typeof p.name === "string" && p.name.trim()) ? p.name.trim() : "Player";
+  const firstNameOf = (p) => fullName(p).split(" ")[0];
+  // Safeguarding: card-facing UI shows "First L." (first name + surname initial), never full surname.
+  function safeName(p) {
+    const parts = fullName(p).split(" ").filter(Boolean);
+    if (parts.length <= 1) return parts[0] || "Player";
+    return `${parts[0]} ${parts[parts.length - 1][0]}.`;
+  }
+  const initials = (p) => (p && p.init) || fullName(p).split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase();
 
   /* ============================ AUTH / SHELL ============================ */
   async function boot() {
@@ -70,8 +79,10 @@
   function updateMyPlayerChip() {
     const chip = $("#myplayer-btn");
     const p = S.hasLinkedPlayer() ? S.player(S.me) : null;
-    if (p) { chip.textContent = "👤 " + p.name.split(" ")[0] + (S.myChildren().length > 1 ? " ⇄" : ""); chip.classList.remove("hidden"); }
+    if (p) { chip.textContent = "👤 " + firstNameOf(p) + (S.myChildren().length > 1 ? " ⇄" : ""); chip.classList.remove("hidden"); }
     else { chip.classList.add("hidden"); }
+    // The Family tab is the parents' space — only show it once a child is linked.
+    const fam = $("#nav-family"); if (fam) fam.classList.toggle("hidden", !S.hasLinkedPlayer());
   }
 
   function showOnboarding() {
@@ -157,12 +168,52 @@
     wireGo();
   }
 
+  // Canonical view map (function declarations below are hoisted, so this is safe).
+  const VIEWS = { home:Home, fixtures:Fixtures, training:Schedule, events:Events,
+                  players:Players, development:Development, league:League, academy:League,
+                  family:Family, admin:Admin };
+  // Old hashes kept alive so existing WhatsApp links never break.
+  // (Only aliases for hashes WITHOUT their own view; #league and #development keep
+  //  their own pages but are surfaced under the Matches / Squad nav items.)
+  const ROUTE_ALIASES = {
+    matches: "fixtures", results: "fixtures",
+    squad: "players",
+    schedule: "training",
+    parents: "family", home_team: "family"
+  };
+  // Maps a canonical view key to the top-nav item that should appear "active".
+  const NAV_OF = { league: "fixtures", academy: "fixtures", development: "players" };
   function route() {
-    const r = (location.hash.replace("#", "") || "home").split("/");
-    document.querySelectorAll(".nav-link").forEach(l => l.classList.toggle("active", l.dataset.route === r[0]));
+    let parts = (location.hash.replace("#", "") || "home").split("/");
+    let key = parts[0];
+    // Resolve aliases to a canonical destination (e.g. #academy -> players, #matches -> fixtures).
+    if (ROUTE_ALIASES[key] && !VIEWS[key]) key = ROUTE_ALIASES[key];
+    // Which top-nav item lights up for this route (league/results live under Matches; development under Squad).
+    const navMatch = NAV_OF[key] || (ROUTE_ALIASES[parts[0]] || parts[0]);
+    document.querySelectorAll(".nav-link").forEach(l => l.classList.toggle("active", l.dataset.route === navMatch));
     updateMyPlayerChip();
     window.scrollTo(0, 0);
-    ({ home:Home, fixtures:Fixtures, training:Schedule, events:Events, players:Players, development:Development, league:League, admin:Admin }[r[0]] || Home)(r[1]);
+    const fn = VIEWS[key] || Home;
+    // ---- ERROR BOUNDARY ----
+    // A single bad record (e.g. a player with a missing name) must never freeze
+    // the page. Catch any render error, show a friendly fallback, log for coaches.
+    try {
+      fn(parts[1]);
+    } catch (err) {
+      console.error("View render failed for #" + (location.hash || "") , err);
+      renderViewError(err);
+    }
+  }
+  function renderViewError(err) {
+    try {
+      view.innerHTML = `
+        <div class="card pad-lg" style="max-width:560px;margin:2rem auto;text-align:center">
+          <div style="font-size:2.4rem">⚽</div>
+          <h2 style="font-family:var(--display);margin:.4rem 0 .2rem">Oops — that didn't load</h2>
+          <p class="muted">Something went wrong showing this page. It's not your fault! Try going back to the home page.</p>
+          <button class="btn btn-gold" onclick="location.hash='#home'">← Back to home</button>
+        </div>`;
+    } catch (e) { /* last-resort: leave whatever is on screen */ }
   }
 
   /* ============================ HOME ============================ */
@@ -191,13 +242,13 @@
     const nextTrainIt = nt ? { ...nt, dateObj:new Date(nt.date+"T00:00:00") } : null;
     const emptyCard = msg => `<div class="card"><p class="muted" style="margin:0">${msg}</p></div>`;
 
-    // 5th stat: the child's own league points (personal); fall back to the leader's for admins
-    const fifth = me ? { n: me.points||0, l:"My league points" }
-                     : { n: ([...ros].sort((a,b)=>(b.points||0)-(a.points||0))[0]||{}).points||0, l:"Top points" };
+    // 5th stat: the child's own Academy Points (personal); for admins, the squad total.
+    const fifth = me ? { n: me.points||0, l:"My Academy Points" }
+                     : { n: ros.reduce((n,p)=>n+(p.points||0),0), l:"Squad AP" };
 
     const myVids = me ? S.videosForPlayer(me.id).filter(v=>v.url).slice(0,2) : [];
     const teamVids = S.teamVideos().filter(d=>d.url).slice(0,2);
-    const firstName = me ? esc(me.name.split(" ")[0]) : "";
+    const firstName = me ? esc(firstNameOf(me)) : "";
     const honours = (cfg.SEASON_HONOURS || {})[S.season] || [];
 
     view.innerHTML = `
@@ -227,10 +278,10 @@
 
       <div class="section-head" style="margin-top:1.8rem"><div><div class="eyebrow">${me?"My season":esc(S.season)+" season"}</div><h2>The numbers</h2></div></div>
       <div class="stat-strip">
-        <div class="stat"><div class="n">${W}-${D}-${L}</div><div class="l">W · D · L</div></div>
+        <div class="stat" title="Won · Drawn · Lost"><div class="n">${W}-${D}-${L}</div><div class="l">Won · Drawn · Lost</div></div>
         <div class="stat"><div class="n">${goals}</div><div class="l">Goals scored</div></div>
         <div class="stat"><div class="n">${ros.length}</div><div class="l">Squad size</div></div>
-        <div class="stat"><div class="n">${top?top.goals:0}</div><div class="l">Top scorer${top?` (${esc(top.name.split(" ")[0])})`:""}</div></div>
+        <div class="stat"><div class="n">${top?top.goals:0}</div><div class="l">Top scorer${top?` (${esc(firstNameOf(top))})`:""}</div></div>
         <div class="stat stat-link" data-go="league"><div class="n">${fifth.n}</div><div class="l">${fifth.l} →</div></div>
       </div>
 
@@ -284,31 +335,79 @@
     }
     return null;
   }
-  function leaguePreview() {
-    const rows = S.leagueRows().slice(0, 5);
-    return `<div class="card" style="padding:.4rem 1rem"><table class="league-table">
-      <thead><tr><th>#</th><th>Player</th><th>Points</th></tr></thead><tbody>
-      ${rows.map((r,i)=>`<tr class="${r.playerId===S.me?'me':''}">
-        <td class="rank ${i<3?'r'+(i+1):''}">${i+1}</td>
-        <td>${esc(r.player.name)} <span class="tag" style="margin-left:.3rem">#${r.player.number}</span></td>
-        <td class="pts">${r.total}</td></tr>`).join("")}
-      </tbody></table></div>`;
-  }
+  // NOTE (§11 safeguard): there is deliberately NO absolute squad leaderboard
+  // anywhere kid-facing. The only ranked list is Mover of the Month (League()).
+  // A previous leaguePreview()/S.leagueRows() helper that ranked players by total
+  // AP was removed — an absolute ranking must never reappear on a child screen.
 
-  /* ============================ FIXTURES ============================ */
+  /* ============================ MATCHES (fixtures + results + league) ============================ */
+  // Shared sub-nav so Upcoming / Results / League feel like one "Matches" section.
+  function matchesTabs(active) {
+    return `<div class="badge-row">
+      <button class="btn ${active==='upcoming'?'btn-gold':'btn-ghost'} btn-sm" data-tab="upcoming">Upcoming</button>
+      <button class="btn ${active==='past'?'btn-gold':'btn-ghost'} btn-sm" data-tab="past">Results</button>
+      <button class="btn ${active==='league'?'btn-gold':'btn-ghost'} btn-sm" data-tab="league">Academy</button>
+    </div>`;
+  }
   function Fixtures(tab) {
     tab = tab || "upcoming";
+    // The League tab reuses the standalone League page (nothing lost in nav consolidation).
+    if (tab === "league") { location.hash = "#league"; return; }
     const list = S.fixtures(tab);
-    view.innerHTML = `
-      <div class="section-head"><div><div class="eyebrow">${esc(S.season)} Season</div><h2>Fixtures</h2></div>
-        <div class="badge-row">
-          <button class="btn ${tab==='upcoming'?'btn-gold':'btn-ghost'} btn-sm" data-tab="upcoming">Upcoming</button>
-          <button class="btn ${tab==='past'?'btn-gold':'btn-ghost'} btn-sm" data-tab="past">Results</button>
-        </div></div>
-      <div class="grid ${tab==='past'?'cols-1':'cols-2'}">${list.map(f => tab==="upcoming"?upcomingCard(f):resultCard(f)).join("")}</div>
-    `;
+    const tabsBar = matchesTabs(tab);
+
+    if (tab === "past") {
+      view.innerHTML = `
+        <div class="section-head"><div><div class="eyebrow">${esc(S.season)} Season</div><h2>Matches</h2></div>${tabsBar}</div>
+        ${resultsFormStrip(list)}
+        ${resultsGrouped(list)}`;
+    } else {
+      view.innerHTML = `
+        <div class="section-head"><div><div class="eyebrow">${esc(S.season)} Season</div><h2>Matches</h2></div>${tabsBar}</div>
+        ${list.length
+          ? `<div class="grid cols-2">${list.map(upcomingCard).join("")}</div>`
+          : emptyState("⚽", "No matches booked in yet",
+              "As soon as the next fixture is set, it'll appear here with kick-off, meet time and the ground.",
+              S.isAdmin ? { label:"Add a fixture", go:"admin/fixtures" } : { label:"See past results", go:"fixtures/past" })}`;
+    }
     view.querySelectorAll("[data-tab]").forEach(b => b.addEventListener("click", () => location.hash = "#fixtures/"+b.dataset.tab));
     wireRsvp(); wireMedia(); wireGo();
+  }
+
+  // Top-of-results W/D/L form strip (computed live, not stored — handles draws).
+  function resultsFormStrip(list) {
+    const played = list.filter(f => f.our_score != null && f.their_score != null);
+    if (!played.length) return "";
+    const W = played.filter(f=>f.result==="W").length, D = played.filter(f=>f.result==="D").length, L = played.filter(f=>f.result==="L").length;
+    const gf = played.reduce((n,f)=>n+(f.our_score||0),0), ga = played.reduce((n,f)=>n+(f.their_score||0),0);
+    // Recent form, newest last → show last 6 oldest→newest left-to-right.
+    const recent = [...played].sort((a,b)=>(a.date||"").localeCompare(b.date||"")).slice(-6);
+    const dot = r => `<span class="form-dot form-${r==='W'?'w':r==='L'?'l':'d'}" title="${r==='W'?'Win':r==='L'?'Loss':'Draw'}">${r}</span>`;
+    return `<div class="card form-strip">
+      <div class="form-stat"><div class="n">${W}</div><div class="l">Won</div></div>
+      <div class="form-stat"><div class="n">${D}</div><div class="l">Drawn</div></div>
+      <div class="form-stat"><div class="n">${L}</div><div class="l">Lost</div></div>
+      <div class="form-stat"><div class="n">${gf}-${ga}</div><div class="l">Goals for–against</div></div>
+      <div class="form-recent"><span class="form-recent-l">Recent form</span><span class="form-dots">${recent.map(f=>dot(f.result)).join("")}</span></div>
+    </div>`;
+  }
+
+  // Group results by month, newest month first; within a month newest first.
+  function resultsGrouped(list) {
+    if (!list.length) return emptyState("📋", "No results to show yet",
+      "Once we've played a match, the score, scorers and Man of the Match land here.",
+      S.isAdmin ? { label:"Enter a result", go:"admin/result" } : { label:"See upcoming matches", go:"fixtures/upcoming" });
+    const byMonth = {};
+    [...list].sort((a,b)=>(b.date||"").localeCompare(a.date||"")).forEach(f => {
+      const d = new Date((f.date||"") + "T00:00:00");
+      const key = isNaN(d) ? "Other" : `${MON[d.getMonth()]} ${d.getFullYear()}`;
+      (byMonth[key] ||= []).push(f);
+    });
+    return Object.entries(byMonth).map(([month, fixtures]) => `
+      <div class="results-month">
+        <div class="results-month-head">${esc(month)} <span class="muted">· ${fixtures.length} ${fixtures.length===1?"match":"matches"}</span></div>
+        <div class="grid cols-1">${fixtures.map(resultCard).join("")}</div>
+      </div>`).join("");
   }
 
   function upcomingCard(f) {
@@ -351,16 +450,29 @@
       </div>
       ${f.goals?.length ? `<div class="goal-list">${f.goals.map(g=>{
         const sc=S.player(g.scorer), as=g.assist?S.player(g.assist):null;
-        return `<div class="goal-row"><span class="ball">⚽</span><b>${esc(sc?.name||'')}</b>${as?`<span class="muted">— assist ${esc(as.name)}</span>`:''}</div>`;
+        return `<div class="goal-row"><span class="ball">⚽</span><b>${esc(sc?safeName(sc):'')}</b>${as?`<span class="muted">— assist ${esc(safeName(as))}</span>`:''}</div>`;
       }).join("")}</div>`:""}
-      ${motm?`<div class="motm"><span class="star">⭐</span><div><b>Man of the Match</b><br><span class="muted">${esc(motm.name)} · #${motm.number}</span></div></div>`:""}
-      <div>
-        <div class="lbl" style="font-size:.78rem;color:var(--muted);font-weight:700;margin-bottom:.5rem">PHOTOS &amp; VIDEOS</div>
-        <div class="gallery" data-media="${f.id}">
-          ${S.mediaFor(f.id).map(m=>mediaTile(m)).join("")}
-          <div class="ph add" data-add="${f.id}"><div><div class="ic">＋</div>Add</div></div>
-        </div>
-      </div>
+      ${motm?`<div class="motm"><span class="star">⭐</span><div><b>Player of the Match</b><br><span class="muted">${esc(safeName(motm))} · #${motm.number}</span></div></div>`:""}
+      ${(()=>{ const media = S.mediaFor(f.id);
+        // Collapse the photo slot unless media exists; coaches still get an "Add" affordance.
+        if (!media.length && !S.isAdmin) return "";
+        return `<div>
+          <div class="lbl" style="font-size:.78rem;color:var(--muted);font-weight:700;margin-bottom:.5rem">PHOTOS &amp; VIDEOS</div>
+          <div class="gallery" data-media="${f.id}">
+            ${media.map(m=>mediaTile(m)).join("")}
+            ${S.isAdmin?`<div class="ph add" data-add="${f.id}"><div><div class="ic">＋</div>Add</div></div>`:""}
+          </div>
+        </div>`; })()}
+    </div>`;
+  }
+
+  // Friendly empty-state block with an optional next action (used across all lists).
+  function emptyState(emoji, title, body, action) {
+    return `<div class="card empty-state">
+      <div class="empty-ic">${emoji}</div>
+      <h3>${esc(title)}</h3>
+      <p class="muted">${esc(body)}</p>
+      ${action?`<button class="btn btn-gold btn-sm" data-go="${esc(action.go)}">${esc(action.label)}</button>`:""}
     </div>`;
   }
 
@@ -368,7 +480,10 @@
     return `<div class="ph"><div><div class="ic">${m.type==="video"?"▶":"📷"}</div>${esc(m.caption||m.type)}</div></div>`;
   }
 
-  function playerFirst() { return S.player(S.me)?.name.split(" ")[0] || "your child"; }
+  function playerFirst() {
+    const p = S.hasLinkedPlayer() ? S.player(S.me) : null;
+    return p ? firstNameOf(p) : "your child";
+  }
   function rsvpLabel(key) {
     const c = S.rsvpCount(key);
     return `${c.going} going${c.lifts ? ` · ${c.lifts} need a lift` : ""}`;
@@ -379,22 +494,39 @@
       <button class="att-btn lift ${st==='lift'?'on':''}" data-key="${key}" data-player="${pid}" data-s="lift">🚗 Lift</button>
       <button class="att-btn no ${st==='no'?'on':''}" data-key="${key}" data-player="${pid}" data-s="no">✕ Can't</button>`;
   }
-  // RSVP control: one row for a single child, or a row per child (+ "all going") for siblings/twins
+  // RSVP control: one row for a single child, or a row per child (+ "all going") for siblings/twins.
+  // Coaches/admins don't RSVP as a player — they see the attendance count + a link to the roster.
   function rsvpControls(key) {
+    if (S.isAdmin && !S.hasLinkedPlayer()) {
+      return `<div class="ag-rsvp attend coach-rsvp">
+        <span class="lbl">Coach view</span>
+        <span class="att-count" data-key="${key}">${rsvpLabel(key)}</span>
+        <a class="btn btn-ghost btn-sm" href="#admin/attendance">See who's coming →</a>
+      </div>`;
+    }
     const kids = S.myChildren();
     if (kids.length <= 1) {
+      const only = kids[0] || S.player(S.me);
+      // No child linked yet (and not admin) — prompt to pick, don't guess a name.
+      if (!only) {
+        return `<div class="ag-rsvp attend">
+          <span class="lbl">Tell us if your child is coming</span>
+          <a class="btn btn-gold btn-sm" href="#home" data-go-pick>Choose your child →</a>
+        </div>`;
+      }
       return `<div class="ag-rsvp attend" data-rsvp-group>
-        <span class="lbl">Will ${esc(playerFirst())} be there?</span>
-        <div class="ag-btns">${attendButtons(key, S.me)}</div>
+        <span class="lbl">Will ${esc(firstNameOf(only))} be there?</span>
+        <div class="ag-btns">${attendButtons(key, only.id)}</div>
         <span class="att-count" data-key="${key}">${rsvpLabel(key)}</span>
       </div>`;
     }
     return `<div class="rsvp-multi">
-      ${kids.map(k=>`<div class="rsvp-row" data-rsvp-group><span class="rsvp-name">${esc(k.name.split(" ")[0])}</span><div class="ag-btns">${attendButtons(key, k.id)}</div></div>`).join("")}
+      ${kids.map(k=>`<div class="rsvp-row" data-rsvp-group><span class="rsvp-name">${esc(firstNameOf(k))}</span><div class="ag-btns">${attendButtons(key, k.id)}</div></div>`).join("")}
       <div class="rsvp-foot"><button class="btn btn-ghost btn-sm" data-rsvp-all="${key}">✓ All going</button><span class="att-count" data-key="${key}">${rsvpLabel(key)}</span></div>
     </div>`;
   }
   function wireRsvp() {
+    view.querySelectorAll("[data-go-pick]").forEach(b => b.addEventListener("click", e => { e.preventDefault(); showChildPicker(true); }));
     view.querySelectorAll(".att-btn[data-key]").forEach(btn => btn.addEventListener("click", async () => {
       const key = btn.dataset.key, pid = +btn.dataset.player, status = btn.dataset.s;
       const current = (S.state.attendance[key] || {})[pid];
@@ -510,11 +642,11 @@
     view.innerHTML = `
       <div class="section-head"><div><div class="eyebrow">Next 4 weeks</div><h2>Training Schedule</h2></div>
         <a class="btn btn-ghost btn-sm" href="${weekShareUrl()}" target="_blank" rel="noopener">💬 Share week to WhatsApp</a></div>
-      <p class="muted" style="margin-top:-.6rem;max-width:64ch">Upcoming training sessions, with the drills we'll be working on. Tap to tell us if ${esc(playerFirst())} is going — and whether they'll need a lift.</p>
+      <p class="muted" style="margin-top:-.6rem;max-width:64ch">Upcoming training sessions, with the drills we'll be working on. ${S.isAdmin&&!S.hasLinkedPlayer()?"Each session shows how many players have replied — open Admin → Attendance for the full roster.":`Tap to tell us if ${esc(playerFirst())} is going — and whether they'll need a lift.`}</p>
       <div class="agenda" style="margin-top:1.2rem">
-        ${rows.length ? rows.map(agendaRow).join("") : `<div class="card"><p class="muted" style="margin:0">No training in the next four weeks.</p></div>`}
+        ${rows.length ? rows.map(agendaRow).join("") : emptyState("🏃","No training booked in the next four weeks","Sessions appear here as soon as they're scheduled — with the drills and any videos to watch first.", S.isAdmin?{label:"Plan a session",go:"admin/training"}:null)}
       </div>`;
-    wireRsvp();
+    wireRsvp(); wireGo();
   }
 
   function toCal(it) {
@@ -618,9 +750,9 @@
     const rows = buildAgenda(["event"], 220);
     view.innerHTML = `
       <div class="section-head"><div><div class="eyebrow">Beyond the pitch</div><h2>Events</h2></div></div>
-      <p class="muted" style="margin-top:-.6rem;max-width:62ch">Fundraisers, days out and celebrations. Tap to let us know if ${esc(playerFirst())} is coming.</p>
+      <p class="muted" style="margin-top:-.6rem;max-width:62ch">Fundraisers, days out and celebrations. ${S.isAdmin&&!S.hasLinkedPlayer()?"Open Admin → Attendance to see who's replied.":`Tap to let us know if ${esc(playerFirst())} is coming.`}</p>
       <div class="agenda" style="margin-top:1.2rem">
-        ${rows.length ? rows.map(agendaRow).join("") : `<div class="card"><p class="muted" style="margin:0">No events coming up just yet — watch this space!</p></div>`}
+        ${rows.length ? rows.map(agendaRow).join("") : emptyState("🎉","No events coming up just yet","When there's a tournament, fundraiser or day out, it'll show here with a tap-to-RSVP.", S.isAdmin?{label:"Add an event",go:"admin/events"}:null)}
       </div>`;
     wireRsvp();
   }
@@ -635,18 +767,39 @@
       <div class="section-head"><div><div class="eyebrow">${esc(S.season)} Squad</div><h2>The Academy</h2></div></div>
       <p class="muted" style="margin-top:-.6rem;max-width:62ch">Every player has a card and an academy profile. Tap a card for season stats, development progress and their goals to achieve.</p>
       <div class="players-grid" style="margin-top:1.3rem">
-        ${S.roster().sort((a,b)=>a.number-b.number).map(fcCard).join("") || `<div class="card"><p class="muted" style="margin:0">No players in the ${esc(S.season)} squad yet.</p></div>`}
+        ${S.roster().sort((a,b)=>a.number-b.number).map(fcCard).join("") || emptyState("👟","No players in the "+esc(S.season)+" squad yet","Once the squad is set for this season, every player gets their own card here.", S.isAdmin?{label:"Add a player",go:"admin/players"}:null)}
       </div>`;
     view.querySelectorAll("[data-player]").forEach(c => c.addEventListener("click", () => location.hash = "#players/"+c.dataset.player));
+    wireGo();
   }
 
   function fcCard(p) {
     return `<div class="fc-card" data-player="${p.id}">${fcCardInner(p)}</div>`;
   }
 
+  // Private Skill Ladder card (§2): the player's own six tracks with the next
+  // target. Levels are private to that player (only shown to them or a coach).
+  function skillLadderCard(p) {
+    const ladder = S.skillLadder(p.id);
+    const next = { bronze:"Silver", silver:"Gold", gold:"Gold (top!)", null:"Bronze" };
+    const dot = lvl => lvl==="gold"?"🥇":lvl==="silver"?"🥈":lvl==="bronze"?"🥉":"⚪";
+    const mine = p.id === S.me;
+    const rows = S.SKILL_TRACKS.map(t => {
+      const cur = ladder[t] || { level:null, pbs:0 };
+      const target = cur.level==="gold" ? "Top level reached! ⭐" : `Next: ${next[cur.level||"null"]||"Bronze"}`;
+      return `<div class="ach" style="justify-content:space-between">
+        <div><span class="em">${dot(cur.level)}</span> <b>${esc(t)}</b> <span class="muted" style="font-size:.74rem;text-transform:capitalize">${cur.level||"not checked yet"}${cur.pbs?` · ${cur.pbs} PB`:""}</span></div>
+        <span class="muted" style="font-size:.74rem">${esc(target)}</span></div>`;
+    }).join("");
+    return `<div class="card pad-lg" style="margin-top:1.2rem">
+      <h3 style="margin:0 0 .2rem;font-family:var(--display)">${mine?"My":esc(firstNameOf(p))+"'s"} Skill Ladder</h3>
+      <p class="muted" style="margin:0 0 .7rem;font-size:.84rem">Six skills to master, Bronze → Silver → Gold. Your coach checks these each half-term. ${mine?"This is just for you — only you and your coach can see it.":"Private to this player."}</p>
+      ${rows}</div>`;
+  }
+
   function AcademyProfile(id) {
     const p = S.player(id); if (!p) return Players();
-    const stats = [["Points",p.points||0],["Apps",S.appearances(p.id)],["Quiz",S.quizPoints(p.id)],["Training pts",S.trainingPoints(p.id)],["Video watches",S.videoWatches(p.id)],["Achievements",S.earnedAchievements(p.id).length]];
+    const stats = [["AP",p.points||0],["Tier",S.tierOf(p.id).label],["Apps",S.appearances(p.id)],["Quiz AP",S.quizPoints(p.id)],["Training AP",S.trainingPoints(p.id)],["Badges",S.earnedAchievements(p.id).length]];
     const dev = p.dev || {}; const targets = p.targets || [];
     view.innerHTML = `
       <button class="btn btn-ghost btn-sm" data-go="players" style="margin-bottom:1rem">← Academy</button>
@@ -654,14 +807,14 @@
         <div><div class="fc-card" style="max-width:230px;margin:0 auto">${fcCardInner(p)}</div></div>
         <div>
           <div class="eyebrow" style="color:var(--gold)">${esc(p.pos)} · Squad #${p.number}${p.captain?' · Captain 🧢':''}</div>
-          <h2 style="font-family:var(--display);font-size:2.2rem;margin:.1rem 0 1rem">${esc(p.name)}</h2>
+          <h2 style="font-family:var(--display);font-size:2.2rem;margin:.1rem 0 1rem">${esc(safeName(p))}</h2>
           <div class="stat-strip" style="grid-template-columns:repeat(auto-fit,minmax(88px,1fr))">
             ${stats.map(([k,v])=>`<div class="stat"><div class="n">${v}</div><div class="l">${k}</div></div>`).join("")}
           </div>
 
           <div class="card pad-lg" style="margin-top:1.2rem">
             <h3 style="margin:0 0 .2rem;font-family:var(--display)">Development progress</h3>
-            <p class="muted" style="margin:0 0 .9rem;font-size:.86rem">How ${esc(p.name.split(" ")[0])} is progressing toward their own targets — set by the coaches.</p>
+            <p class="muted" style="margin:0 0 .9rem;font-size:.86rem">How ${esc(firstNameOf(p))} is progressing toward their own targets — set by the coaches.</p>
             ${DEV_AREAS.map(([k,label])=>{const v=dev[k]||0;return `<div class="attr-bar"><div class="row"><span>${label}</span><span style="color:var(--gold-bright)">${v}%</span></div><div class="track"><div class="fill" style="width:${v}%"></div></div></div>`;}).join("")}
           </div>
 
@@ -670,7 +823,9 @@
             ${targets.map(t=>`<div class="program-step"><div class="dot">★</div><div>${esc(t)}</div></div>`).join("")}
           </div>`:""}
 
-          <button class="btn btn-gold btn-sm" data-go="development/${p.id}" style="margin-top:1.2rem">${p.id===S.me?"My":esc(p.name.split(" ")[0])+"'s"} development plan &amp; videos →</button>
+          ${(p.id===S.me || S.isAdmin) ? skillLadderCard(p) : ""}
+
+          <button class="btn btn-gold btn-sm" data-go="development/${p.id}" style="margin-top:1.2rem">${p.id===S.me?"My":esc(firstNameOf(p))+"'s"} development plan &amp; videos →</button>
         </div>
       </div>`;
     wireGo();
@@ -691,19 +846,43 @@
     wireGo();
   }
 
+  // "My focus this half-term" (§5): the player's TWO mini-IDP focus areas, each
+  // with its linked drill video and the coach's one-sentence feedback.
+  function idpCard(p, mine) {
+    const idp = S.idpFor(p.id);
+    const cornerLabel = { technical:"Technical", physical:"Physical", psychological:"Psychological", social:"Social" };
+    if (!idp.focus.length) {
+      return `<div class="card pad-lg" style="margin-top:1.2rem">
+        <h3 style="margin:0 0 .3rem;font-family:var(--display)">My focus this half-term</h3>
+        <p class="muted" style="margin:0">Your coach will set your two focus areas for this half-term soon — one skill, plus one other thing to work on.</p></div>`;
+    }
+    const block = (f) => `<div class="card" style="margin-bottom:.7rem">
+      <div class="lbl" style="font-size:.7rem;color:var(--gold);font-weight:800;letter-spacing:1px;margin-bottom:.25rem">${esc((cornerLabel[f.corner]||f.corner||"").toUpperCase())}</div>
+      <b style="display:block;margin-bottom:.4rem">${esc(f.area)}</b>
+      ${f.drillUrl?`<div class="muted" style="font-size:.8rem;margin-bottom:.4rem">🎥 Drill: ${esc(f.drillTitle||"Watch and copy this")}</div>${videoEmbed(f.drillUrl)}`:""}
+      ${f.feedback?`<div class="quiz-explain ok" style="margin-top:.6rem">💬 Coach: ${esc(f.feedback)}</div>`:""}
+    </div>`;
+    return `<div class="card pad-lg" style="margin-top:1.2rem">
+      <h3 style="margin:0 0 .3rem;font-family:var(--display)">My focus this half-term</h3>
+      <p class="muted" style="margin:0 0 .8rem;font-size:.84rem">${mine?"Your":esc(firstNameOf(p))+"'s"} two things to work on right now — one skill and one other. Watch the drill and give it a go!</p>
+      ${idp.focus.map(block).join("")}</div>`;
+  }
+
   function Development(id) {
     if (!id && S.isAdmin) return DevelopmentIndex();
     const p = id ? S.player(+id) : S.player(S.me);
     if (!p) { view.innerHTML = `<div class="card pad-lg"><h2 style="font-family:var(--display)">Development</h2><p class="muted">Choose which player is yours from the top bar to see their development plan.</p></div>`; return; }
     const mine = p.id === S.me;
-    const track = mine && !S.isAdmin;   // only the child earns points, on their own videos
+    const track = false;   // v1.1 §1: videos are content only — no AP for watching (flagged)
     const program = p.program || [];
     const videos = S.videosForPlayer(p.id).map((v,i)=>({ ...v, domId:`devvid-${p.id}-${i}`, yt:ytId(v.url) }));
     view.innerHTML = `
       ${S.isAdmin ? `<button class="btn btn-ghost btn-sm" data-go="development" style="margin-bottom:1rem">← All players</button>`
-        : (id && !mine ? `<button class="btn btn-ghost btn-sm" data-go="players/${p.id}" style="margin-bottom:1rem">← ${esc(p.name.split(" ")[0])}'s card</button>` : "")}
-      <div class="section-head"><div><div class="eyebrow">${esc(p.name)}</div><h2>${mine?"My":esc(p.name.split(" ")[0])+"'s"} Development</h2></div></div>
+        : (id && !mine ? `<button class="btn btn-ghost btn-sm" data-go="players/${p.id}" style="margin-bottom:1rem">← ${esc(firstNameOf(p))}'s card</button>` : "")}
+      <div class="section-head"><div><div class="eyebrow">${esc(S.isAdmin?p.name:safeName(p))}</div><h2>${mine?"My":esc(firstNameOf(p))+"'s"} Development</h2></div></div>
       <p class="muted" style="margin-top:-.6rem;max-width:64ch">Your personal plan, videos the coaches have picked for you, and this week's quiz.</p>
+
+      ${idpCard(p, mine)}
 
       <div class="card pad-lg" style="margin-top:1.2rem">
         <h3 style="margin:0 0 .5rem;font-family:var(--display)">Personal development plan</h3>
@@ -712,7 +891,7 @@
       </div>
 
       <div class="section-head" style="margin-top:1.6rem"><div><div class="eyebrow">Picked for you</div><h2>My Videos</h2></div></div>
-      ${videos.length?`<div class="grid cols-2">${videos.map(v=>`<div class="card"><b style="display:block;margin-bottom:${v.description?'.25rem':'.6rem'}">${esc(v.title||"Video")}</b>${v.description?`<div class="muted" style="font-size:.82rem;margin-bottom:.6rem">${esc(v.description)}</div>`:""}${(track && v.yt)?`<div class="video"><iframe id="${v.domId}" src="https://www.youtube.com/embed/${v.yt}?enablejsapi=1" loading="lazy" allow="fullscreen; picture-in-picture" allowfullscreen></iframe></div>`:videoEmbed(v.url)}${track?`<div class="muted" style="font-size:.74rem;margin-top:.4rem">${v.yt?`+${(cfg.SCORING||{}).videoFirstWatch} for watching it fully, +${(cfg.SCORING||{}).videoRewatch} each rewatch 🎬`:`Auto-points only work for YouTube links`}</div>`:""}</div>`).join("")}</div>`
+      ${videos.length?`<div class="grid cols-2">${videos.map(v=>`<div class="card"><b style="display:block;margin-bottom:${v.description?'.25rem':'.6rem'}">${esc(v.title||"Video")}</b>${v.description?`<div class="muted" style="font-size:.82rem;margin-bottom:.6rem">${esc(v.description)}</div>`:""}${videoEmbed(v.url)}</div>`).join("")}</div>`
         :`<div class="card"><p class="muted" style="margin:0">No videos yet — your coach will add some skills to work on.</p></div>`}
 
       <div class="section-head" style="margin-top:1.6rem"><div><div class="eyebrow">Fresh every week · test yourself</div><h2>Weekly Quiz</h2></div>
@@ -722,117 +901,286 @@
     const start = $("#start-quiz"); if (start) start.addEventListener("click", runQuiz);
     if (track) trackYouTube(p.id, videos.filter(v=>v.yt).map(v=>({ domId:v.domId, url:v.url })));
   }
-  function fcCardInner(p){ return `<div class="fc-inner">
+  function fcCardInner(p){
+    const t = S.tierOf(p.id);
+    const legacy = S.legacyTier ? S.legacyTier(p.id) : null;
+    const tierLabel = { bronze:"BRONZE", silver:"SILVER", gold:"GOLD", icon:"ICON" }[t.key] || "BRONZE";
+    return `<div class="fc-inner fc-tier-${t.key}">
       <div class="fc-top">
-        <div><div class="fc-rating">${p.points||0}</div><div class="fc-pos">PTS</div></div>
+        <div><div class="fc-rating">${t.ap||0}</div><div class="fc-pos" title="Academy Points">AP</div></div>
         <div style="text-align:right"><div class="fc-num">#${p.number}</div><div class="fc-pos">${esc(p.pos)}</div></div>
       </div>
+      <div class="fc-tier-label fc-tier-${t.key}">${tierLabel}${legacy?` <span class="fc-legacy" title="Last season: ${esc(legacy.label)}">· ${esc(legacy.label)} '24</span>`:""}</div>
       <div class="fc-photo"><div class="avatar">${esc(initials(p))}</div></div>
-      <div class="fc-name">${p.captain?'<span class="capt" title="Captain">C</span> ':''}${esc(p.name)}</div>
+      <div class="fc-name">${p.captain?'<span class="capt" title="Captain">C</span> ':''}${esc(safeName(p))}</div>
       <div class="fc-stats">
         <div><span>GOALS</span>${p.goals||0}</div><div><span>ASSISTS</span>${p.assists||0}</div>
-        <div><span>MOTM</span>${p.motm||0}</div><div><span>TRAINING</span>${p.sessions||0}</div>
+        <div><span title="Player of the Match awards">POTM</span>${p.motm||0}</div><div><span>TRAINING</span>${p.sessions||0}</div>
       </div>
       <img class="fc-crest" src="assets/crest.svg?v=2" alt=""/></div>`; }
 
-  /* ============================ LEAGUE / GAMIFICATION ============================ */
+  /* ============================ ACADEMY (kid-safe) ============================ */
+  // §11: NO absolute leaderboard. This page shows the child's OWN card + standing,
+  // Mover of the Month, Squad Goals, this week's homework (challenge + quiz) and chores.
   function pointsRules() {
     const s = cfg.SCORING || {};
     const pm = n => (n > 0 ? "+" + n : "" + n);
     return [
-      { em:"⚽", label:"Goal in a game", pts:pm(s.goal) },
-      { em:"🅰️", label:"Assist", pts:pm(s.assist) },
-      { em:"⭐", label:"Man of the Match", pts:pm(s.motm) },
-      { em:"🧤", label:"Clean sheet (defenders &amp; GK)", pts:pm(s.cleanSheet) },
-      { em:"✅", label:"Training attendance", pts:pm(s.trainingAttendance) },
-      { em:"🏋️", label:"Good training performance", pts:pm(s.trainingPerformanceGood) },
-      { em:"⚠️", label:"Poor training performance", pts:pm(s.trainingPerformancePoor) },
-      { em:"🧠", label:"Quiz — per correct answer", pts:pm(s.quizPerCorrect) },
-      { em:"🎬", label:"Watch a coach's video fully", pts:pm(s.videoFirstWatch)+" then "+pm(s.videoRewatch)+" each rewatch" },
-      { em:"🛏️", label:"Make-your-bed (full week)", pts:pm(s.makeYourBedPerWeek) },
-      { em:"🤹", label:"Fun home challenge", pts:pm(s.funHomeChallenge) },
-      { em:"🎯", label:"Coach challenge", pts:pm(s.challenge) },
-      { em:"💯", label:"Every session in a month", pts:pm(s.perfectMonth) },
-      { em:"🏅", label:"Bottom of league — big challenge", pts:pm(s.bottomOfLeagueChallenge) }
+      { em:"✅", label:"Turn up to training", pts:pm(s.trainingAttendance) },
+      { em:"🏅", label:"Trainer of the Day", pts:pm(s.trainerOfTheDay) },
+      { em:"🎯", label:"Weekly challenge (done it!)", pts:pm(s.challenge) },
+      { em:"📹", label:"...and show your coach", pts:pm(s.challengeShown) },
+      { em:"🧠", label:"Complete the weekly quiz", pts:pm(s.quizComplete) },
+      { em:"💯", label:"...with a perfect score", pts:pm(s.quizPerfect) },
+      { em:"👕", label:"Play in the match", pts:pm(s.appearance) },
+      { em:"🏆", label:"Win (everyone) / draw", pts:pm(s.win)+" / "+pm(s.draw) },
+      { em:"⚽", label:"Goal / assist", pts:pm(s.goal)+" / "+pm(s.assist) },
+      { em:"🧤", label:"Clean sheet (GK/def/other)", pts:pm(s.cleanSheetGK)+"/"+pm(s.cleanSheetDef)+"/"+pm(s.cleanSheetOther) },
+      { em:"🧹", label:"Home Team chore (×3)", pts:pm(s.chore) },
+      { em:"📚", label:"Homework done by deadline", pts:pm(s.homeworkBonus) }
     ];
   }
 
+  // The kid-facing Academy page (route: #academy / #league kept as aliases).
   function League() {
-    const rows = S.leagueRows();
-    const myScore = S.state.quizScore;
+    const me = S.hasLinkedPlayer() ? S.player(S.me) : null;
+    const month = S.monthId();
+    const mover = S.moverOfMonth(month);
+    const goals = S.squadGoals();
     view.innerHTML = `
-      <div class="section-head"><div><div class="eyebrow">Effort gets rewarded</div><h2>Academy League</h2></div></div>
-      <p class="muted" style="margin-top:-.6rem;max-width:64ch">Earn points for turning up to training, working hard, smashing the weekly quiz and completing fun challenges at home. It all adds up — who'll finish top of the academy?</p>
+      <div class="section-head"><div><div class="eyebrow">${esc(S.season)} Season</div><h2>Academy</h2></div>${matchesTabs("league")}</div>
+      <p class="muted" style="margin-top:-.6rem;max-width:64ch">Earn Academy Points (AP) for turning up, trying hard, practising at home, helping your Home Team and improving. Every player can reach the top — compete with yourself, win together with the squad.</p>
 
-      <div class="grid cols-3" style="margin-top:1.2rem">
-        <div class="card" style="grid-column:1 / span 2;padding:.4rem 1rem">
-          <div class="table-wrap"><table class="league-table">
-            <thead><tr><th>#</th><th>Player</th><th>Gls</th><th>Ast</th><th>MOM</th><th>Trn</th><th>Points</th></tr></thead>
-            <tbody>${rows.map((r,i)=>`<tr class="${r.playerId===S.me?'me':''}">
-              <td class="rank ${i<3?'r'+(i+1):''}">${i+1}</td>
-              <td><b>${esc(r.player.name)}</b>${r.player.captain?' <span class="capt" title="Captain">C</span>':''}</td>
-              <td>${r.goals}</td><td>${r.assists}</td><td>${r.motm}</td><td>${r.sessions}</td>
-              <td class="pts">${r.total}</td></tr>`).join("")}</tbody>
-          </table></div>
+      ${me ? `<div class="grid cols-2" style="margin-top:1.2rem;align-items:start">
+        <div class="card pad-lg" style="text-align:center">
+          <div class="fc-card" style="max-width:230px;margin:0 auto">${fcCardInner(me)}</div>
+          <button class="btn btn-gold btn-sm" data-go="players/${me.id}" style="margin-top:1rem">My full card &amp; profile →</button>
         </div>
         <div>
-          <div class="card" style="text-align:center">
-            <div class="lbl" style="color:var(--muted);font-weight:700;font-size:.74rem;letter-spacing:1px">HOW POINTS WORK</div>
-            <div class="badge-row" style="flex-direction:column;margin-top:.7rem;text-align:left">
-              ${pointsRules().map(r=>`<div class="ach"><span class="em">${r.em}</span><div>${r.label} <span class="muted" style="font-weight:800;color:var(--gold-bright)">${r.pts}</span></div></div>`).join("")}
-            </div>
+          ${tierProgressCard(me)}
+          ${homeworkCard(me)}
+          ${choresCard(me)}
+        </div>
+      </div>` : `<div class="card pad-lg" style="margin-top:1.2rem"><p class="muted" style="margin:0">Pick which child is yours from the top bar to see their card and weekly tasks.</p></div>`}
+
+      <div class="grid cols-2" style="margin-top:1.4rem;align-items:start">
+        <div class="card pad-lg">
+          <div class="section-head" style="margin-bottom:.6rem"><div><div class="eyebrow">This month · the only ranking</div><h2 style="font-size:1.5rem">Mover of the Month</h2></div></div>
+          <p class="muted" style="margin:0 0 .8rem;font-size:.86rem">Most AP <b>gained this month</b> — not who has the most overall. Everyone starts level on the 1st.</p>
+          ${mover.rows.filter(r=>r.gain>0).length ? `<div class="badge-row" style="flex-direction:column;text-align:left">
+            ${mover.rows.slice(0,5).map((r,i)=>`<div class="ach" style="justify-content:space-between"><div><span class="em">${i===0?'👑':(i+1)}</span> <b>${esc(safeName(r.player))}</b></div><b style="color:var(--gold-bright)">+${r.gain}</b></div>`).join("")}
+          </div>` : `<p class="muted" style="margin:0">No AP gained yet this month — first to get moving leads the spotlight!</p>`}
+        </div>
+        <div class="card pad-lg">
+          <div class="section-head" style="margin-bottom:.6rem"><div><div class="eyebrow">Together as a squad</div><h2 style="font-size:1.5rem">Squad Goals</h2></div></div>
+          ${goals.length ? goals.map(g=>{
+            const prog = S.squadGoalProgress(g), pct = g.target?Math.min(100,Math.round(prog/g.target*100)):0;
+            return `<div style="margin-bottom:1rem"><b>${esc(g.title)}</b> <span class="muted" style="font-size:.8rem">${prog}/${g.target} AP</span>
+              <div class="track" style="margin:.3rem 0"><div class="fill" style="width:${pct}%"></div></div>
+              <span class="muted" style="font-size:.82rem">🎁 Unlocks: ${esc(g.reward)}${g.unlocked||pct>=100?' <span class="tag green">Unlocked!</span>':''}</span></div>`;
+          }).join("") : `<p class="muted" style="margin:0">Your coach will set a shared squad target soon — hit it together to unlock a reward!</p>`}
+        </div>
+      </div>
+
+      <div class="grid cols-2" style="margin-top:1.4rem;align-items:start">
+        <div class="card pad-lg" id="quiz-card">
+          <div class="section-head" style="margin-bottom:.6rem"><div><div class="eyebrow">Fresh every week · +${(cfg.SCORING||{}).quizComplete} (+${(cfg.SCORING||{}).quizPerfect} perfect)</div><h2 style="font-size:1.5rem">${esc(S.currentQuiz().title)}</h2></div></div>
+          <div id="quiz-host"><button class="btn btn-gold" id="start-quiz">Start the quiz</button></div>
+        </div>
+        <div class="card">
+          <div class="lbl" style="color:var(--muted);font-weight:700;font-size:.74rem;letter-spacing:1px">HOW POINTS WORK</div>
+          <div class="badge-row" style="flex-direction:column;margin-top:.7rem;text-align:left">
+            ${pointsRules().map(r=>`<div class="ach"><span class="em">${r.em}</span><div>${r.label} <span class="muted" style="font-weight:800;color:var(--gold-bright)">${r.pts}</span></div></div>`).join("")}
           </div>
         </div>
       </div>
 
-      <div class="grid cols-2" style="margin-top:1.4rem">
-        <div class="card pad-lg" id="quiz-card">
-          <div class="section-head" style="margin-bottom:.6rem"><div><div class="eyebrow">Fresh every week · +${(cfg.SCORING||{}).quizPerCorrect}/correct</div><h2 style="font-size:1.5rem">${esc(S.currentQuiz().title)}</h2></div>
-            ${myScore!=null?`<span class="tag green">Last score ${myScore}/${S.currentQuiz().questions.length}</span>`:""}</div>
-          <div id="quiz-host"><button class="btn btn-gold" id="start-quiz">Start the quiz</button></div>
-        </div>
-        <div class="card pad-lg">
-          <div class="section-head" style="margin-bottom:.6rem"><div><div class="eyebrow">Earn extra points</div><h2 style="font-size:1.5rem">Fun Challenges</h2></div></div>
-          ${S.state.exercises.map(x=>{
-            const done = S.challengeDone(S.me, x);
-            return `<div class="ach" style="margin-bottom:.6rem;justify-content:space-between">
-              <div style="display:flex;gap:.6rem;align-items:center"><span class="em">${x.icon}</span><div><b>${esc(x.name)}</b>${x.weekly?` <span class="tag">this week</span>`:""}<br><span class="muted" style="font-size:.78rem">${esc(x.desc)}</span></div></div>
-              <button class="btn ${done?'btn-ghost':'btn-dark'} btn-sm" data-ex="${x.id}" ${done?'disabled':''}>${done?'✓ Done':'+'+x.points}</button>
-            </div>`;
-          }).join("")}
-        </div>
-      </div>
       <div class="section-head" style="margin-top:1.6rem"><div><div class="eyebrow">Unlock them all</div><h2>Badges</h2></div></div>
       <div class="card"><div class="badge-row">
-        ${(()=>{ const earned=S.earnedAchievements(S.me); return S.state.achievements.map(a=>{const got=earned.includes(a.key);return `<div class="ach ${got?'':'locked'}"><span class="em">${a.emoji}</span><div><b>${esc(a.name)}</b>${got?' <span class="tag green">Earned</span>':''}<br><span class="muted" style="font-size:.74rem">${esc(a.desc)}</span></div></div>`;}).join("");})()}
+        ${(()=>{ const earned=me?S.earnedAchievements(me.id):[]; return S.state.achievements.map(a=>{const got=earned.includes(a.key);return `<div class="ach ${got?'':'locked'}"><span class="em">${a.emoji}</span><div><b>${esc(a.name)}</b>${got?' <span class="tag green">Earned</span>':''}<br><span class="muted" style="font-size:.74rem">${esc(a.desc)}</span></div></div>`;}).join("");})()}
       </div></div>`;
 
-    view.querySelectorAll("[data-ex]").forEach(b => b.addEventListener("click", async () => {
-      if (S.isAdmin) return toast("Admins don't earn league points");
-      const ex = S.state.exercises.find(e => e.id === +b.dataset.ex);
-      const res = await S.tickChallenge(S.me, ex);
-      if (res.ok) { toast(res.dup ? "Already done this " + (ex.weekly ? "week" : "season") : "+" + ex.points + " points! 🎉"); League(); }
+    wireGo();
+    wireHomework();
+    wireChores();
+    const start = $("#start-quiz"); if (start) start.addEventListener("click", runQuiz);
+    view.querySelectorAll("[data-tab]").forEach(b => b.addEventListener("click", () => {
+      location.hash = b.dataset.tab === "league" ? "#academy" : "#fixtures/" + b.dataset.tab;
+    }));
+  }
+
+  /* ============================ FAMILY (parents' space) ============================ */
+  // A dedicated home for parents/carers: this week's challenge + quiz, the homework
+  // gate, the jobs they set at home, and their child's card + development focus.
+  // Multi-child aware (Holden twins etc.) via a child switcher. Hidden from coach
+  // accounts that aren't linked to a child.
+  function Family() {
+    if (!S.hasLinkedPlayer()) {
+      view.innerHTML = `
+        <div class="section-head"><div><div class="eyebrow">For parents &amp; carers</div><h2>Family</h2></div></div>
+        <div class="card pad-lg" style="max-width:560px">
+          <p class="muted" style="margin:0 0 ${S.isAdmin?'0':'1rem'}">This is your family's space — this week's challenge and quiz, homework to mark off, the jobs you set at home, and your child's card. ${S.isAdmin?"Your coach account isn't linked to a child, so there's nothing to show here.":"Pick which child is yours to get started."}</p>
+          ${S.isAdmin?"":`<button class="btn btn-gold" data-go-pick>Choose my child</button>`}
+        </div>`;
+      view.querySelectorAll("[data-go-pick]").forEach(b => b.addEventListener("click", e => { e.preventDefault(); showChildPicker(true); }));
+      return;
+    }
+    const me = S.player(S.me);
+    const kids = S.myChildren();
+    view.innerHTML = `
+      <div class="section-head"><div><div class="eyebrow">For parents &amp; carers · ${esc(S.season)}</div><h2>Family</h2></div></div>
+      <p class="muted" style="margin-top:-.6rem;max-width:66ch">Everything you need to back ${esc(firstNameOf(me))} this week — see the challenge and quiz, mark homework done, set your own jobs and challenges at home, and follow their card. It's all upside: the kids never see deductions.</p>
+
+      ${kids.length>1 ? `<div class="badge-row" style="margin:1rem 0 .2rem">
+        <span class="muted" style="align-self:center;font-size:.8rem;margin-right:.2rem">Showing:</span>
+        ${kids.map(k=>`<button class="btn ${k.id===me.id?'btn-gold':'btn-ghost'} btn-sm" data-kid="${k.id}">${esc(firstNameOf(k))}</button>`).join("")}
+      </div>` : ""}
+
+      <div class="grid cols-2" style="margin-top:1.1rem;align-items:start">
+        <div class="card pad-lg" style="text-align:center">
+          <div class="fc-card" style="max-width:230px;margin:0 auto">${fcCardInner(me)}</div>
+          <button class="btn btn-gold btn-sm" data-go="players/${me.id}" style="margin-top:1rem">${esc(firstNameOf(me))}'s full card &amp; profile →</button>
+        </div>
+        <div>
+          ${tierProgressCard(me)}
+          ${homeworkCard(me)}
+        </div>
+      </div>
+
+      <div class="grid cols-2" style="margin-top:1.4rem;align-items:start">
+        <div class="card pad-lg" id="quiz-card">
+          <div class="section-head" style="margin-bottom:.6rem"><div><div class="eyebrow">This week's quiz · +${(cfg.SCORING||{}).quizComplete} (+${(cfg.SCORING||{}).quizPerfect} perfect)</div><h2 style="font-size:1.5rem">${esc(S.currentQuiz().title)}</h2></div></div>
+          <p class="muted" style="margin:0 0 .7rem;font-size:.84rem">Sit with ${esc(firstNameOf(me))} and have a go together — it's marked instantly.</p>
+          <div id="quiz-host"><button class="btn btn-gold" id="start-quiz">Start the quiz</button></div>
+        </div>
+        <div>${choresCard(me)}</div>
+      </div>
+
+      ${idpCard(me, true)}`;
+
+    wireGo();
+    wireHomework();
+    wireChores();
+    const start = $("#start-quiz"); if (start) start.addEventListener("click", runQuiz);
+    view.querySelectorAll("[data-kid]").forEach(b => b.addEventListener("click", async () => {
+      await S.setMyPlayer(+b.dataset.kid); updateMyPlayerChip(); Family();
+    }));
+  }
+
+  function tierProgressCard(p) {
+    const t = S.tierOf(p.id);
+    const tiers = cfg.TIERS || [];
+    const next = tiers.find(x => x.min > t.ap);
+    const pct = next ? Math.min(100, Math.round(t.ap / next.min * 100)) : 100;
+    return `<div class="card pad-lg">
+      <div class="section-head" style="margin-bottom:.4rem"><div><div class="eyebrow">My card</div><h2 style="font-size:1.4rem">${esc(t.label)} · ${t.ap} AP</h2></div></div>
+      ${next ? `<div class="track" style="margin:.4rem 0"><div class="fill" style="width:${pct}%"></div></div>
+        <span class="muted" style="font-size:.84rem">${next.min - t.ap} AP to <b>${esc(next.label)}</b>${next.key==='icon'?` (and any 2 Gold skill checks — you have ${t.golds})`:''}</span>`
+        : `<span class="tag green">Top tier reached — Icon! ⭐</span>`}
+    </div>`;
+  }
+
+  // This week's homework = challenge + quiz. Parent marks the challenge done here.
+  function homeworkCard(p) {
+    const challengeDone = S.challengeDoneThisWeek(p.id);
+    const quizDone = S.quizDoneThisWeek(p.id);
+    const both = challengeDone && quizDone;
+    const ch = S.weeklyChallenge();
+    const deadline = S.homeworkDeadline();
+    const overridden = S.homeworkOverridden(p.id);
+    return `<div class="card pad-lg" style="margin-top:1.2rem">
+      <div class="section-head" style="margin-bottom:.4rem"><div><div class="eyebrow">Homework · by ${fdateLong(deadline.toISOString().slice(0,10))} 6pm</div><h2 style="font-size:1.4rem">This week's homework</h2></div>${both?'<span class="tag green">Done +'+(cfg.SCORING||{}).homeworkBonus+'</span>':overridden?'<span class="tag">Waived</span>':''}</div>
+      <p class="muted" style="margin:0 0 .6rem;font-size:.84rem">Do both the challenge and the quiz before the deadline for a <b>+${(cfg.SCORING||{}).homeworkBonus} AP</b> bonus. Miss it and it's ${(cfg.SCORING||{}).homeworkPenalty} AP and a bench start — but your coach can always waive it.</p>
+      <div class="ach" style="justify-content:space-between;margin-bottom:.4rem">
+        <div><span class="em">${ch&&ch.icon?ch.icon:'🎯'}</span> <b>Challenge:</b> ${ch?esc(ch.name):'Weekly drill'}${ch&&ch.corner?` <span class="tag" style="font-size:.6rem">${esc((S.state.cornerLabel||{})[ch.corner]||ch.corner)}</span>`:''}</div>
+        ${challengeDone?'<span class="tag green">✓ Done</span>':`<button class="btn btn-dark btn-sm" data-hw-challenge="${p.id}">Mark done +${(cfg.SCORING||{}).challenge}</button>`}
+      </div>
+      ${ch&&ch.desc?`<p class="muted" style="margin:.1rem 0 .5rem;font-size:.82rem">${esc(ch.desc)}${ch.minutes?` <b style="color:var(--gold-bright)">~${ch.minutes} min</b>`:''}</p>`:''}
+      ${ch&&ch.video?`<div style="margin:.2rem 0 .5rem">${videoEmbed(ch.video)}</div>`:''}
+      ${challengeDone?'':`${ch&&ch.skillToShow?`<p class="muted" style="margin:.1rem 0 .4rem;font-size:.8rem">📹 To earn the bonus: ${esc(ch.skillToShow)}</p>`:''}<label class="field" style="flex-direction:row;align-items:center;gap:.4rem;margin:-.2rem 0 .6rem"><input type="checkbox" id="hw-shown-${p.id}" style="width:auto"/> <span style="margin:0;font-size:.82rem">We also showed the coach / sent a clip (+${(cfg.SCORING||{}).challengeShown})</span></label>`}
+      <div class="ach" style="justify-content:space-between">
+        <div><span class="em">🧠</span> <b>Quiz:</b> this week's quiz</div>
+        ${quizDone?'<span class="tag green">✓ Done</span>':`<button class="btn btn-ghost btn-sm" onclick="location.hash='#academy'">Take it below ↓</button>`}
+      </div>
+    </div>`;
+  }
+
+  function wireHomework() {
+    view.querySelectorAll("[data-hw-challenge]").forEach(b => b.addEventListener("click", async () => {
+      if (S.isAdmin) return toast("Coaches don't earn AP");
+      const pid = +b.dataset.hwChallenge;
+      const shown = !!(view.querySelector(`#hw-shown-${pid}`) && view.querySelector(`#hw-shown-${pid}`).checked);
+      const res = await S.tickChallenge(pid, shown);
+      if (res.ok) { toast(res.dup ? "Already done this week" : "Challenge done! 🎯"); League(); }
       else toast("Error: " + res.msg);
     }));
-    const start = $("#start-quiz"); if (start) start.addEventListener("click", runQuiz);
+  }
+
+  // Home Team chores (§1G): parent sets up to 3, ticks them, +10 each, private.
+  function choresCard(p) {
+    const max = (cfg.SCORING||{}).choresPerWeek || 3;
+    const c = S.choresFor(p.id) || { list: [], done: [] };
+    const has = c.list && c.list.length;
+    return `<div class="card pad-lg" style="margin-top:1.2rem">
+      <div class="section-head" style="margin-bottom:.4rem"><div><div class="eyebrow">Private to your family · +${(cfg.SCORING||{}).chore} each</div><h2 style="font-size:1.4rem">Home Challenges</h2></div></div>
+      <p class="muted" style="margin:0 0 .6rem;font-size:.84rem">Set up to ${max} of your own challenges or jobs each week — keepie-uppies, wall passes, tidy the kit, help at home. Tick each off for AP. No deductions, just upside.</p>
+      ${has ? `<div id="chore-list-${p.id}">${c.list.map((ch,i)=>`<label class="field" style="flex-direction:row;align-items:center;gap:.5rem;margin-bottom:.35rem"><input type="checkbox" class="chore-tick" data-p="${p.id}" data-i="${i}" ${c.done[i]?'checked':''} style="width:auto"/> <span style="margin:0">${esc(ch)}</span> ${c.done[i]?'<span class="tag green" style="font-size:.6rem">+'+(cfg.SCORING||{}).chore+'</span>':''}</label>`).join("")}</div>
+        <button class="btn btn-ghost btn-sm" data-chore-edit="${p.id}" style="margin-top:.4rem">Edit this week's jobs</button>`
+      : `<button class="btn btn-dark btn-sm" data-chore-edit="${p.id}">Set this week's jobs</button>
+         <button class="btn btn-ghost btn-sm" data-chore-default="${p.id}" style="margin-left:.4rem">Use default list</button>`}
+    </div>`;
+  }
+
+  function wireChores() {
+    view.querySelectorAll(".chore-tick").forEach(c => c.addEventListener("change", async () => {
+      const res = await S.tickChore(+c.dataset.p, +c.dataset.i, c.checked);
+      if (res.ok) { toast(c.checked ? "+"+(cfg.SCORING||{}).chore+" AP 🧹" : "Unticked"); League(); }
+      else toast("Error: " + res.msg);
+    }));
+    view.querySelectorAll("[data-chore-default]").forEach(b => b.addEventListener("click", async () => {
+      const res = await S.reissueChores(+b.dataset.choreDefault); if (res.ok) { toast("Default jobs set ✓"); League(); }
+    }));
+    view.querySelectorAll("[data-chore-edit]").forEach(b => b.addEventListener("click", () => choreEditor(+b.dataset.choreEdit)));
+  }
+
+  function choreEditor(pid) {
+    const max = (cfg.SCORING||{}).choresPerWeek || 3;
+    const c = S.choresFor(pid) || { list: [] };
+    const root = $("#modal-root");
+    root.innerHTML = `<div class="modal-backdrop"><div class="modal card pad-lg" style="max-width:420px">
+      <h3 style="font-family:var(--display);margin:0 0 .6rem">Your home challenges this week</h3>
+      <p class="muted" style="font-size:.84rem;margin:0 0 .8rem">Up to ${max} challenges or jobs you set — football or home. These are private to your family.</p>
+      ${[0,1,2].slice(0,max).map(i=>`<label class="field"><span>Challenge ${i+1}</span><input id="chore-${i}" value="${esc((c.list||[])[i]||"")}" placeholder="${esc((S.DEFAULT_CHORES||[])[i]||["50 keepie-uppies","Wall passes, both feet","Help tidy up at home"][i]||"e.g. 50 keepie-uppies")}"/></label>`).join("")}
+      <div class="badge-row" style="margin-top:.8rem"><button class="btn btn-gold btn-sm" id="chore-save">Save jobs</button><button class="btn btn-ghost btn-sm" id="chore-cancel">Cancel</button></div>
+    </div></div>`;
+    $("#chore-cancel").addEventListener("click", () => root.innerHTML = "");
+    $("#chore-save").addEventListener("click", async () => {
+      const list = [0,1,2].slice(0,max).map(i=>($("#chore-"+i)||{}).value||"").map(s=>s.trim()).filter(Boolean);
+      const res = await S.setChores(pid, list);
+      root.innerHTML = ""; if (res.ok) { toast("Jobs saved ✓"); League(); }
+    });
   }
 
   function runQuiz() {
     const qz = S.currentQuiz(); let idx = 0, score = 0;
     const host = $("#quiz-host");
     if (S.quizDoneThisWeek(S.me)) {
-      host.innerHTML = `<div style="text-align:center;padding:1rem"><div class="tag green">Done this week ✓</div><p class="muted" style="margin-top:.6rem">You've already completed this week's quiz — your points are in the league. A fresh quiz lands next week!</p></div>`;
+      host.innerHTML = `<div style="text-align:center;padding:1rem"><div class="tag green">Done this week ✓</div><p class="muted" style="margin-top:.6rem">You've already completed this week's quiz — your AP is banked. A fresh quiz lands next week!</p></div>`;
       return;
     }
     function render() {
       if (idx >= qz.questions.length) {
+        const total = qz.questions.length;
         S.setQuizScore(score);
-        if (!S.isAdmin) S.recordQuiz(S.me, score);
+        if (!S.isAdmin) S.recordQuiz(S.me, score, total);
+        const perfect = score === total;
+        const earned = (cfg.SCORING||{}).quizComplete + (perfect ? (cfg.SCORING||{}).quizPerfect : 0);
         host.innerHTML = `<div style="text-align:center;padding:1rem">
-          <div class="progress-ring" style="--p:${Math.round(score/qz.questions.length*100)};margin:0 auto 1rem"><div class="inner">${score}/${qz.questions.length}</div></div>
-          <h3 style="font-family:var(--display);margin:.2rem 0">${score===qz.questions.length?'Perfect! 🧠':score>=3?'Great work! ⚽':'Nice try — you\'ll smash it next time! 💪'}</h3>
-          <p class="muted">Those points are heading to the league table. Come back next week for a brand-new quiz!</p>
-          <button class="btn btn-dark btn-sm" onclick="location.hash='#league'">Back to league</button></div>`;
+          <div class="progress-ring" style="--p:${Math.round(score/total*100)};margin:0 auto 1rem"><div class="inner">${score}/${total}</div></div>
+          <h3 style="font-family:var(--display);margin:.2rem 0">${perfect?'Perfect! 🧠':score>=Math.ceil(total/2)?'Great work! ⚽':'Nice try — you learned something! 💪'}</h3>
+          <p class="muted">You earned <b>+${earned} AP</b> for completing it${perfect?' with a perfect score':''}. Come back next week for a brand-new quiz!</p>
+          <button class="btn btn-dark btn-sm" onclick="location.hash='#academy'">Back to Academy</button></div>`;
+        League();
         return;
       }
       const q = qz.questions[idx];
@@ -840,13 +1188,20 @@
         <div class="tag gold" style="margin-bottom:.6rem">Question ${idx+1} of ${qz.questions.length}</div>
         <h3 style="margin:.2rem 0 .9rem">${esc(q.q)}</h3>
         ${q.opts.map((o,i)=>`<button class="quiz-opt" data-i="${i}">${esc(o)}</button>`).join("")}
+        <div id="quiz-fb" style="margin-top:.8rem"></div>
       </div>`;
       host.querySelectorAll(".quiz-opt").forEach(btn => btn.addEventListener("click", () => {
         const i = +btn.dataset.i;
         host.querySelectorAll(".quiz-opt").forEach(b=>b.disabled=true);
-        if (i === q.answer) { btn.classList.add("correct"); score++; }
+        const correct = i === q.answer;
+        if (correct) { btn.classList.add("correct"); score++; }
         else { btn.classList.add("wrong"); host.querySelectorAll(".quiz-opt")[q.answer].classList.add("correct"); }
-        setTimeout(()=>{ idx++; render(); }, 850);
+        // Teaching tool (§1E): a wrong answer shows the correct one + a one-line explanation.
+        const fb = host.querySelector("#quiz-fb");
+        const explain = q.explain || (correct ? "Nice one!" : `The answer is "${q.opts[q.answer]}".`);
+        fb.innerHTML = `<div class="quiz-explain ${correct?'ok':'no'}">${correct?'✅ ':'💡 '}${esc(explain)}</div>
+          <button class="btn btn-dark btn-sm" id="quiz-next" style="margin-top:.6rem">${idx+1>=qz.questions.length?'See my score':'Next question'} →</button>`;
+        host.querySelector("#quiz-next").addEventListener("click", ()=>{ idx++; render(); });
       }));
     }
     render();
@@ -856,7 +1211,7 @@
   function Admin(sub) {
     if (!S.isAdmin) { view.innerHTML = `<div class="card pad-lg"><h2 style="font-family:var(--display)">Admins only</h2><p class="muted">This area is for team coaches/admins. Ask the team admin to grant you access.</p></div>`; return; }
     sub = sub || "fixtures";
-    const tabs = [["attendance","Attendance"],["fixtures","Add fixture"],["result","Enter result"],["register","Register"],["points","Points & league"],["seasonstats","Season stats"],["quizresults","Quiz results"],["quizedit","Quiz"],["academy","Development"],["videos","Videos"],["contacts","Contacts"],["roster","Roster"],["players","Add player"],["training","Plan training"],["events","Add event"]];
+    const tabs = [["attendance","Attendance"],["fixtures","Add fixture"],["result","Enter result"],["register","Register"],["teamsheet","Team sheet"],["points","Academy Points"],["skillladder","Skill ladder"],["squadgoals","Squad goals"],["seasonstats","Season stats"],["quizresults","Quiz results"],["quizedit","Quiz"],["academy","Development"],["idp","Mini-IDP"],["videos","Videos"],["contacts","Contacts"],["roster","Roster"],["players","Add player"],["training","Plan training"],["events","Add event"]];
     view.innerHTML = `
       <div class="section-head"><div><div class="eyebrow">Coaches only</div><h2>Admin Panel</h2></div></div>
       <p class="muted" style="margin-top:-.6rem;max-width:62ch">Manage everything from here — no spreadsheets. ${S.MODE==='preview'?'<b>Preview mode:</b> changes save to this browser so you can try it. Connect Supabase to save for everyone.':'Changes save to your database and appear for everyone straight away.'}</p>
@@ -866,7 +1221,7 @@
       <div id="admin-body"></div>`;
     view.querySelectorAll("[data-atab]").forEach(b => b.addEventListener("click", () => location.hash = "#admin/"+b.dataset.atab));
     const sub2 = (location.hash.replace("#","").split("/"))[2];
-    ({ attendance:AdmAttendance, fixtures:AdmFixture, result:AdmResult, register:AdmRegister, points:AdmPoints, seasonstats:AdmSeasonStats, quizresults:AdmQuizResults, quizedit:AdmQuizEditor, academy:AdmAcademy, videos:AdmVideos, contacts:AdmContacts, roster:AdmRoster, players:AdmPlayer, training:AdmTraining, events:AdmEvent }[sub] || AdmAttendance)(sub2);
+    ({ attendance:AdmAttendance, fixtures:AdmFixture, result:AdmResult, register:AdmRegister, teamsheet:AdmTeamSheet, points:AdmPoints, skillladder:AdmSkillLadder, squadgoals:AdmSquadGoals, seasonstats:AdmSeasonStats, quizresults:AdmQuizResults, quizedit:AdmQuizEditor, academy:AdmAcademy, idp:AdmIdp, videos:AdmVideos, contacts:AdmContacts, roster:AdmRoster, players:AdmPlayer, training:AdmTraining, events:AdmEvent }[sub] || AdmAttendance)(sub2);
   }
 
   function toast(msg) {
@@ -891,7 +1246,7 @@
     });
     return { going, cant, noreply, lift };
   }
-  function admName(p, lift){ const parts=p.name.split(" "); const ln=parts.length>1?` ${parts[parts.length-1][0]}.`:""; return `${esc(parts[0])}${esc(ln)}${lift&&lift.has(p.id)?' 🚗':''}`; }
+  function admName(p, lift){ const parts=fullName(p).split(" ").filter(Boolean); const ln=parts.length>1?` ${parts[parts.length-1][0]}.`:""; return `${esc(parts[0]||"Player")}${esc(ln)}${lift&&lift.has(p.id)?' 🚗':''}`; }
   function AdmAttendance() {
     const body = $("#admin-body");
     const items = buildAgenda(["training","match","event"], 35);
@@ -963,16 +1318,20 @@
     const motmOpts = sel => `<option value="">— none —</option>` + playerOpts(sel);
     let st = blankState();
 
-    function blankState(){ return { our:0, them:0, motm:null, goals:[{scorer:null,assist:null}], cs:new Set(), lineup:new Set() }; }
+    const gkIds = fullRoster.filter(p=>String(p.pos).toUpperCase()==="GK");
+    function blankState(){ return { our:0, them:0, motm:null, moment:null, goals:[{scorer:null,assist:null}], cs:new Set(), saves:new Set(), lineup:new Set() }; }
     function loadFixture(id){
       const fx = played.find(f=>f.id===id) || {};
       const csIds = (S.state.ledger||[]).filter(e=>e.ref && e.ref.startsWith(`match:${id}:cs`)).map(e=>e.player_id);
+      const saveIds = (S.state.ledger||[]).filter(e=>e.ref && e.ref.startsWith(`match:${id}:sotd`)).map(e=>e.player_id);
+      const momentE = (S.state.ledger||[]).find(e=>e.ref===`match:${id}:moment`);
       st = {
         our: fx.our_score!=null?fx.our_score:0,
         them: fx.their_score!=null?fx.their_score:0,
         motm: fx.motm!=null?fx.motm:null,
+        moment: momentE ? momentE.player_id : (fx.moment!=null?fx.moment:null),
         goals: (fx.goals && fx.goals.length) ? fx.goals.map(g=>({scorer:g.scorer??null, assist:g.assist??null})) : [{scorer:null,assist:null}],
-        cs: new Set(csIds),
+        cs: new Set(csIds), saves: new Set(saveIds),
         lineup: new Set(Array.isArray(fx.lineup)?fx.lineup:[])
       };
     }
@@ -981,8 +1340,10 @@
       st.our = +body.querySelector("#r-us").value||0;
       st.them = +body.querySelector("#r-them").value||0;
       const m = body.querySelector("#r-motm").value; st.motm = m ? +m : null;
+      const mo = body.querySelector("#r-moment").value; st.moment = mo ? +mo : null;
       body.querySelectorAll("[data-g]").forEach(sel=>{ const i=+sel.dataset.i; st.goals[i]=st.goals[i]||{scorer:null,assist:null}; st.goals[i][sel.dataset.g]= sel.value? +sel.value : null; });
       st.cs = new Set([...body.querySelectorAll(".cs:checked")].map(c=>+c.value));
+      st.saves = new Set([...body.querySelectorAll(".sotd:checked")].map(c=>+c.value));
       st.lineup = new Set([...body.querySelectorAll(".lp:checked")].map(c=>+c.value));
     }
     function goalRow(g,i){ return `<div class="grid" style="grid-template-columns:1fr 1fr auto;gap:.5rem;margin-bottom:.5rem;align-items:end">
@@ -995,14 +1356,16 @@
         ${F("Which fixture?",`<select id="r-fix">${played.map(f=>`<option value="${f.id}" ${f.id===curId?'selected':''}>${f.our_score!=null?'✓ ':''}${fdate(f.date)} — vs ${esc(f.opponent)}</option>`).join("")}</select>`)}
         ${fx.our_score!=null?`<p class="muted" style="margin:.2rem 0 .6rem;font-size:.82rem">Editing a saved result — its points will be recalculated from what you save here.</p>`:""}
         <div class="grid cols-2">${F("Our score",`<input type="number" min="0" id="r-us" value="${st.our}"/>`)}${F("Their score",`<input type="number" min="0" id="r-them" value="${st.them}"/>`)}</div>
-        ${F("Man of the Match",`<select id="r-motm">${motmOpts(st.motm)}</select>`)}
-        <div class="lbl" style="font-size:.74rem;color:var(--muted);font-weight:700;letter-spacing:1px;margin:.4rem 0">GOALSCORERS</div>
+        <div class="grid cols-2">${F("Player of the Match (+"+(cfg.SCORING||{}).motm+")",`<select id="r-motm">${motmOpts(st.motm)}</select>`)}${F("Moment of the Match (+"+(cfg.SCORING||{}).momentOfMatch+", ≠ POTM)",`<select id="r-moment">${motmOpts(st.moment)}</select>`)}</div>
+        <div class="lbl" style="font-size:.74rem;color:var(--muted);font-weight:700;letter-spacing:1px;margin:.4rem 0">GOALSCORERS <span class="muted" style="font-weight:500;text-transform:none;letter-spacing:0">— goal/assist +${(cfg.SCORING||{}).goal} each, capped at +${(cfg.SCORING||{}).outcomeCapPerMatch}/player/match</span></div>
         <div id="goal-rows">${st.goals.map((g,i)=>goalRow(g,i)).join("")}</div>
         <button class="btn btn-dark btn-sm" id="add-goal" style="margin:.3rem 0 1rem">+ Add goal</button>
-        <div class="lbl" style="font-size:.74rem;color:var(--muted);font-weight:700;letter-spacing:1px;margin:.4rem 0">WHO PLAYED <span class="muted" style="font-weight:500;text-transform:none;letter-spacing:0">— tick the squad who featured</span> <button class="btn btn-ghost btn-sm" id="lp-all" type="button" style="margin-left:.4rem">All</button></div>
+        <div class="lbl" style="font-size:.74rem;color:var(--muted);font-weight:700;letter-spacing:1px;margin:.4rem 0">WHO PLAYED <span class="muted" style="font-weight:500;text-transform:none;letter-spacing:0">— everyone ticked gets appearance +${(cfg.SCORING||{}).appearance} and win/draw automatically</span> <button class="btn btn-ghost btn-sm" id="lp-all" type="button" style="margin-left:.4rem">All</button></div>
         <div id="lp-list" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:.2rem .8rem">${fullRoster.map(p=>`<label class="field" style="flex-direction:row;align-items:center;gap:.45rem;margin-bottom:.2rem"><input type="checkbox" class="lp" value="${p.id}" ${st.lineup.has(p.id)?'checked':''} style="width:auto"/> <span style="margin:0">#${p.number} ${esc(p.name)}</span></label>`).join("")}</div>
-        <div class="lbl" style="font-size:.74rem;color:var(--muted);font-weight:700;letter-spacing:1px;margin:.6rem 0 .4rem">CLEAN SHEET <span class="muted" style="font-weight:500;text-transform:none;letter-spacing:0">— tick defenders &amp; GK who kept it (+${(cfg.SCORING||{}).cleanSheet})</span></div>
+        <div class="lbl" style="font-size:.74rem;color:var(--muted);font-weight:700;letter-spacing:1px;margin:.6rem 0 .4rem">CLEAN SHEET <span class="muted" style="font-weight:500;text-transform:none;letter-spacing:0">— if we kept them out, tick who earned it (GK +${(cfg.SCORING||{}).cleanSheetGK} · def +${(cfg.SCORING||{}).cleanSheetDef} · others +${(cfg.SCORING||{}).cleanSheetOther})</span></div>
         <div id="cs-list">${defGk.map(p=>`<label class="field" style="flex-direction:row;align-items:center;gap:.5rem;margin-bottom:.3rem"><input type="checkbox" class="cs" value="${p.id}" ${st.cs.has(p.id)?'checked':''} style="width:auto"/> <span style="margin:0">#${p.number} ${esc(p.name)} <span class="muted">${esc(p.pos)}</span></span></label>`).join("") || `<p class="muted" style="margin:.2rem 0">No defenders/keepers in the ${esc(S.season)} squad.</p>`}</div>
+        ${gkIds.length?`<div class="lbl" style="font-size:.74rem;color:var(--muted);font-weight:700;letter-spacing:1px;margin:.6rem 0 .4rem">SAVE OF THE DAY <span class="muted" style="font-weight:500;text-transform:none;letter-spacing:0">— GK (+${(cfg.SCORING||{}).saveOfTheDay})</span></div>
+        <div id="sotd-list">${gkIds.map(p=>`<label class="field" style="flex-direction:row;align-items:center;gap:.5rem;margin-bottom:.3rem"><input type="checkbox" class="sotd" value="${p.id}" ${st.saves.has(p.id)?'checked':''} style="width:auto"/> <span style="margin:0">#${p.number} ${esc(p.name)}</span></label>`).join("")}</div>`:""}
         <button class="btn btn-gold btn-block" id="r-save" style="margin-top:1rem">Save result</button>
       </div>`;
       body.querySelector("#r-fix").addEventListener("change", e => { curId = +e.target.value; loadFixture(curId); render(); });
@@ -1015,10 +1378,11 @@
       syncFromDom();
       const fx = played.find(f=>f.id===curId) || {};
       if (fx.date > today && !window.confirm("This fixture is in the future — save a result anyway?")) return;
-      if (st.them > 0 && st.cs.size > 0 && !window.confirm(`We conceded ${st.them} but ${st.cs.size} clean sheet(s) are ticked — award them anyway?`)) return;
+      if (st.them > 0 && st.cs.size > 0 && !window.confirm(`We conceded ${st.them} but ${st.cs.size} clean sheet(s) are ticked — they won't be awarded (we conceded). Save anyway?`)) return;
+      if (st.moment && st.moment === st.motm) { toast("Moment of the Match must be a different player to POTM"); return; }
       const res = await S.saveResult(curId, {
-        our_score:st.our, their_score:st.them, motm:st.motm,
-        goals:st.goals.filter(g=>g.scorer), cleanSheets:[...st.cs], lineup:[...st.lineup] });
+        our_score:st.our, their_score:st.them, motm:st.motm, moment:st.moment,
+        goals:st.goals.filter(g=>g.scorer), cleanSheets:[...st.cs], saves:[...st.saves], lineup:[...st.lineup] });
       if (res.ok){ toast("Result saved ✓"); location.hash="#fixtures/past"; } else toast("Error: "+res.msg);
     }
     loadFixture(curId);
@@ -1041,29 +1405,42 @@
       const m = S.state.attendance["t"+iso] || {};
       return new Set(Object.entries(m).filter(([,v])=>v==="yes"||v==="lift").map(([k])=>+k));
     }
+    // Trainer-of-the-Day rotation hint (§1A): everyone wins once per half-term before twice.
+    const trainerCounts = S.trainerOfDayThisHalfTerm();
+    function trainerOpts(iso) {
+      const saved = S.registerState(iso);
+      const cur = Object.entries(saved).find(([,v])=>v.trainer);
+      const sel = cur ? +cur[0] : null;
+      return `<option value="">— none —</option>` + roster.map(p=>{
+        const c = trainerCounts[p.id] || 0;
+        return `<option value="${p.id}" ${sel===p.id?'selected':''}>#${p.number} ${esc(p.name)}${c?` (won ${c}× this half-term)`:""}</option>`;
+      }).join("");
+    }
     function renderRows(iso) {
       const saved = S.registerState(iso);
       const hasSaved = Object.keys(saved).length > 0;
       const going = rsvpGoing(iso);
       body.querySelector("#reg-rows").innerHTML = roster.map(p=>{
         // if a register was saved, use it; otherwise prefill attendance from RSVP (coach can override)
-        const s = saved[p.id] || { attended: hasSaved ? false : going.has(p.id), perf:"" };
+        const s = saved[p.id] || { attended: hasSaved ? false : going.has(p.id) };
         const rsvp = going.has(p.id);
         return `<tr>
           <td><b>${esc(p.name)}</b> <span class="muted">#${p.number}</span>${rsvp?` <span class="tag green" style="font-size:.6rem">RSVP'd</span>`:""}</td>
           <td style="text-align:center"><input type="checkbox" class="rg-att" data-p="${p.id}" ${s.attended?"checked":""} style="width:20px;height:20px"/></td>
-          <td><select class="rg-perf" data-p="${p.id}"><option value="" ${s.perf===""?"selected":""}>—</option><option value="good" ${s.perf==="good"?"selected":""}>Good (+${(cfg.SCORING||{}).trainingPerformanceGood})</option><option value="poor" ${s.perf==="poor"?"selected":""}>Poor (${(cfg.SCORING||{}).trainingPerformancePoor})</option></select></td>
         </tr>`;
       }).join("");
+      const tsel = body.querySelector("#reg-trainer");
+      if (tsel) tsel.innerHTML = trainerOpts(iso);
     }
     body.innerHTML = `<div class="card pad-lg">
-      <p class="muted" style="margin-top:0">Take the register for a <b>${esc(S.season)}</b> session. Attendance is +${(cfg.SCORING||{}).trainingAttendance}; grade effort Good/Poor. We <b>pre-fill from RSVPs</b> but you have the final say — untick anyone who said yes but didn't show. Saving updates the league instantly.</p>
+      <p class="muted" style="margin-top:0">Take the register for a <b>${esc(S.season)}</b> session. Attendance is +${(cfg.SCORING||{}).trainingAttendance}. Optionally pick <b>Trainer of the Day</b> (+${(cfg.SCORING||{}).trainerOfTheDay}) for best effort. We <b>pre-fill from RSVPs</b> — untick anyone who didn't show. 4-week streaks are awarded automatically.</p>
       ${F("Session date",`<select id="reg-date">${allDates.map(iso=>`<option value="${iso}">${fdateLong(iso)}</option>`).join("")}${allDates.length?"":`<option value="">No sessions found</option>`}</select>`)}
       <div class="badge-row" style="margin:.2rem 0 .8rem">
         <button class="btn btn-ghost btn-sm" id="reg-all">✓ Mark all present</button>
         <button class="btn btn-ghost btn-sm" id="reg-none">Clear all</button>
       </div>
-      <div class="table-wrap"><table class="league-table"><thead><tr><th>Player</th><th>Attended</th><th>Performance</th></tr></thead><tbody id="reg-rows"></tbody></table></div>
+      <div class="table-wrap"><table class="league-table"><thead><tr><th>Player</th><th>Attended</th></tr></thead><tbody id="reg-rows"></tbody></table></div>
+      ${F("Trainer of the Day (rotation: everyone once before twice)",`<select id="reg-trainer"></select>`)}
       <button class="btn btn-gold btn-block" id="reg-save" style="margin-top:1rem">Save register</button>
     </div>`;
     const dsel = body.querySelector("#reg-date");
@@ -1075,49 +1452,119 @@
       const iso = dsel.value; if (!iso) return toast("No session selected");
       const entries = roster.map(p => ({
         playerId: p.id,
-        attended: body.querySelector(`.rg-att[data-p="${p.id}"]`).checked,
-        perf: body.querySelector(`.rg-perf[data-p="${p.id}"]`).value
+        attended: body.querySelector(`.rg-att[data-p="${p.id}"]`).checked
       }));
-      const res = await S.saveRegister(iso, entries);
+      const tv = body.querySelector("#reg-trainer").value;
+      const trainerId = tv ? +tv : null;
+      const res = await S.saveRegister(iso, entries, trainerId);
       if (res.ok) toast("Register saved ✓"); else toast("Error: "+res.msg);
     });
   }
 
-  // ---- Points & league: live table + manual adjustments ----
+  // ---- Academy Points (coach view): standings, awards, monthly tools ----
   function AdmPoints() {
     const body = $("#admin-body");
-    const rows = S.leagueRows();
+    // Coach-only standings (NOT a kid-facing leaderboard) — sorted by season AP.
+    const rows = S.roster(true).map(p=>({ player:p, total: p.points||0 })).sort((a,b)=>b.total-a.total);
     const roster = S.roster(true).sort((a,b)=>a.number-b.number);
     const recent = [...(S.state.ledger||[])].filter(e=>e.season===S.season).slice(-12).reverse();
+    const month = S.monthId();
+    const mover = S.moverOfMonth(month);
+    const SC = cfg.SCORING || {};
     body.innerHTML = `<div class="card pad-lg">
-      <p class="muted" style="margin-top:0">Every point in <b>${esc(S.season)}</b> adds up here automatically (matches, register, quiz, videos, challenges). Use the box below for one-off awards: the <b>perfect-month</b> bonus, the <b>bottom-of-league</b> big challenge, or a correction.</p>
+      <p class="muted" style="margin-top:0">Every AP in <b>${esc(S.season)}</b> adds up automatically (matches, register, quiz, challenges, chores). This standings table is a <b>coach-only</b> view — players never see an absolute leaderboard. Use the box below for monthly awards or a correction.</p>
       <div class="grid cols-2" style="align-items:end">
         ${F("Player",`<select id="pt-player">${roster.map(p=>`<option value="${p.id}">#${p.number} ${esc(p.name)}</option>`).join("")}</select>`)}
-        ${F("Points (use a minus to deduct)",`<input type="number" id="pt-pts" value="${(cfg.SCORING||{}).perfectMonth}"/>`)}
+        ${F("AP (use a minus to correct)",`<input type="number" id="pt-pts" value="${SC.captainsAward}"/>`)}
       </div>
-      ${F("Reason",`<input id="pt-note" placeholder="e.g. Perfect month — every session in May"/>`)}
-      <div class="badge-row" style="margin:.2rem 0 1rem">
-        <button class="btn btn-ghost btn-sm" data-quick="${(cfg.SCORING||{}).perfectMonth}|Perfect month — every session">💯 Perfect month +${(cfg.SCORING||{}).perfectMonth}</button>
-        <button class="btn btn-ghost btn-sm" data-quick="${(cfg.SCORING||{}).bottomOfLeagueChallenge}|Bottom-of-league big challenge">🏅 Bottom-league challenge +${(cfg.SCORING||{}).bottomOfLeagueChallenge}</button>
+      ${F("Reason",`<input id="pt-note" placeholder="e.g. Captain's Award — best teammate"/>`)}
+      <div class="badge-row" style="margin:.2rem 0 .6rem">
+        <button class="btn btn-ghost btn-sm" id="pt-captains">🧢 Captain's Award (+${SC.captainsAward})</button>
+        <button class="btn btn-ghost btn-sm" id="pt-mover">👑 Award Mover of the Month (+${SC.moverOfMonth})</button>
       </div>
-      <button class="btn btn-gold btn-block" id="pt-save">Add points</button>
-      <div class="lbl" style="font-size:.74rem;color:var(--muted);font-weight:700;letter-spacing:1px;margin:1.2rem 0 .4rem">LEAGUE (${esc(S.season)})</div>
-      <div class="table-wrap"><table class="league-table"><thead><tr><th>#</th><th>Player</th><th>Pts</th></tr></thead>
-        <tbody>${rows.map((r,i)=>`<tr><td>${i+1}</td><td>${esc(r.player.name)}</td><td class="pts">${r.total}</td></tr>`).join("")}</tbody></table></div>
-      ${recent.length?`<div class="lbl" style="font-size:.74rem;color:var(--muted);font-weight:700;letter-spacing:1px;margin:1.2rem 0 .4rem">RECENT POINTS <span class="muted" style="font-weight:500;text-transform:none;letter-spacing:0">— ✕ to undo a mistake</span></div>${recent.map(e=>{const pl=S.player(e.player_id);return `<div class="ach" style="margin-bottom:.3rem;justify-content:space-between"><div>${esc(pl?pl.name:"?")} <span class="muted">· ${esc(e.note||e.category)}</span></div><div style="display:flex;align-items:center;gap:.6rem"><b style="color:var(--gold-bright)">${e.points>0?"+":""}${e.points}</b><button class="btn btn-ghost btn-sm" data-del-pe="${e.id}" title="Undo">✕</button></div></div>`;}).join("")}`:""}
+      <button class="btn btn-gold btn-block" id="pt-save">Add AP</button>
+      ${mover.winner?`<p class="muted" style="font-size:.82rem;margin:.6rem 0 0">This month's top AP-gainer: <b>${esc(safeName(mover.winner.player))}</b> (+${mover.winner.gain}). One tap above awards the +${SC.moverOfMonth} spotlight bonus.</p>`:""}
+      ${(()=>{ const quiet=S.quietPlayers(); return quiet.length?`<div class="card" style="background:#2a2410;border:1px solid var(--gold);margin:1.2rem 0 .2rem;padding:.8rem 1rem">
+        <div class="lbl" style="font-size:.74rem;color:var(--gold-bright);font-weight:700;letter-spacing:1px;margin:0 0 .35rem">🔇 QUIET-PLAYER WATCH — COACH ONLY</div>
+        <p class="muted" style="margin:0 0 .5rem;font-size:.82rem">Bottom-quartile AP <b>and</b> no award in the last 3 weeks. Not a problem with the player — a nudge to spread an award or have a friendly word. Never shown to families.</p>
+        <div class="badge-row" style="flex-wrap:wrap">${quiet.map(p=>`<span class="tag" style="background:#5a4a1a;color:#fff">${esc(p.name)} <span style="opacity:.8">#${p.number}</span></span>`).join("")}</div>
+      </div>`:`<p class="muted" style="font-size:.8rem;margin:1.2rem 0 .2rem">🔇 Quiet-player watch: nobody flagged this week — every player is either out of the bottom quartile or has had a recent award. ✓</p>`; })()}
+      <div class="lbl" style="font-size:.74rem;color:var(--muted);font-weight:700;letter-spacing:1px;margin:1.2rem 0 .4rem">AP STANDINGS — COACH VIEW (${esc(S.season)})</div>
+      <div class="table-wrap"><table class="league-table"><thead><tr><th>#</th><th>Player</th><th>Tier</th><th>AP</th></tr></thead>
+        <tbody>${rows.map((r,i)=>`<tr><td>${i+1}</td><td>${esc(r.player.name)}</td><td>${esc(S.tierOf(r.player.id).label)}</td><td class="pts">${r.total}</td></tr>`).join("")}</tbody></table></div>
+      ${recent.length?`<div class="lbl" style="font-size:.74rem;color:var(--muted);font-weight:700;letter-spacing:1px;margin:1.2rem 0 .4rem">RECENT AP <span class="muted" style="font-weight:500;text-transform:none;letter-spacing:0">— ✕ to undo a mistake</span></div>${recent.map(e=>{const pl=S.player(e.player_id);return `<div class="ach" style="margin-bottom:.3rem;justify-content:space-between"><div>${esc(pl?pl.name:"?")} <span class="muted">· ${esc(e.note||e.category)}</span></div><div style="display:flex;align-items:center;gap:.6rem"><b style="color:var(--gold-bright)">${e.points>0?"+":""}${e.points}</b><button class="btn btn-ghost btn-sm" data-del-pe="${e.id}" title="Undo">✕</button></div></div>`;}).join("")}`:""}
     </div>`;
-    body.querySelectorAll("[data-quick]").forEach(b=>b.addEventListener("click",()=>{
-      const [pts,note]=b.dataset.quick.split("|"); body.querySelector("#pt-pts").value=pts; body.querySelector("#pt-note").value=note;
-    }));
+    body.querySelector("#pt-captains").addEventListener("click", ()=>{ body.querySelector("#pt-pts").value=SC.captainsAward; body.querySelector("#pt-note").value="Captain's Award — best teammate"; });
+    body.querySelector("#pt-mover").addEventListener("click", async ()=>{
+      if (!mover.winner) return toast("No AP gained yet this month");
+      const res = await S.awardMover(mover.winner.playerId, month);
+      if (res.ok) { toast(res.dup?"Already awarded this month":"Mover of the Month awarded 👑"); Admin("points"); } else toast("Error: "+res.msg);
+    });
     body.querySelector("#pt-save").addEventListener("click", async () => {
       const pid=+body.querySelector("#pt-player").value, pts=+body.querySelector("#pt-pts").value, note=body.querySelector("#pt-note").value.trim();
-      if(!pts) return toast("Enter a points value");
+      if(!pts) return toast("Enter an AP value");
       const res = await S.addManual(pid, pts, note);
-      if(res.ok){ toast("Points added ✓"); Admin("points"); } else toast("Error: "+res.msg);
+      if(res.ok){ toast("AP added ✓"); Admin("points"); } else toast("Error: "+res.msg);
     });
     body.querySelectorAll("[data-del-pe]").forEach(b=>b.addEventListener("click", async ()=>{
       const res = await S.deletePointEvent(+b.dataset.delPe);
       if(res.ok){ toast("Removed ✓"); Admin("points"); } else toast("Error: "+res.msg);
+    }));
+  }
+
+  // ---- Team sheet: private bench flags + homework status + one-tap override (§1F) ----
+  function AdmTeamSheet() {
+    const body = $("#admin-body");
+    const roster = S.roster(true).sort((a,b)=>a.number-b.number);
+    const week = S.weekId();
+    body.innerHTML = `<div class="card pad-lg">
+      <p class="muted" style="margin-top:0">Private coach view for <b>${esc(week)}</b>. A player who hasn't completed homework (challenge + quiz) by the deadline is flagged to <b>start on the bench</b>. Tap <b>Waive</b> for illness, family circumstances or first week back — the gate teaches preparation, it never punishes life. These flags are <b>never shown to families</b> and reset each week.</p>
+      <div class="table-wrap"><table class="league-table"><thead><tr><th>Player</th><th>Challenge</th><th>Quiz</th><th>Status</th><th></th></tr></thead>
+        <tbody>${roster.map(p=>{
+          const ch=S.challengeDoneThisWeek(p.id), qz=S.quizDoneThisWeek(p.id);
+          const bench=S.benchFlag(p.id, week), over=S.homeworkOverridden(p.id, week);
+          const pattern=S.homeworkPatternFlag(p.id);
+          return `<tr>
+            <td><b>${esc(p.name)}</b> <span class="muted">#${p.number}</span>${pattern?` <span class="tag" style="background:#5a2; color:#fff" title="3+ consecutive missed weeks — a conversation with the family, not more deductions">⚑ 3-week pattern</span>`:""}</td>
+            <td>${ch?'<span class="tag green">✓</span>':'<span class="tag">—</span>'}</td>
+            <td>${qz?'<span class="tag green">✓</span>':'<span class="tag">—</span>'}</td>
+            <td>${over?'<span class="tag">Waived</span>':bench?'<span class="tag" style="background:#a33;color:#fff">🪑 Bench start</span>':(ch&&qz?'<span class="tag green">Ready</span>':'<span class="muted">pending</span>')}</td>
+            <td>${over?`<button class="btn btn-ghost btn-sm" data-hw-clear="${p.id}">Undo waive</button>`:bench?`<button class="btn btn-dark btn-sm" data-hw-waive="${p.id}">Waive</button>`:''}</td>
+          </tr>`;
+        }).join("")}</tbody></table></div>
+    </div>`;
+    body.querySelectorAll("[data-hw-waive]").forEach(b=>b.addEventListener("click", async ()=>{
+      const res = await S.overrideHomework(+b.dataset.hwWaive, week);
+      if (res.ok) { toast("Waived for this week ✓"); Admin("teamsheet"); } else toast("Error: "+res.msg);
+    }));
+    body.querySelectorAll("[data-hw-clear]").forEach(b=>b.addEventListener("click", async ()=>{
+      const res = await S.clearHomeworkOverride(+b.dataset.hwClear, week);
+      if (res.ok) { toast("Waive removed"); Admin("teamsheet"); } else toast("Error: "+res.msg);
+    }));
+  }
+
+  // ---- Squad Goals editor (§4) ----
+  function AdmSquadGoals() {
+    const body = $("#admin-body");
+    const goals = S.squadGoals();
+    body.innerHTML = `<div class="card pad-lg">
+      <p class="muted" style="margin-top:0">Set a shared <b>Squad Goal</b> — a monthly AP target the whole squad works toward together, unlocking a real-world reward (players pick the warm-up, coach does 20 press-ups, pizza fund). Progress is the total AP gained this month.</p>
+      <div class="grid cols-2">${F("Goal title",`<input id="sg-title" placeholder="e.g. 2,000 AP in June"/>`)}${F("AP target",`<input type="number" id="sg-target" value="2000"/>`)}</div>
+      ${F("Real-world unlock",`<input id="sg-reward" placeholder="e.g. Players pick the warm-up"/>`)}
+      <button class="btn btn-gold btn-block" id="sg-add" style="margin-top:.6rem">Add squad goal</button>
+      ${goals.length?`<div class="lbl" style="font-size:.74rem;color:var(--muted);font-weight:700;letter-spacing:1px;margin:1.2rem 0 .4rem">THIS SEASON'S GOALS</div>${goals.map(g=>{const prog=S.squadGoalProgress(g),pct=g.target?Math.min(100,Math.round(prog/g.target*100)):0;return `<div class="ach" style="justify-content:space-between;margin-bottom:.4rem"><div><b>${esc(g.title)}</b> <span class="muted">${prog}/${g.target} AP · 🎁 ${esc(g.reward)}${g.unlocked?' · unlocked':''}</span></div><div style="display:flex;gap:.4rem"><button class="btn btn-ghost btn-sm" data-sg-toggle="${g.id}">${g.unlocked?'Lock':'Unlock'}</button><button class="btn btn-ghost btn-sm" data-sg-del="${g.id}">✕</button></div></div>`;}).join("")}`:""}
+    </div>`;
+    body.querySelector("#sg-add").addEventListener("click", async ()=>{
+      const title=$("#sg-title").value.trim(), target=$("#sg-target").value, reward=$("#sg-reward").value.trim();
+      if(!title) return toast("Give the goal a title");
+      const res = await S.addSquadGoal({ title, target, reward });
+      if(res.ok){ toast("Squad goal added ✓"); Admin("squadgoals"); } else toast("Error: "+res.msg);
+    });
+    body.querySelectorAll("[data-sg-toggle]").forEach(b=>b.addEventListener("click", async ()=>{
+      const g=S.squadGoals().find(x=>x.id===+b.dataset.sgToggle); await S.setSquadGoalUnlocked(g.id, !g.unlocked); Admin("squadgoals");
+    }));
+    body.querySelectorAll("[data-sg-del]").forEach(b=>b.addEventListener("click", async ()=>{
+      await S.deleteSquadGoal(+b.dataset.sgDel); Admin("squadgoals");
     }));
   }
 
@@ -1159,13 +1606,15 @@
     const results = S.quizResults(week);
     const done = roster.filter(p=>results[p.id]!=null).length;
     body.innerHTML = `<div class="card pad-lg">
-      <p class="muted" style="margin-top:0">Quiz results for <b>${esc(week)}</b> (${esc(S.season)}). Auto-marked — 1 point per correct answer. Anyone who hasn't done it by Sunday counts as <b>0</b>. ${done}/${roster.length} completed.</p>
-      <div class="table-wrap"><table class="league-table"><thead><tr><th>Player</th><th>Score</th><th>Status</th></tr></thead>
+      <p class="muted" style="margin-top:0">Quiz results for <b>${esc(week)}</b> (${esc(S.season)}). Auto-marked — completion +${(cfg.SCORING||{}).quizComplete} AP, perfect score +${(cfg.SCORING||{}).quizPerfect}. Zero coach admin. ${done}/${roster.length} completed.</p>
+      <div class="table-wrap"><table class="league-table"><thead><tr><th>Player</th><th>Score</th><th>AP</th><th>Status</th></tr></thead>
         <tbody>${roster.map(p=>{
           const sc=results[p.id];
+          const perfect = sc && sc.correct!=null && sc.total && sc.correct>=sc.total;
           return `<tr><td><b>${esc(p.name)}</b> <span class="muted">#${p.number}</span></td>
-            <td class="pts">${sc!=null?sc:0}${total?` / ${total}`:""}</td>
-            <td>${sc!=null?`<span class="tag green">Done</span>`:`<span class="tag">Not done (0)</span>`}</td></tr>`;
+            <td class="pts">${sc&&sc.correct!=null?sc.correct:0}${total?` / ${total}`:""}</td>
+            <td class="pts">${sc?sc.points:0}</td>
+            <td>${sc!=null?`<span class="tag green">Done${perfect?' · Perfect 💯':''}</span>`:`<span class="tag">Not done</span>`}</td></tr>`;
         }).join("")}</tbody></table></div>
     </div>`;
   }
@@ -1182,7 +1631,7 @@
         <div class="grid cols-3">${DEV_AREAS.map(([k,label])=>F(label,`<input type="number" min="0" max="100" id="ac-${k}" value="${dev[k]||0}"/>`)).join("")}</div>
         ${F("Goals to achieve (one per line)",`<textarea id="ac-targets" rows="3">${esc((p.targets||[]).join("\n"))}</textarea>`)}
         ${F("Development plan (one step per line)",`<textarea id="ac-plan" rows="4">${esc((p.program||[]).join("\n"))}</textarea>`)}
-        <p class="muted" style="font-size:.82rem;margin:.4rem 0 .2rem">🎬 Videos are now managed in the <b>Videos</b> tab — add a video once and assign it to ${esc(p.name.split(" ")[0])} (or the whole team) there.</p>
+        <p class="muted" style="font-size:.82rem;margin:.4rem 0 .2rem">🎬 Videos are now managed in the <b>Videos</b> tab — add a video once and assign it to ${esc(firstNameOf(p))} (or the whole team) there.</p>
         <button class="btn btn-gold btn-block" id="ac-save">Save ${esc(p.name)}'s development</button>`;
       body.querySelector("#ac-save").addEventListener("click", async () => {
         const devObj = {}; DEV_AREAS.forEach(([k]) => devObj[k] = Math.max(0, Math.min(100, +$("#ac-"+k).value || 0)));
@@ -1205,11 +1654,16 @@
   function AdmQuizEditor() {
     const body = $("#admin-body");
     const cq = S.currentQuiz();
+    const bandTag = b => b ? `<span class="tag" style="font-size:.6rem;margin-left:.3rem">${esc(b)}</span>` : "";
     function qRow(q,i){ return `<div class="ach" style="margin-bottom:.35rem;justify-content:space-between;align-items:flex-start">
-      <div><b>${i+1}. ${esc(q.q)}</b><br><span class="muted" style="font-size:.78rem">✓ ${esc(q.opts[q.answer])}</span></div>
+      <div><b>${i+1}. ${esc(q.q)}</b>${bandTag(q.band)}${q.topic?bandTag(q.topic):""}${q.corner?bandTag(q.corner):""}<br><span class="muted" style="font-size:.78rem">✓ ${esc(q.opts[q.answer])}</span></div>
       <button class="btn btn-ghost btn-sm" data-rmq="${i}" title="Remove">✕</button></div>`; }
+    const cov = S.quizCoverage();
+    const covLine = (obj) => Object.entries(obj).map(([k,v])=>`${esc(k)} ${v}`).join(" · ");
     body.innerHTML = `<div class="card pad-lg">
-      <p class="muted" style="margin-top:0">This week's quiz (<b>${esc(cq.week)}</b>) — ${cq.custom?'<b>a custom set you made</b>':'auto-rotated from the question bank'}. It refreshes on its own each week; here you can shuffle a fresh set, add your own questions, or reset to automatic.</p>
+      <p class="muted" style="margin-top:0">This week's quiz (<b>${esc(cq.week)}</b>) — ${cq.custom?'<b>a custom set you made</b>':'auto-rotated from the question bank, mixing easy/medium/hard so every reader can score'}. It refreshes on its own each week; here you can shuffle a fresh set, add your own questions, or reset to automatic.</p>
+      <div class="card" style="margin-bottom:1rem;background:rgba(255,255,255,.03)"><div class="lbl" style="font-size:.7rem;color:var(--muted);font-weight:700;letter-spacing:1px">QUESTION BANK COVERAGE · ${cov.total} QUESTIONS</div>
+        <div class="muted" style="font-size:.8rem;margin-top:.3rem"><b>Bands:</b> ${esc(covLine(cov.band))}<br><b>Football topics:</b> ${esc(covLine(cov.topic))}<br><b>Skill corners:</b> ${esc(covLine(cov.corner))}</div></div>
       <div class="badge-row" style="margin-bottom:1rem">
         <button class="btn btn-gold btn-sm" id="qz-shuffle">🔀 New random set</button>
         <button class="btn btn-ghost btn-sm" id="qz-reset">↺ Reset to automatic</button>
@@ -1235,6 +1689,96 @@
       if(!q || opts.some(o=>!o)) return toast("Fill in the question and all four options");
       const qs = [...cq.questions, { q, opts, answer:+$("#qz-ans").value, cat:"custom" }];
       const r = await S.saveCustomQuiz(qs); if(r.ok){toast("Question added ✓"); reload();} else toast("Error: "+r.msg);
+    });
+  }
+
+  /* ---- Skill Ladder coach check (§2) — station-style, a few taps ----
+     Coach picks a player, then for each of the SIX tracks taps Bronze/Silver/Gold
+     (awards 25/50/100) or "Personal Best" (+10). Levels are private to the player;
+     two Gold checks feed the Icon tier gate (§6). */
+  function AdmSkillLadder(pid) {
+    const body = $("#admin-body");
+    const roster = S.roster(true).sort((a,b)=>a.number-b.number);
+    if (!roster.length) { body.innerHTML = `<div class="card pad-lg"><p class="muted" style="margin:0">No players in the ${esc(S.season)} squad yet.</p></div>`; return; }
+    const sel = pid ? +pid : roster[0].id;
+    const p = S.player(sel) || roster[0];
+    const ladder = S.skillLadder(p.id);
+    const golds = S.skillGoldCount(p.id);
+    const LEVELS = [["bronze","Bronze",(cfg.SCORING||{}).skillBronze],["silver","Silver",(cfg.SCORING||{}).skillSilver],["gold","Gold",(cfg.SCORING||{}).skillGold]];
+    const rank = { bronze:1, silver:2, gold:3 };
+    const trackRow = (track) => {
+      const cur = ladder[track] || { level:null, rank:0, pbs:0 };
+      return `<div class="card" style="margin-bottom:.6rem">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.4rem">
+          <div><b>${esc(track)}</b> ${cur.level?`<span class="tag green" style="text-transform:capitalize">${esc(cur.level)}</span>`:'<span class="tag">Not checked</span>'}${cur.pbs?` <span class="muted" style="font-size:.72rem">· ${cur.pbs} PB</span>`:''}</div>
+          <button class="btn btn-ghost btn-sm" data-sl-pb="${esc(track)}" title="Beat their own mark">⭐ Personal Best +${(cfg.SCORING||{}).skillPersonalBest}</button>
+        </div>
+        <div class="badge-row" style="margin-top:.5rem">
+          ${LEVELS.map(([k,l,ap])=>{
+            const done = (cur.rank||0) >= rank[k];
+            return `<button class="btn ${done?'btn-gold':'btn-dark'} btn-sm" data-sl-set="${esc(track)}" data-sl-level="${k}">${done?'✓ ':''}${l} <span style="opacity:.7">+${ap}</span></button>`;
+          }).join("")}
+        </div>
+      </div>`;
+    };
+    body.innerHTML = `<div class="card pad-lg">
+      <p class="muted" style="margin-top:0">Run the half-term <b>skill checks</b> as a station. Pick a player, then tap the level they reached on each track — <b>Bronze +${(cfg.SCORING||{}).skillBronze}</b>, <b>Silver +${(cfg.SCORING||{}).skillSilver}</b>, <b>Gold +${(cfg.SCORING||{}).skillGold}</b>. "Personal Best" is +${(cfg.SCORING||{}).skillPersonalBest} any time they beat their own mark. Levels are private to each player; <b>2 Gold checks</b> unlock the Icon card.</p>
+      ${F("Player",`<select id="sl-player">${roster.map(r=>`<option value="${r.id}" ${r.id===p.id?'selected':''}>#${r.number} ${esc(r.name)}</option>`).join("")}</select>`)}
+      <div class="ach" style="justify-content:space-between;margin:.6rem 0 1rem"><div><span class="em">🏅</span> <b>${esc(p.name)}</b></div><span class="tag ${golds>=2?'green':''}">${golds} Gold check${golds===1?'':'s'}${golds>=2?' · Icon ready':''}</span></div>
+      <div class="lbl" style="font-size:.74rem;color:var(--muted);font-weight:700;letter-spacing:1px;margin:.2rem 0 .5rem">SIX TRACKS</div>
+      ${S.SKILL_TRACKS.map(trackRow).join("")}
+    </div>`;
+    $("#sl-player").addEventListener("change", e => location.hash = "#admin/skillladder/"+e.target.value);
+    body.querySelectorAll("[data-sl-set]").forEach(b => b.addEventListener("click", async () => {
+      const res = await S.recordSkill(p.id, b.dataset.slSet, b.dataset.slLevel);
+      if (res.ok) { toast(res.dup ? "Already at that level" : b.dataset.slLevel[0].toUpperCase()+b.dataset.slLevel.slice(1)+" check saved ✓"); AdmSkillLadder(p.id); }
+      else toast("Error: "+res.msg);
+    }));
+    body.querySelectorAll("[data-sl-pb]").forEach(b => b.addEventListener("click", async () => {
+      const res = await S.recordPersonalBest(p.id, b.dataset.slPb);
+      if (res.ok) { toast("Personal Best! +"+(cfg.SCORING||{}).skillPersonalBest+" ⭐"); AdmSkillLadder(p.id); }
+      else toast("Error: "+res.msg);
+    }));
+  }
+
+  /* ---- Mini-IDP editor (§5): exactly TWO focus areas per half-term (one
+     Technical + one other corner), each linked to one drill video, plus one
+     sentence of post-match coach feedback. Refreshed each half-term. ---- */
+  function AdmIdp(pid) {
+    const body = $("#admin-body");
+    const roster = S.roster(true).sort((a,b)=>a.number-b.number);
+    if (!roster.length) { body.innerHTML = `<div class="card pad-lg"><p class="muted" style="margin:0">No players in the ${esc(S.season)} squad yet.</p></div>`; return; }
+    const sel = pid ? +pid : roster[0].id;
+    const p = S.player(sel) || roster[0];
+    const idp = S.idpFor(p.id);
+    const f0 = idp.focus[0] || {}; const f1 = idp.focus[1] || {};
+    const corners = S.IDP_CORNERS.filter(c => c.key !== "technical");   // 2nd focus = a DIFFERENT corner
+    const focusBlock = (i, f, lockCorner) => `<div class="card" style="margin-bottom:.8rem">
+      <div class="lbl" style="font-size:.72rem;color:var(--gold);font-weight:800;letter-spacing:1px;margin-bottom:.4rem">FOCUS ${i+1} · ${lockCorner?'TECHNICAL (required)':'PICK ANOTHER CORNER'}</div>
+      ${lockCorner?'':F("Corner",`<select id="idp-corner-${i}">${corners.map(c=>`<option value="${c.key}" ${ (f.corner||'physical')===c.key?'selected':''}>${esc(c.label)}</option>`).join("")}</select>`)}
+      ${F("Focus area (one short line)",`<input id="idp-area-${i}" value="${esc(f.area||"")}" placeholder="${lockCorner?'e.g. First touch under pressure':'e.g. Sprint recovery to get back'}"/>`)}
+      ${F("Linked drill video (paste a link)",`<input id="idp-url-${i}" value="${esc(f.drillUrl||"")}" placeholder="https://..."/>`)}
+      ${F("Drill title (optional)",`<input id="idp-title-${i}" value="${esc(f.drillTitle||"")}" placeholder="e.g. Wall pass control drill"/>`)}
+      ${F("Coach feedback after a match (one sentence)",`<input id="idp-fb-${i}" value="${esc(f.feedback||"")}" placeholder="e.g. Much calmer first touch on Sunday — keep it up!"/>`)}
+    </div>`;
+    body.innerHTML = `<div class="card pad-lg">
+      <p class="muted" style="margin-top:0">Set each player's <b>2 focus areas for this half-term</b> — one <b>Technical</b> plus one from another corner — each linked to one drill video, with a one-sentence coach feedback slot. Shown on the child's Development page as <b>"My focus this half-term"</b>. ${S.idpNeedsRefresh(p.id)?'<span class="tag">Needs refreshing this half-term</span>':'<span class="tag green">Set for this half-term ✓</span>'}</p>
+      ${F("Player",`<select id="idp-player">${roster.map(r=>`<option value="${r.id}" ${r.id===p.id?'selected':''}>#${r.number} ${esc(r.name)}</option>`).join("")}</select>`)}
+      ${focusBlock(0, f0, true)}
+      ${focusBlock(1, f1, false)}
+      <button class="btn btn-gold btn-block" id="idp-save">Save ${esc(p.name)}'s focus for this half-term</button>
+    </div>`;
+    $("#idp-player").addEventListener("change", e => location.hash = "#admin/idp/"+e.target.value);
+    $("#idp-save").addEventListener("click", async () => {
+      const focus = [0,1].map(i => ({
+        corner: i===0 ? "technical" : ($("#idp-corner-"+i)||{}).value || "physical",
+        area: ($("#idp-area-"+i)||{}).value || "",
+        drillUrl: ($("#idp-url-"+i)||{}).value || "",
+        drillTitle: ($("#idp-title-"+i)||{}).value || "",
+        feedback: ($("#idp-fb-"+i)||{}).value || ""
+      }));
+      const res = await S.saveIdp(p.id, focus);
+      if (res.ok) { toast("Focus saved ✓"); AdmIdp(p.id); } else toast("Error: "+res.msg);
     });
   }
 
@@ -1279,7 +1823,7 @@
     const isTeam = ed ? ed.team===true : true;
     const assigned = new Set(ed && Array.isArray(ed.player_ids) ? ed.player_ids : []);
     const scopeLabel = d => d.team===true ? `<span class="tag t-train">Whole team</span>`
-      : `<span class="tag">${(d.player_ids||[]).map(pid=>{const pl=S.player(pid);return pl?esc(pl.name.split(" ")[0]):"?";}).join(", ")||"unassigned"}</span>`;
+      : `<span class="tag">${(d.player_ids||[]).map(pid=>{const pl=S.player(pid);return pl?esc(firstNameOf(pl)):"?";}).join(", ")||"unassigned"}</span>`;
     body.innerHTML = `<div class="card pad-lg" style="max-width:640px">
       <h3 style="margin:0 0 .4rem;font-family:var(--display)">${ed?"Edit video":"Add a video"}</h3>
       <p class="muted" style="margin-top:0">Add a video <b>once</b> here, then assign it to the whole team or to specific children — no need to add the same clip twice.</p>

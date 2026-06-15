@@ -48,24 +48,71 @@ window.HARRIS_CONFIG = {
     ]
   },
 
-  // --- League scoring rules (one place to change every point value) ---
+  // --- Academy Points (AP) scoring — v1.1 (see points-spec.md §1) ---
+  // One currency: AP. Effort is rewarded over outcome (≈75:25). Every value here
+  // is taken verbatim from the spec — do not retune without a spec change.
   SCORING: {
-    quizPerCorrect: 1,          // 1 point per correct quiz answer (0 if not done by Sunday)
-    videoFirstWatch: 2,         // watch a coach's video fully = 2 points
-    videoRewatch: 1,            // +1 each additional full watch
-    goal: 3,                    // goal in a game
-    assist: 5,                  // assist in a game
-    motm: 10,                   // Man of the Match
-    trainingAttendance: 3,      // turning up to training
-    trainingPerformanceGood: 3, // good effort/performance grade
-    trainingPerformancePoor: -3,// poor performance grade
-    cleanSheet: 5,              // defenders & goalkeepers, when we concede 0
-    challenge: 10,              // coach-set challenge
-    funHomeChallenge: 10,       // fun home challenge
-    makeYourBedPerWeek: 5,      // habit challenge — every morning for a week
-    perfectMonth: 20,           // attend EVERY training session in a month
-    bottomOfLeagueChallenge: 20 // bottom of the league does one big challenge
+    // A. Training (§1A)
+    trainingAttendance: 20,     // attend training
+    trainerOfTheDay: 10,        // coach pick — best effort (rotation rule)
+    trainingStreak: 20,         // 4-week training streak (one freeze/half-term)
+
+    // B. Weekly Challenge (§1B)
+    challenge: 15,              // complete the weekly drill ("Done it!" + parent confirm)
+    challengeShown: 5,         // bonus: shown the skill to coach / 10s clip
+    challengeStreak: 15,       // 4-challenge streak
+
+    // C. Match day (§1C)
+    appearance: 20,            // play in the match (any minutes) — everyone in squad
+    win: 10,                   // win — everyone, equally
+    draw: 5,                   // draw — everyone, equally
+    goal: 10,                  // goal (scorer)
+    assist: 10,                // assist (creator)
+    cleanSheetGK: 15,          // clean sheet — goalkeeper
+    cleanSheetDef: 10,         // clean sheet — defenders
+    cleanSheetOther: 5,        // clean sheet — others (outfield, non-defender)
+    saveOfTheDay: 10,          // Save of the Day (coach tap) — GK
+    outcomeCapPerMatch: 30,    // CAP: max +30/match from goals + assists combined
+
+    // D. Coach awards (§1D)
+    motm: 15,                  // Player of the Match
+    momentOfMatch: 15,         // Moment of the Match (≠ POTM)
+    captainsAward: 25,         // Captain's Award (monthly, voted by players)
+
+    // E. Weekly Quiz (§1E)
+    quizComplete: 10,          // complete the weekly quiz
+    quizPerfect: 5,            // perfect score bonus
+    quizStreak: 10,            // 4-quiz streak
+
+    // F. Homework Gate (§1F) — parent controlled
+    homeworkBonus: 5,          // challenge + quiz both done by deadline
+    homeworkPenalty: -5,       // homework not complete (floored at 0/week)
+
+    // G. Home Team chores (§1G) — parent controlled
+    chore: 10,                 // each ticked chore (max 3/week → 30)
+    choresPerWeek: 3,          // parents set up to 3 chores/week
+
+    // Skill Ladder (§2)
+    skillBronze: 25,
+    skillSilver: 50,
+    skillGold: 100,
+    skillPersonalBest: 10,
+
+    // Mover of the Month (§4)
+    moverOfMonth: 25           // most AP gained this month → home spotlight
   },
+
+  // --- Card evolution tiers (§6) — season AP thresholds, one-way ---
+  TIERS: [
+    { key: "bronze", label: "Bronze", min: 0 },
+    { key: "silver", label: "Silver", min: 800 },
+    { key: "gold",   label: "Gold",   min: 1800 },
+    { key: "icon",   label: "Icon",   min: 3000, goldSkillChecks: 2 } // + any 2 Gold skill checks
+  ],
+
+  // Homework deadline (§1F): default 6pm the day before match day. Configurable.
+  HOMEWORK_DEADLINE_HOUR: 18,   // 18:00 local
+  HOMEWORK_DEADLINE_DAYS_BEFORE: 1,
 
   // The signed-in viewer for the demo (which player's profile is "me").
   // In live mode this comes from the user's account.
