@@ -171,6 +171,71 @@ function pinNow(d) { global.Date = class extends RealDate { constructor(...a){ i
   v = window.document.querySelector("#view").innerHTML;
   ok(/Skill Ladder/.test(v), "§2 own Academy profile shows the private Skill Ladder");
 
+  /* ============ STOCK VIDEO LIBRARY — families must NEVER see unassigned ============ */
+  // A stock/unassigned video (no team, no children) is admin-only until assigned.
+  const stockRes = await S.addStockVideo({ title: "Stock finishing drill", url: "https://youtu.be/zzzzzzzzzzz", folder: "Finishing" });
+  ok(stockRes.ok, "stock: addStockVideo succeeds");
+  const stock = S.stockVideos();
+  ok(stock.some(d => d.title === "Stock finishing drill"), "stock: video lands in the stock shelf");
+  ok(S.videoFolders().includes("Finishing"), "stock: folder name appears in videoFolders()");
+  // CRITICAL safeguard: stock video is NOT in teamVideos() and NOT in any child's list.
+  ok(!S.teamVideos().some(d => d.title === "Stock finishing drill"), "stock: hidden from teamVideos() (families)");
+  ros.forEach(child => {
+    ok(!S.videosForPlayer(child.id).some(d => d.title === "Stock finishing drill"),
+      "stock: hidden from videosForPlayer(#" + child.id + ")");
+  });
+  // Once assigned to the team it becomes visible to families (no re-upload).
+  const stockId = stock.find(d => d.title === "Stock finishing drill").id;
+  await S.assignVideo(stockId, { team: true });
+  ok(S.teamVideos().some(d => d.id === stockId), "stock: appears to families AFTER assigning to team");
+  ok(!S.stockVideos().some(d => d.id === stockId), "stock: no longer counted as stock once assigned");
+  // Assigning to a specific child surfaces it only for that child.
+  await S.assignVideo(stockId, { playerIds: [ros[0].id] });
+  ok(S.videosForPlayer(ros[0].id).some(d => d.id === stockId), "stock: visible to the assigned child");
+  ok(!S.teamVideos().some(d => d.id === stockId), "stock: not a team video once re-assigned to a child");
+
+  /* ============ OPPONENT DIRECTORY — seeds from past opponents ============ */
+  const oppNames = [...new Set((S.state.fixtures || []).map(f => (f.opponent||"").trim()).filter(Boolean))];
+  if (oppNames.length) {
+    ge(S.directory().length, oppNames.length, "directory: seeded a row for every distinct fixture opponent");
+    ok(oppNames.every(n => S.directory().some(d => d.club === n)), "directory: every opponent club is present");
+  }
+  const beforeCount = S.directory().length;
+  await S._seedDirectory();   // running again must NOT duplicate
+  eq(S.directory().length, beforeCount, "directory: re-seeding does not duplicate clubs");
+
+  /* ============ POSITION_TASKS library + posGroup mapper ============ */
+  const PT = window.POSITION_TASKS;
+  ok(PT && typeof PT === "object", "POSITION_TASKS library is defined");
+  const PT_GROUPS = ["GK","CB","FB","CM","WIDE","FWD"];
+  eq(Object.keys(PT || {}).length, 6, "POSITION_TASKS has exactly 6 position groups");
+  PT_GROUPS.forEach(g => {
+    ok(Array.isArray(PT[g]), "POSITION_TASKS group " + g + " is a list");
+    ge((PT[g] || []).length, 20, "POSITION_TASKS group " + g + " has >= 20 targets");
+    ok((PT[g] || []).every(t => typeof t === "string" && t.trim().length > 0), "POSITION_TASKS group " + g + " entries are non-empty strings");
+    eq(new Set((PT[g] || []).map(t => t.toLowerCase())).size, (PT[g] || []).length, "POSITION_TASKS group " + g + " has no duplicate targets");
+  });
+  ok(typeof window.posGroup === "function", "posGroup mapper is defined");
+  const PG = window.posGroup;
+  eq(PG("GK"), "GK", "posGroup GK→GK");
+  eq(PG("CB"), "CB", "posGroup CB→CB");
+  ["RB","LB","RWB","LWB"].forEach(c => eq(PG(c), "FB", "posGroup " + c + "→FB"));
+  ["CDM","CM","CAM"].forEach(c => eq(PG(c), "CM", "posGroup " + c + "→CM"));
+  ["RM","LM","RW","LW"].forEach(c => eq(PG(c), "WIDE", "posGroup " + c + "→WIDE"));
+  ["ST","CF"].forEach(c => eq(PG(c), "FWD", "posGroup " + c + "→FWD"));
+  eq(PG("ZZ"), "CM", "posGroup unknown→CM (default)");
+  eq(PG(""), "CM", "posGroup empty→CM (default)");
+
+  /* ============ Dev editor renders position suggestions (admin) ============ */
+  S.isAdmin = true;
+  window.location.hash = "#admin/academy";
+  window.dispatchEvent(new window.Event("hashchange"));
+  await new Promise(res => setTimeout(res, 30));
+  const av = window.document.querySelector("#view").innerHTML;
+  ok(/Suggested targets for/i.test(av), "dev editor shows 'Suggested targets for {position}'");
+  ok(/data-add-target=/.test(av), "dev editor renders clickable suggestion chips");
+  ok(/Goals to achieve/i.test(av), "dev editor keeps the 'Goals to achieve' section");
+
   // ---- report ----
   console.log(`\nPHASE 4 CONTENT TESTS — ${pass} passed, ${fail} failed`);
   if (fail) { console.log("\nFAILURES:"); fails.forEach((f, i) => console.log(`  [${i+1}] ${f}`)); process.exit(1); }

@@ -60,6 +60,15 @@
       sessionStorage.removeItem("harris_preview_auth");
     },
 
+    // Change the SIGNED-IN user's own password (LIVE only). Uses their existing
+    // session — no email needed, touches no other account. Never logs the value.
+    async changePassword(newPw) {
+      if (!LIVE) return { ok: false, msg: "Changing your password is available on the live site." };
+      const { error } = await this.sb.auth.updateUser({ password: newPw });
+      if (error) return { ok: false, msg: error.message || "Couldn't update your password — please try again." };
+      return { ok: true };
+    },
+
     _previewAuthed() { return sessionStorage.getItem("harris_preview_auth") === "1"; },
 
     /* ---------- load data ---------- */
@@ -75,6 +84,7 @@
       this._normalizeDrills();
       this._applySeason();
       this._applyPoints();
+      await this._seedDirectory();
       return this.state;
     },
 
@@ -157,6 +167,7 @@
       base.quizzes = JSON.parse(localStorage.getItem("harris_quizzes") || "{}");
       base.chores = JSON.parse(localStorage.getItem("harris_chores") || "{}");
       base.squadGoals = JSON.parse(localStorage.getItem("harris_squadgoals") || "[]");
+      base.directory = JSON.parse(localStorage.getItem("harris_directory") || "[]");
       const kids = JSON.parse(localStorage.getItem("harris_my_kids") || "null");
       const myp = localStorage.getItem("harris_my_player");
       this.myKids = Array.isArray(kids) && kids.length ? kids : (myp ? [+myp] : []);
@@ -191,6 +202,8 @@
       try { const { data } = await sb.from("chores").select("*"); (data || []).forEach(r => { chores[`${r.week}:${r.player_id}`] = { list: r.list || [], done: r.done || [] }; }); } catch (e) { /* chores table not created yet */ }
       let squadGoals = [];
       try { const { data } = await sb.from("squad_goals").select("*"); squadGoals = data || []; } catch (e) { /* squad_goals not created yet */ }
+      let directory = [];
+      try { const { data } = await sb.from("directory").select("*").order("club"); directory = data || []; } catch (e) { /* directory table not created yet */ }
       // who am I, and am I an admin?
       let allProfiles = [];
       try {
@@ -216,7 +229,7 @@
         attendance: att,
         training: training.data || [],
         trainingSchedule: window.HARRIS_DATA.trainingSchedule,
-        drills, profiles: allProfiles, ledger, chores, squadGoals,
+        drills, profiles: allProfiles, ledger, chores, squadGoals, directory,
         events: (events.data || []).map(e => ({ ...e, desc: e.description, media_list: e.media, media: 0 })),
         gamePoints: (points.data || []).map(g => ({ ...g, playerId: g.player_id })),
         achievements: window.HARRIS_DATA.achievements,
@@ -710,17 +723,39 @@
        squad) or assigned to specific children (team:false, player_ids:[...]). */
     _normalizeDrills() {
       (this.state.drills || []).forEach(d => {
-        if (d.team === undefined || d.team === null) d.team = !(Array.isArray(d.player_ids) && d.player_ids.length);
         if (!Array.isArray(d.player_ids)) d.player_ids = [];
+        // A video is "stock/unassigned" when it has NO team flag AND no children.
+        // Only default an absent team flag to TRUE when the row is already assigned
+        // to children would be wrong, so: legacy rows with neither marker became team
+        // videos historically — preserve that, but never force a STOCK row (which has
+        // team===false AND no player_ids) to become a team video.
+        if (d.team === undefined || d.team === null) d.team = !(d.player_ids.length);
+        if (d.folder === undefined) d.folder = null;
       });
     },
-    teamVideos() { return (this.state.drills || []).filter(d => d.team === true); },
-    videosForPlayer(pid) { return (this.state.drills || []).filter(d => d.team !== true && (d.player_ids || []).includes(pid)); },
+    // A video is STOCK (admin-only shelf) when it has no team assignment AND no child
+    // assignment — regardless of which folder it sits in.
+    isStockVideo(d) { return d && d.team !== true && !((d.player_ids || []).length); },
+    // FAMILY-FACING lists: a stock/unassigned video must NEVER appear here.
+    teamVideos() { return (this.state.drills || []).filter(d => d.team === true && !this.isStockVideo(d)); },
+    videosForPlayer(pid) { return (this.state.drills || []).filter(d => !this.isStockVideo(d) && d.team !== true && (d.player_ids || []).includes(pid)); },
 
+    /* ----- Stock library (admin-only) ----- */
+    // Distinct folder names currently in use across stock videos (sorted A–Z).
+    videoFolders() {
+      const set = new Set();
+      (this.state.drills || []).forEach(d => { if (this.isStockVideo(d) && d.folder) set.add(d.folder); });
+      return [...set].sort((a, b) => a.localeCompare(b));
+    },
+    // Stock videos, optionally limited to one folder.
+    stockVideos(folder) {
+      const all = (this.state.drills || []).filter(d => this.isStockVideo(d));
+      return folder === undefined ? all : all.filter(d => (d.folder || null) === (folder || null));
+    },
     async addDrill(d) {
       this.state.drills = this.state.drills || [];
       const row = { title:d.title, url:d.url, area:d.area || null, description:d.description || null,
-        team: d.team !== false, player_ids: d.player_ids || [] };
+        team: d.team !== false, player_ids: d.player_ids || [], folder: d.folder || null };
       if (LIVE) {
         const { data, error } = await this.sb.from("drills").insert(row).select().single();
         if (error) return { ok: false, msg: error.message };
@@ -730,16 +765,52 @@
       }
       return { ok: true };
     },
+    // Add a STOCK video (unassigned) into a folder. No team, no children.
+    async addStockVideo(d) {
+      return this.addDrill({ title:d.title, url:d.url, area:d.area || null,
+        description:d.description || null, team:false, player_ids:[], folder:d.folder || null });
+    },
 
     async updateDrill(id, d) {
       const v = (this.state.drills || []).find(x => x.id === id); if (!v) return { ok:false, msg:"Video not found" };
       const fields = { title:d.title, url:d.url, area:d.area || null, description:d.description || null,
-        team: d.team !== false, player_ids: d.player_ids || [] };
+        team: d.team !== false, player_ids: d.player_ids || [], folder: (d.folder !== undefined ? d.folder : v.folder) || null };
       Object.assign(v, fields);
       if (LIVE) { const { error } = await this.sb.from("drills").update(fields).eq("id", id); if (error) return { ok:false, msg:error.message }; }
       else this._persistContent();
       return { ok: true };
     },
+    // Assign a (stock) video to the team OR to specific children — keeps its folder tag.
+    // opts: { team:true } OR { playerIds:[...] }. Once assigned it shows to families.
+    async assignVideo(id, opts) {
+      const v = (this.state.drills || []).find(x => x.id === id); if (!v) return { ok:false, msg:"Video not found" };
+      opts = opts || {};
+      let fields;
+      if (opts.team) fields = { team: true, player_ids: [] };
+      else fields = { team: false, player_ids: (opts.playerIds || []).filter(Boolean) };
+      Object.assign(v, fields);
+      if (LIVE) { const { error } = await this.sb.from("drills").update(fields).eq("id", id); if (error) return { ok:false, msg:error.message }; }
+      else this._persistContent();
+      return { ok: true };
+    },
+    // Move a video to a different folder (used to organise the stock shelf).
+    async moveVideoToFolder(id, folder) {
+      const v = (this.state.drills || []).find(x => x.id === id); if (!v) return { ok:false, msg:"Video not found" };
+      v.folder = folder || null;
+      if (LIVE) { const { error } = await this.sb.from("drills").update({ folder: v.folder }).eq("id", id); if (error) return { ok:false, msg:error.message }; }
+      else this._persistContent();
+      return { ok: true };
+    },
+    // Rename a folder everywhere it's used (across all stock videos).
+    async renameFolder(oldName, newName) {
+      newName = (newName || "").trim() || null;
+      for (const d of (this.state.drills || [])) {
+        if (this.isStockVideo(d) && (d.folder || null) === (oldName || null)) await this.moveVideoToFolder(d.id, newName);
+      }
+      return { ok: true };
+    },
+    // "Delete" a folder = move its stock videos to no folder (videos are kept, not lost).
+    async deleteFolder(name) { return this.renameFolder(name, null); },
 
     async deleteDrill(id) {
       this.state.drills = (this.state.drills || []).filter(d => d.id !== id);
@@ -747,6 +818,60 @@
         const { error } = await this.sb.from("drills").delete().eq("id", id);
         if (error) return { ok: false, msg: error.message };
       } else { this._persistContent(); }
+      return { ok: true };
+    },
+
+    /* ================= OPPONENT DIRECTORY (arranging friendlies) =================
+       Admin-only contact book of opposition managers. Seeded once from every
+       distinct opponent that's ever appeared in the fixture list; the coach fills
+       in the contact fields. This is opponent-ADULT contact info, never child data. */
+    directory() { return [...(this.state.directory || [])].sort((a, b) => (a.club || "").localeCompare(b.club || "")); },
+    _persistDirectory() { localStorage.setItem("harris_directory", JSON.stringify(this.state.directory || [])); },
+    // Create a row for every distinct fixture opponent that isn't already in the
+    // directory. Runs on load; only ADDS missing clubs so it never duplicates.
+    async _seedDirectory() {
+      this.state.directory = this.state.directory || [];
+      const have = new Set((this.state.directory || []).map(d => (d.club || "").trim().toLowerCase()).filter(Boolean));
+      const opponents = [];
+      const seen = new Set();
+      (this.state.fixtures || []).forEach(f => {
+        const club = (f && f.opponent || "").trim();
+        const key = club.toLowerCase();
+        if (club && !seen.has(key) && !have.has(key)) { seen.add(key); opponents.push(club); }
+      });
+      for (const club of opponents) {
+        await this.addDirectoryEntry({ club, manager: "", phone: "", email: "", ground: "" }, true);
+      }
+      return { ok: true, added: opponents.length };
+    },
+    async addDirectoryEntry(d, _seeding) {
+      this.state.directory = this.state.directory || [];
+      const row = { club: (d.club || "").trim(), manager: (d.manager || "").trim(),
+        phone: (d.phone || "").trim(), email: (d.email || "").trim(), ground: (d.ground || "").trim() };
+      if (!row.club) return { ok: false, msg: "Add a club / team name" };
+      if (LIVE) {
+        const { data, error } = await this.sb.from("directory").insert(row).select().single();
+        if (error) { if (_seeding) return { ok: false }; return { ok: false, msg: error.message }; }
+        this.state.directory.push(data);
+      } else {
+        row.id = this._nextId(this.state.directory); this.state.directory.push(row); this._persistDirectory();
+      }
+      return { ok: true };
+    },
+    async updateDirectoryEntry(id, d) {
+      const row = (this.state.directory || []).find(x => x.id === id); if (!row) return { ok: false, msg: "Entry not found" };
+      const fields = { club: (d.club || "").trim(), manager: (d.manager || "").trim(),
+        phone: (d.phone || "").trim(), email: (d.email || "").trim(), ground: (d.ground || "").trim() };
+      if (!fields.club) return { ok: false, msg: "Add a club / team name" };
+      Object.assign(row, fields);
+      if (LIVE) { const { error } = await this.sb.from("directory").update(fields).eq("id", id); if (error) return { ok: false, msg: error.message }; }
+      else this._persistDirectory();
+      return { ok: true };
+    },
+    async deleteDirectoryEntry(id) {
+      this.state.directory = (this.state.directory || []).filter(x => x.id !== id);
+      if (LIVE) { const { error } = await this.sb.from("directory").delete().eq("id", id); if (error) return { ok: false, msg: error.message }; }
+      else this._persistDirectory();
       return { ok: true };
     },
 

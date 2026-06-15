@@ -52,6 +52,9 @@
     await S.load();
     populateSeasonSelect();
     $("#nav-admin").classList.toggle("hidden", !S.isAdmin);
+    // Change-password affordance: visible whenever someone is signed in. The modal
+    // itself degrades gracefully in preview (no real auth) with a friendly note.
+    const cpw = $("#changepw-btn"); if (cpw) cpw.classList.remove("hidden");
     if (S.needsOnboarding()) { showOnboarding(); return; }
     if (!S.hasLinkedPlayer() && !S.isAdmin) { showChildPicker(false); return; }
     if (!location.hash) location.hash = "#home";
@@ -79,6 +82,8 @@
   function wireShell() {
     $("#logout-btn").addEventListener("click", async () => { await S.logout(); location.hash = "#home"; showGate(); });
     $("#myplayer-btn").addEventListener("click", () => showChildPicker(true));
+    const cpw = $("#changepw-btn");
+    if (cpw) cpw.addEventListener("click", showChangePassword);
     const ssel = $("#season-select");
     if (ssel) ssel.addEventListener("change", e => {
       const id = e.target.value;
@@ -1629,7 +1634,7 @@
   function Admin(sub) {
     if (!S.isAdmin) { view.innerHTML = `<div class="card pad-lg"><h2 style="font-family:var(--display)">Admins only</h2><p class="muted">This area is for team coaches/admins. Ask the team admin to grant you access.</p></div>`; return; }
     sub = sub || "fixtures";
-    const tabs = [["attendance","Attendance"],["fixtures","Add fixture"],["result","Enter result"],["register","Register"],["teamsheet","Team sheet"],["points","Academy Points"],["skillladder","Skill ladder"],["squadgoals","Squad goals"],["seasonstats","Season stats"],["quizresults","Quiz results"],["quizedit","Quiz"],["academy","Development"],["idp","Mini-IDP"],["videos","Videos"],["contacts","Contacts"],["roster","Roster"],["players","Add player"],["training","Plan training"],["events","Add event"]];
+    const tabs = [["attendance","Attendance"],["fixtures","Add fixture"],["result","Enter result"],["register","Register"],["teamsheet","Team sheet"],["points","Academy Points"],["skillladder","Skill ladder"],["squadgoals","Squad goals"],["seasonstats","Season stats"],["quizresults","Quiz results"],["quizedit","Quiz"],["academy","Development"],["idp","Mini-IDP"],["videos","Videos"],["contacts","Contacts"],["directory","Directory"],["roster","Roster"],["players","Add player"],["training","Plan training"],["events","Add event"]];
     view.innerHTML = `
       <div class="section-head"><div><div class="eyebrow">Coaches only</div><h2>Admin Panel</h2></div></div>
       <p class="muted" style="margin-top:-.6rem;max-width:62ch">Manage everything from here — no spreadsheets. ${S.MODE==='preview'?'<b>Preview mode:</b> changes save to this browser so you can try it. Connect Supabase to save for everyone.':'Changes save to your database and appear for everyone straight away.'}</p>
@@ -1639,7 +1644,7 @@
       <div id="admin-body"></div>`;
     view.querySelectorAll("[data-atab]").forEach(b => b.addEventListener("click", () => location.hash = "#admin/"+b.dataset.atab));
     const sub2 = (location.hash.replace("#","").split("/"))[2];
-    ({ attendance:AdmAttendance, fixtures:AdmFixture, result:AdmResult, register:AdmRegister, teamsheet:AdmTeamSheet, points:AdmPoints, skillladder:AdmSkillLadder, squadgoals:AdmSquadGoals, seasonstats:AdmSeasonStats, quizresults:AdmQuizResults, quizedit:AdmQuizEditor, academy:AdmAcademy, idp:AdmIdp, videos:AdmVideos, contacts:AdmContacts, roster:AdmRoster, players:AdmPlayer, training:AdmTraining, events:AdmEvent }[sub] || AdmAttendance)(sub2);
+    ({ attendance:AdmAttendance, fixtures:AdmFixture, result:AdmResult, register:AdmRegister, teamsheet:AdmTeamSheet, points:AdmPoints, skillladder:AdmSkillLadder, squadgoals:AdmSquadGoals, seasonstats:AdmSeasonStats, quizresults:AdmQuizResults, quizedit:AdmQuizEditor, academy:AdmAcademy, idp:AdmIdp, videos:AdmVideos, contacts:AdmContacts, directory:AdmDirectory, roster:AdmRoster, players:AdmPlayer, training:AdmTraining, events:AdmEvent }[sub] || AdmAttendance)(sub2);
   }
 
   function toast(msg) {
@@ -2041,19 +2046,59 @@
     const body = $("#admin-body");
     const players = S.roster(true).sort((a,b)=>a.number-b.number);
     if (!players.length) { body.innerHTML = `<div class="card pad-lg"><p class="muted" style="margin:0">No players in the ${esc(S.season)} squad yet. Add them on the <b>Roster</b> tab first.</p></div>`; return; }
+    // Working copy of the player's targets ("Goals to achieve"), edited as chips so
+    // the coach can tap a position suggestion to add (no typing) or remove one.
+    let workTargets = [];
     function load(id) {
       const p = S.player(id); if (!p) return;
       const dev = p.dev || {};
+      workTargets = (p.targets || []).slice();
+      const group = (window.posGroup ? window.posGroup(p.pos) : "CM");
+      const suggestions = (window.POSITION_TASKS && window.POSITION_TASKS[group]) || [];
+      const has = (t) => workTargets.some(x => x.toLowerCase() === t.toLowerCase());
+      const targetChips = () => workTargets.length
+        ? workTargets.map((t,i)=>`<span class="tag" style="display:inline-flex;align-items:center;gap:.35rem;margin:.15rem .25rem .15rem 0">${esc(t)} <button class="x" data-rm-target="${i}" title="Remove" style="font-size:1rem;line-height:1">×</button></span>`).join("")
+        : `<span class="muted" style="font-size:.84rem">No goals yet — tap a suggestion below or add your own.</span>`;
+      const suggestChips = () => suggestions.map(t =>
+        `<button class="btn ${has(t)?'btn-gold':'btn-dark'} btn-sm" data-add-target="${esc(t)}" style="margin:.15rem .25rem .15rem 0">${has(t)?'✓ ':'+ '}${esc(t)}</button>`).join("");
       body.querySelector("#ac-fields").innerHTML = `
         <div class="lbl" style="font-size:.74rem;color:var(--muted);font-weight:700;letter-spacing:1px;margin:.6rem 0 .3rem">DEVELOPMENT PROGRESS (%)</div>
         <div class="grid cols-3">${DEV_AREAS.map(([k,label])=>F(label,`<input type="number" min="0" max="100" id="ac-${k}" value="${dev[k]||0}"/>`)).join("")}</div>
-        ${F("Goals to achieve (one per line)",`<textarea id="ac-targets" rows="3">${esc((p.targets||[]).join("\n"))}</textarea>`)}
+        <div class="lbl" style="font-size:.74rem;color:var(--muted);font-weight:700;letter-spacing:1px;margin:.8rem 0 .3rem">GOALS TO ACHIEVE</div>
+        <div id="ac-target-chips" style="margin-bottom:.5rem">${targetChips()}</div>
+        ${F("Add your own goal",`<div style="display:flex;gap:.5rem"><input id="ac-target-add" placeholder="e.g. Lead the warm-up with a loud voice"/><button class="btn btn-dark btn-sm" id="ac-target-addbtn" type="button">Add</button></div>`)}
+        <div class="lbl" style="font-size:.72rem;color:var(--gold-ink);font-weight:800;letter-spacing:1px;margin:.9rem 0 .35rem">SUGGESTED TARGETS FOR ${esc(p.pos||"?")} <span class="muted" style="font-weight:500;letter-spacing:0;text-transform:none">— tap to assign</span></div>
+        <div id="ac-suggest" style="margin-bottom:.4rem">${suggestChips()}</div>
         ${F("Development plan (one step per line)",`<textarea id="ac-plan" rows="4">${esc((p.program||[]).join("\n"))}</textarea>`)}
         <p class="muted" style="font-size:.82rem;margin:.4rem 0 .2rem">🎬 Videos are now managed in the <b>Videos</b> tab — add a video once and assign it to ${esc(firstNameOf(p))} (or the whole team) there.</p>
         <button class="btn btn-gold btn-block" id="ac-save">Save ${esc(p.name)}'s development</button>`;
+      // Re-render only the chip rows (keeps the dev % and plan fields untouched).
+      const refreshChips = () => {
+        body.querySelector("#ac-target-chips").innerHTML = targetChips();
+        body.querySelector("#ac-suggest").innerHTML = suggestChips();
+        wireChips();
+      };
+      const wireChips = () => {
+        body.querySelectorAll("[data-rm-target]").forEach(b => b.addEventListener("click", () => {
+          workTargets.splice(+b.dataset.rmTarget, 1); refreshChips();
+        }));
+        body.querySelectorAll("[data-add-target]").forEach(b => b.addEventListener("click", () => {
+          const t = b.dataset.addTarget;
+          if (has(t)) workTargets = workTargets.filter(x => x.toLowerCase() !== t.toLowerCase()); // tap again to remove
+          else workTargets.push(t);
+          refreshChips();
+        }));
+      };
+      const addFree = () => {
+        const inp = body.querySelector("#ac-target-add"); const t = (inp.value||"").trim();
+        if (!t) return; if (!has(t)) workTargets.push(t); inp.value=""; refreshChips();
+      };
+      body.querySelector("#ac-target-addbtn").addEventListener("click", addFree);
+      body.querySelector("#ac-target-add").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); addFree(); } });
+      wireChips();
       body.querySelector("#ac-save").addEventListener("click", async () => {
         const devObj = {}; DEV_AREAS.forEach(([k]) => devObj[k] = Math.max(0, Math.min(100, +$("#ac-"+k).value || 0)));
-        const targets = $("#ac-targets").value.split("\n").map(s=>s.trim()).filter(Boolean);
+        const targets = workTargets.map(s=>s.trim()).filter(Boolean);
         const program = $("#ac-plan").value.split("\n").map(s=>s.trim()).filter(Boolean);
         const res = await S.updatePlayerAcademy(id, { dev: devObj, targets, program });
         if (res.ok) toast("Development saved ✓"); else toast("Error: "+res.msg);
@@ -2232,48 +2277,128 @@
     }));
   }
 
+  // ---- Opponent directory: contact book for arranging friendlies (admin only) ----
+  function AdmDirectory(editId) {
+    const body = $("#admin-body");
+    const list = S.directory();
+    const ed = editId ? list.find(d => d.id === +editId) : null;
+    const v = (k) => ed && ed[k] != null ? ed[k] : "";
+    body.innerHTML = `<div class="card pad-lg" style="max-width:680px">
+      <h3 style="margin:0 0 .4rem;font-family:var(--display)">${ed?`Edit — ${esc(ed.club)}`:"Opponent directory"}</h3>
+      <p class="muted" style="margin-top:0">Contact details for opposition managers, so you can arrange friendlies fast. Every club we've ever played is added here automatically — just fill in the gaps. ${S.MODE==='preview'?'<b>Preview:</b> saved to this browser.':''}</p>
+      ${F("Club / team name",`<input id="d-club" value="${esc(v("club"))}" placeholder="e.g. Wallsend Boys Club"/>`)}
+      <div class="grid cols-2">${F("Manager name",`<input id="d-manager" value="${esc(v("manager"))}" placeholder="e.g. Steve Bruce"/>`)}${F("Phone",`<input id="d-phone" value="${esc(v("phone"))}" placeholder="07…"/>`)}</div>
+      <div class="grid cols-2">${F("Email",`<input type="email" id="d-email" value="${esc(v("email"))}" placeholder="manager@club.com"/>`)}${F("Home ground / area",`<input id="d-ground" value="${esc(v("ground"))}" placeholder="e.g. Rising Sun, Wallsend"/>`)}</div>
+      <button class="btn btn-gold btn-block" id="d-save">${ed?"Save changes":"Add club"}</button>
+      ${ed?`<button class="btn btn-ghost btn-sm btn-block" id="d-cancel" style="margin-top:.5rem">Cancel</button>`:""}
+      <div class="lbl" style="font-size:.74rem;color:var(--muted);font-weight:700;letter-spacing:1px;margin:1.2rem 0 .4rem">DIRECTORY (${list.length})</div>
+      ${list.length?`<div class="table-wrap"><table class="league-table">
+        <thead><tr><th>Club</th><th>Manager</th><th>Phone</th><th>Email</th><th>Ground</th><th></th></tr></thead>
+        <tbody>${list.map(d=>`<tr>
+          <td><b>${esc(d.club)}</b></td>
+          <td>${esc(d.manager)||'<span class="muted">—</span>'}</td>
+          <td>${d.phone?`<a href="tel:${esc(d.phone)}" style="color:var(--gold-bright)">${esc(d.phone)}</a>`:'<span class="muted">—</span>'}</td>
+          <td>${d.email?`<a href="mailto:${esc(d.email)}" style="color:var(--gold-bright)">${esc(d.email)}</a>`:'<span class="muted">—</span>'}</td>
+          <td>${esc(d.ground)||'<span class="muted">—</span>'}</td>
+          <td style="text-align:right;white-space:nowrap"><button class="btn btn-ghost btn-sm" data-edit-d="${d.id}">Edit</button> <button class="btn btn-ghost btn-sm" data-del-d="${d.id}">✕</button></td>
+        </tr>`).join("")}</tbody></table></div>`:`<p class="muted">No clubs yet — add one above. Clubs you've played seed in automatically.</p>`}
+    </div>`;
+    const collect = () => ({ club:$("#d-club").value.trim(), manager:$("#d-manager").value.trim(),
+      phone:$("#d-phone").value.trim(), email:$("#d-email").value.trim(), ground:$("#d-ground").value.trim() });
+    $("#d-save").addEventListener("click", async () => {
+      const d = collect();
+      if (!d.club) return toast("Add a club / team name");
+      const res = ed ? await S.updateDirectoryEntry(ed.id, d) : await S.addDirectoryEntry(d);
+      if (res.ok) { toast(ed?"Saved ✓":"Club added ✓"); Admin("directory"); } else toast("Error: "+res.msg);
+    });
+    if (ed) $("#d-cancel").addEventListener("click", ()=>location.hash="#admin/directory");
+    body.querySelectorAll("[data-edit-d]").forEach(b=>b.addEventListener("click", ()=>location.hash="#admin/directory/"+b.dataset.editD));
+    body.querySelectorAll("[data-del-d]").forEach(b=>b.addEventListener("click", async ()=>{
+      const d = S.directory().find(x=>x.id===+b.dataset.delD);
+      if (!window.confirm(`Remove ${d?d.club:"this club"} from the directory?`)) return;
+      const res = await S.deleteDirectoryEntry(+b.dataset.delD);
+      if (res.ok){ toast("Removed"); Admin("directory"); } else toast("Error: "+res.msg);
+    }));
+  }
+
   function AdmVideos(editId) {
     const body = $("#admin-body");
     const lib = S.state.drills || [];
     const ed = editId ? lib.find(v=>v.id===+editId) : null;
     const v = (k,d)=> ed && ed[k]!=null ? ed[k] : (d||"");
     const roster = S.roster(true).sort((a,b)=>a.number-b.number);
+    const isStockEd = ed ? S.isStockVideo(ed) : false;
     const isTeam = ed ? ed.team===true : true;
     const assigned = new Set(ed && Array.isArray(ed.player_ids) ? ed.player_ids : []);
-    const scopeLabel = d => d.team===true ? `<span class="tag t-train">Whole team</span>`
+    const folders = S.videoFolders();
+    const scopeLabel = d => S.isStockVideo(d) ? `<span class="tag">📦 Stock${d.folder?` · ${esc(d.folder)}`:""}</span>`
+      : d.team===true ? `<span class="tag t-train">Whole team</span>`
       : `<span class="tag">${(d.player_ids||[]).map(pid=>{const pl=S.player(pid);return pl?esc(firstNameOf(pl)):"?";}).join(", ")||"unassigned"}</span>`;
+    // Live (assigned) videos only in the main library list; stock has its own shelf below.
+    const liveLib = lib.filter(d => !S.isStockVideo(d));
+    const stock = S.stockVideos();
+    const folderOptions = (sel) => `<option value="">— no folder —</option>` +
+      folders.map(f=>`<option ${sel===f?'selected':''}>${esc(f)}</option>`).join("") +
+      `<option value="__new__">+ New folder…</option>`;
     body.innerHTML = `<div class="card pad-lg" style="max-width:640px">
       <h3 style="margin:0 0 .4rem;font-family:var(--display)">${ed?"Edit video":"Add a video"}</h3>
-      <p class="muted" style="margin-top:0">Add a video <b>once</b> here, then assign it to the whole team or to specific children — no need to add the same clip twice.</p>
+      <p class="muted" style="margin-top:0">Add a video <b>once</b> here, then assign it to the whole team or to specific children — or park it as <b>stock</b> in a folder for later. No need to add the same clip twice.</p>
       ${F("Title",`<input id="v-title" value="${esc(v("title"))}" placeholder="e.g. Cone dribbling warm-up"/>`)}
       ${F("Video link (YouTube/Vimeo)",`<input id="v-url" value="${esc(v("url"))}" placeholder="https://youtu.be/..."/>`)}
       ${F("Description",`<textarea id="v-desc" rows="2" placeholder="What it's for / what to focus on">${esc(v("description"))}</textarea>`)}
       ${F("Skill area",`<select id="v-area"><option value="">—</option>${DEV_AREAS.map(([,l])=>`<option ${v("area")===l?'selected':''}>${l}</option>`).join("")}</select>`)}
       <div class="lbl" style="font-size:.74rem;color:var(--muted);font-weight:700;letter-spacing:1px;margin:.8rem 0 .4rem">WHO IS IT FOR?</div>
       <label class="field" style="flex-direction:row;align-items:center;gap:.5rem"><input type="radio" name="v-scope" id="v-team" value="team" ${isTeam?"checked":""} style="width:auto"/> <span style="margin:0">🟢 Whole team (Team Training Videos)</span></label>
-      <label class="field" style="flex-direction:row;align-items:center;gap:.5rem"><input type="radio" name="v-scope" id="v-indiv" value="indiv" ${!isTeam?"checked":""} style="width:auto"/> <span style="margin:0">👤 Specific children (their My Development)</span></label>
-      <div id="v-players" class="${isTeam?'hidden':''}" style="border:1px solid var(--line);border-radius:10px;padding:.6rem .8rem;margin:.4rem 0;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:.2rem .8rem">
+      <label class="field" style="flex-direction:row;align-items:center;gap:.5rem"><input type="radio" name="v-scope" id="v-indiv" value="indiv" ${(!isTeam&&!isStockEd)?"checked":""} style="width:auto"/> <span style="margin:0">👤 Specific children (their My Development)</span></label>
+      <label class="field" style="flex-direction:row;align-items:center;gap:.5rem"><input type="radio" name="v-scope" id="v-stock" value="stock" ${isStockEd?"checked":""} style="width:auto"/> <span style="margin:0">📦 Stock — park in a folder, unassigned (families won't see it)</span></label>
+      <div id="v-players" class="${(isTeam||isStockEd)?'hidden':''}" style="border:1px solid var(--line);border-radius:10px;padding:.6rem .8rem;margin:.4rem 0;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:.2rem .8rem">
         ${roster.map(p=>`<label class="field" style="flex-direction:row;align-items:center;gap:.45rem;margin-bottom:.2rem"><input type="checkbox" class="v-pl" value="${p.id}" ${assigned.has(p.id)?"checked":""} style="width:auto"/> <span style="margin:0">#${p.number} ${esc(p.name)}</span></label>`).join("")}
+      </div>
+      <div id="v-folderwrap" class="${isStockEd?'':'hidden'}">
+        ${F("Folder",`<select id="v-folder">${folderOptions(ed?ed.folder:"")}</select>`)}
+        <div id="v-newfolder" class="hidden">${F("New folder name",`<input id="v-folder-new" placeholder="e.g. Finishing drills"/>`)}</div>
       </div>
       <button class="btn btn-gold btn-block" id="v-save">${ed?"Save changes":"Add to library"}</button>
       ${ed?`<button class="btn btn-ghost btn-sm btn-block" id="v-cancel" style="margin-top:.5rem">Cancel</button>`:""}
-      <div class="lbl" style="font-size:.74rem;color:var(--muted);font-weight:700;letter-spacing:1px;margin:1.2rem 0 .4rem">VIDEO LIBRARY (${lib.length})</div>
-      ${lib.length?lib.map(d=>`<div class="ach" style="margin-bottom:.4rem;justify-content:space-between"><div style="display:flex;gap:.6rem;align-items:center"><span class="em">🎬</span><div><b>${esc(d.title)}</b>${d.area?` <span class="tag">${esc(d.area)}</span>`:""}<br>${scopeLabel(d)}</div></div><div style="display:flex;gap:.4rem"><button class="btn btn-ghost btn-sm" data-edit-v="${d.id}">Edit</button><button class="btn btn-ghost btn-sm" data-del-v="${d.id}">✕</button></div></div>`).join(""):`<p class="muted">Library is empty — add your first video above.</p>`}
+      <div class="lbl" style="font-size:.74rem;color:var(--muted);font-weight:700;letter-spacing:1px;margin:1.2rem 0 .4rem">VIDEO LIBRARY (${liveLib.length} assigned)</div>
+      ${liveLib.length?liveLib.map(d=>`<div class="ach" style="margin-bottom:.4rem;justify-content:space-between"><div style="display:flex;gap:.6rem;align-items:center"><span class="em">🎬</span><div><b>${esc(d.title)}</b>${d.area?` <span class="tag">${esc(d.area)}</span>`:""}<br>${scopeLabel(d)}</div></div><div style="display:flex;gap:.4rem"><button class="btn btn-ghost btn-sm" data-edit-v="${d.id}">Edit</button><button class="btn btn-ghost btn-sm" data-del-v="${d.id}">✕</button></div></div>`).join(""):`<p class="muted">No assigned videos yet — add one above, or assign a stock video below.</p>`}
+
+      <div class="lbl" style="font-size:.74rem;color:var(--muted);font-weight:700;letter-spacing:1px;margin:1.4rem 0 .4rem">📦 STOCK LIBRARY (${stock.length} unassigned · admin only)</div>
+      <p class="muted" style="margin:0 0 .6rem;font-size:.82rem">These are parked, unassigned clips — <b>families never see them</b> until you assign them. Group them in folders, then assign to the team or specific children whenever you're ready (no re-uploading).</p>
+      ${stockShelf(stock, folders)}
     </div>`;
-    const toggle = () => $("#v-players").classList.toggle("hidden", $("#v-team").checked);
-    $("#v-team").addEventListener("change", toggle); $("#v-indiv").addEventListener("change", toggle);
+    const refreshScope = () => {
+      const stockOn = $("#v-stock").checked;
+      $("#v-players").classList.toggle("hidden", !$("#v-indiv").checked);
+      $("#v-folderwrap").classList.toggle("hidden", !stockOn);
+    };
+    $("#v-team").addEventListener("change", refreshScope);
+    $("#v-indiv").addEventListener("change", refreshScope);
+    $("#v-stock").addEventListener("change", refreshScope);
+    const folderSel = $("#v-folder");
+    if (folderSel) folderSel.addEventListener("change", () => $("#v-newfolder").classList.toggle("hidden", folderSel.value !== "__new__"));
+    const chosenFolder = () => {
+      if (!folderSel) return null;
+      if (folderSel.value === "__new__") return ($("#v-folder-new").value || "").trim() || null;
+      return folderSel.value || null;
+    };
     const collect = () => {
       const team = $("#v-team").checked;
-      const player_ids = team ? [] : [...body.querySelectorAll(".v-pl:checked")].map(c=>+c.value);
+      const stockOn = $("#v-stock").checked;
+      const player_ids = $("#v-indiv").checked ? [...body.querySelectorAll(".v-pl:checked")].map(c=>+c.value) : [];
       return { title:$("#v-title").value.trim(), url:$("#v-url").value.trim(), description:$("#v-desc").value.trim(),
-        area:$("#v-area").value, team, player_ids };
+        area:$("#v-area").value, team: stockOn ? false : team, player_ids,
+        folder: stockOn ? chosenFolder() : (ed?ed.folder:null), _stock: stockOn };
     };
     $("#v-save").addEventListener("click", async () => {
       const d = collect();
       if(!d.title||!d.url) return toast("Add a title and a video link");
-      if(!d.team && !d.player_ids.length) return toast("Pick at least one child, or choose Whole team");
-      const res = ed ? await S.updateDrill(ed.id, d) : await S.addDrill(d);
-      if(res.ok){ toast(ed?"Video updated ✓":"Added to library ✓"); Admin("videos"); } else toast("Error: "+res.msg);
+      if(!d._stock && !d.team && !d.player_ids.length) return toast("Pick at least one child, choose Whole team, or park it as stock");
+      let res;
+      if (ed) res = await S.updateDrill(ed.id, d);
+      else if (d._stock) res = await S.addStockVideo(d);
+      else res = await S.addDrill(d);
+      if(res.ok){ toast(ed?"Video updated ✓":(d._stock?"Parked in stock ✓":"Added to library ✓")); Admin("videos"); } else toast("Error: "+res.msg);
     });
     if (ed) $("#v-cancel").addEventListener("click", ()=>location.hash="#admin/videos");
     body.querySelectorAll("[data-edit-v]").forEach(b=>b.addEventListener("click", ()=>location.hash="#admin/videos/"+b.dataset.editV));
@@ -2281,6 +2406,69 @@
       if(!window.confirm("Delete this video from the library?")) return;
       const res = await S.deleteDrill(+b.dataset.delV);
       if(res.ok){ toast("Removed"); Admin("videos"); } else toast("Error: "+res.msg);
+    }));
+    wireStockShelf(body, roster, folders);
+  }
+
+  // Render the stock shelf grouped by folder (admin only).
+  function stockShelf(stock, folders) {
+    if (!stock.length) return `<p class="muted">Nothing in stock yet. Add a video above and choose <b>📦 Stock</b> to park it here.</p>`;
+    const groups = {};
+    stock.forEach(d => { const f = d.folder || "Unfiled"; (groups[f] ||= []).push(d); });
+    const names = Object.keys(groups).sort((a,b)=> a==="Unfiled"?1 : b==="Unfiled"?-1 : a.localeCompare(b));
+    return names.map(f => {
+      const real = f !== "Unfiled";
+      return `<div class="card" style="margin-bottom:.7rem;padding:.7rem .9rem">
+        <div class="ag-head" style="margin-bottom:.5rem;justify-content:space-between"><div><span class="tag">📁 ${esc(f)}</span> <span class="muted">${groups[f].length} clip${groups[f].length===1?"":"s"}</span></div>
+          ${real?`<div style="display:flex;gap:.35rem"><button class="btn btn-ghost btn-sm" data-folder-rename="${esc(f)}">Rename</button><button class="btn btn-ghost btn-sm" data-folder-del="${esc(f)}">Delete folder</button></div>`:""}</div>
+        ${groups[f].map(d=>`<div class="ach" style="margin-bottom:.35rem;justify-content:space-between;flex-wrap:wrap;gap:.4rem">
+          <div style="display:flex;gap:.5rem;align-items:center"><span class="em">🎬</span><div><b>${esc(d.title)}</b>${d.area?` <span class="tag">${esc(d.area)}</span>`:""}</div></div>
+          <div style="display:flex;gap:.35rem;flex-wrap:wrap">
+            <button class="btn btn-ghost btn-sm" data-stock-team="${d.id}">Assign to team</button>
+            <button class="btn btn-ghost btn-sm" data-stock-kids="${d.id}">Assign to children</button>
+            <button class="btn btn-ghost btn-sm" data-stock-move="${d.id}">Move</button>
+            <button class="btn btn-ghost btn-sm" data-edit-v="${d.id}">Edit</button>
+          </div></div>`).join("")}
+      </div>`;
+    }).join("");
+  }
+
+  function wireStockShelf(body, roster, folders) {
+    body.querySelectorAll("[data-stock-team]").forEach(b => b.addEventListener("click", async () => {
+      if (!window.confirm("Assign this clip to the whole team? Families will then see it in Team Training Videos.")) return;
+      const res = await S.assignVideo(+b.dataset.stockTeam, { team: true });
+      if (res.ok){ toast("Assigned to team ✓"); Admin("videos"); } else toast("Error: "+res.msg);
+    }));
+    body.querySelectorAll("[data-stock-kids]").forEach(b => b.addEventListener("click", async () => {
+      const id = +b.dataset.stockKids;
+      const names = roster.map(p=>`${p.number} ${p.name}`).join(", ");
+      const raw = window.prompt(`Type the squad numbers to assign to (comma-separated).\n\nSquad: ${names}`, "");
+      if (raw == null) return;
+      const nums = raw.split(/[,\s]+/).map(s=>+s).filter(n=>n>0);
+      const playerIds = roster.filter(p=>nums.includes(p.number)).map(p=>p.id);
+      if (!playerIds.length) return toast("No matching squad numbers");
+      const res = await S.assignVideo(id, { playerIds });
+      if (res.ok){ toast("Assigned to "+playerIds.length+" child"+(playerIds.length===1?"":"ren")+" ✓"); Admin("videos"); } else toast("Error: "+res.msg);
+    }));
+    body.querySelectorAll("[data-stock-move]").forEach(b => b.addEventListener("click", async () => {
+      const cur = folders.join(", ");
+      const f = window.prompt(`Move to which folder? (leave blank for no folder)${cur?`\n\nExisting folders: ${cur}`:""}`, "");
+      if (f == null) return;
+      const res = await S.moveVideoToFolder(+b.dataset.stockMove, f.trim() || null);
+      if (res.ok){ toast("Moved ✓"); Admin("videos"); } else toast("Error: "+res.msg);
+    }));
+    body.querySelectorAll("[data-folder-rename]").forEach(b => b.addEventListener("click", async () => {
+      const old = b.dataset.folderRename;
+      const nn = window.prompt(`Rename folder "${old}" to:`, old);
+      if (nn == null || !nn.trim() || nn.trim()===old) return;
+      const res = await S.renameFolder(old, nn.trim());
+      if (res.ok){ toast("Folder renamed ✓"); Admin("videos"); } else toast("Error: "+res.msg);
+    }));
+    body.querySelectorAll("[data-folder-del]").forEach(b => b.addEventListener("click", async () => {
+      const old = b.dataset.folderDel;
+      if (!window.confirm(`Delete folder "${old}"? Its clips are kept and moved to "Unfiled" (nothing is lost).`)) return;
+      const res = await S.deleteFolder(old);
+      if (res.ok){ toast("Folder removed (clips kept) ✓"); Admin("videos"); } else toast("Error: "+res.msg);
     }));
   }
 
@@ -2477,6 +2665,44 @@
   }
   function escClose(e){ if (e.key === "Escape") closeModal(); }
   function closeModal(){ $("#modal-root").innerHTML = ""; document.body.style.overflow = ""; document.removeEventListener("keydown", escClose); }
+
+  /* ---- Change password (signed-in users, LIVE only) ----
+     Uses the user's own session (S.changePassword → auth.updateUser). In preview
+     there's no real auth, so we show a friendly "available on the live site" note
+     instead of the form. The password value is never logged or echoed. */
+  function showChangePassword() {
+    if (S.MODE === "preview") {
+      openModal("Change password", `
+        <p class="muted" style="margin:0">Changing your password is available on the <b>live site</b>, where you're signed in with your own family login. In this preview there's no real account to update.</p>
+        <button class="btn btn-gold btn-block" id="cpw-ok" style="margin-top:1rem">OK</button>`,
+        () => { $("#cpw-ok").addEventListener("click", closeModal); });
+      return;
+    }
+    openModal("Change password", `
+      <p class="muted" style="margin:0 0 .6rem">Choose a new password for your login. You're already signed in, so we don't need your old one.</p>
+      ${F("New password", `<input type="password" id="cpw-new" autocomplete="new-password" placeholder="At least 6 characters"/>`)}
+      ${F("Confirm new password", `<input type="password" id="cpw-confirm" autocomplete="new-password" placeholder="Type it again"/>`)}
+      <p class="gate-hint" id="cpw-hint"></p>
+      <button class="btn btn-gold btn-block" id="cpw-save">Save new password</button>
+      <button class="btn btn-ghost btn-sm btn-block" id="cpw-cancel" style="margin-top:.5rem">Cancel</button>`,
+      () => {
+        const hint = $("#cpw-hint");
+        const save = async () => {
+          const pw = $("#cpw-new").value;
+          const confirm = $("#cpw-confirm").value;
+          hint.classList.remove("error");
+          if (!pw || !confirm) { hint.textContent = "Please fill in both boxes."; hint.classList.add("error"); return; }
+          if (pw.length < 6) { hint.textContent = "Password must be at least 6 characters."; hint.classList.add("error"); return; }
+          if (pw !== confirm) { hint.textContent = "The two passwords don't match — try again."; hint.classList.add("error"); return; }
+          const res = await S.changePassword(pw);
+          if (res.ok) { closeModal(); toast("Password updated ✓"); }
+          else { hint.textContent = res.msg || "Couldn't update your password."; hint.classList.add("error"); }
+        };
+        $("#cpw-save").addEventListener("click", save);
+        $("#cpw-cancel").addEventListener("click", closeModal);
+        $("#cpw-confirm").addEventListener("keydown", e => { if (e.key === "Enter") save(); });
+      });
+  }
 
   boot();
 })();

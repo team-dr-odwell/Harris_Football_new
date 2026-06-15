@@ -73,7 +73,7 @@ function run(code, label) { try { window.eval(code); } catch (e) { errors.push(`
   (S.state.players || []).forEach(p => { hashes.push("players/" + p.id); hashes.push("development/" + p.id); });
   ["attendance", "fixtures", "result", "register", "teamsheet", "points", "skillladder",
    "squadgoals", "seasonstats", "quizresults", "quizedit", "academy", "idp", "videos",
-   "contacts", "roster", "players", "training", "events"]
+   "contacts", "directory", "roster", "players", "training", "events"]
     .forEach(t => hashes.push("admin/" + t));
   hashes.push("admin");
 

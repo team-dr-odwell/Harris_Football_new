@@ -306,3 +306,159 @@ window.HARRIS_DATA = {
       video:"https://www.englandfootball.com/play/Improve-your-game" }
   ]
 };
+
+/* ===================================================================
+   POSITION_TASKS — ready-made development targets by position group.
+   20 concise, age-appropriate (U10/U11, 7-a-side) actionable targets per
+   group. Used by the coach's development-plan editor: clicking a chip adds
+   the line to a player's "Goals to achieve" (players.targets). Six groups:
+   GK, CB, FB, CM, WIDE, FWD. See posGroup() below for code mapping.
+   =================================================================== */
+window.POSITION_TASKS = {
+  GK: [
+    "Set your feet before the striker shoots",
+    "Catch high balls at the highest safe point",
+    "Throw to the full-back's back foot to start an attack",
+    "Narrow the angle — come off your line",
+    "Organise the defence loudly at corners",
+    "Get your body behind every shot you can",
+    "Spread big to make yourself huge in a 1v1",
+    "Take a touch then pass calmly under pressure",
+    "Call 'keeper!' early and claim crosses you can reach",
+    "Roll the ball out fast to start a quick break",
+    "Stay on your toes, ready to dive either way",
+    "Push wide shots round the post, not back into play",
+    "Watch the ball into your hands every time",
+    "Start in a good ready position before every shot",
+    "Kick to a team-mate, not just as far as you can",
+    "Talk your defenders into the right positions",
+    "Recover quickly after a save to be ready for the rebound",
+    "Stay big and tall — don't go to ground too early",
+    "Win the high ball with a strong, brave jump",
+    "Stay switched on even when the ball is up the other end"
+  ],
+  CB: [
+    "Jockey, don't dive in — show them away from goal",
+    "Head clearances high and far under pressure",
+    "Step up together to hold the line",
+    "Pass out calmly to a midfielder",
+    "Track your runner — don't get dragged out",
+    "Win your headers by attacking the ball first",
+    "Stay goal-side of your attacker at all times",
+    "Clear your lines early when there's danger",
+    "Talk to your keeper and fellow defender constantly",
+    "Stay on your feet in the box — don't dive in",
+    "Pick the right moment to step in and tackle",
+    "Cover your partner when they go to press",
+    "Be brave — put your head and body in the way",
+    "Look up before you pass out of defence",
+    "Don't ball-watch — know where your man is",
+    "Make the pitch big when we have the ball",
+    "Show the attacker onto their weaker foot",
+    "Stay calm when the ball comes to you under pressure",
+    "Drop and turn quickly when the ball goes over the top",
+    "Switch off the danger before starting our attack"
+  ],
+  FB: [
+    "Sprint back goal-side the moment we lose it",
+    "Overlap to support the winger",
+    "Win the 1v1 on the touchline",
+    "Deliver an early cross to the back post",
+    "Switch play with a pass to the far side",
+    "Stay tight to the winger but don't dive in",
+    "Time your overlap run to arrive in space",
+    "Get tight quickly when the ball comes to your side",
+    "Look inside first, then out, when you get the ball",
+    "Recover into the middle if our centre-back steps out",
+    "Defend the cross by getting between the ball and goal",
+    "Use your speed to track runners down the wing",
+    "Keep your cross low and into the danger area",
+    "Stay wide to give us width when we attack",
+    "Pass and move — don't stand still after you give it",
+    "Show the winger down the line, away from goal",
+    "Be loud — tell your team-mates who to pick up",
+    "Get your head up before crossing to pick a team-mate",
+    "Stay balanced so you can turn either way",
+    "Drop in to make a back three when we're under pressure"
+  ],
+  CM: [
+    "Receive on the half-turn to play forward",
+    "Scan before you receive — know your next pass",
+    "Be an option for attack AND defence",
+    "Drive forward when space opens",
+    "Win it back within 5 seconds of losing it",
+    "Always offer an angle to the player on the ball",
+    "Keep the ball moving with quick one-touch passes",
+    "Pick the right pass — safe back or brave forward",
+    "Get back to protect your defenders when we lose it",
+    "Make a forward run into the box when you can",
+    "Shield the ball with your body when you're crowded",
+    "Look over both shoulders before the ball arrives",
+    "Switch the play to the free side of the pitch",
+    "Press the ball-carrier hard when we're out of possession",
+    "Be brave — take the ball even when it's tight",
+    "Spread the play with a long, accurate pass",
+    "Stay between the ball and our goal when defending",
+    "Take a good first touch out of your feet",
+    "Support the striker so they always have an option",
+    "Keep talking — be the engine that organises the team"
+  ],
+  WIDE: [
+    "Take defenders on 1v1 with pace",
+    "Get to the byline and cut it back",
+    "Stay wide to stretch the pitch",
+    "Track back to help your full-back",
+    "Cut inside onto your stronger foot to shoot",
+    "Run at the defender to make something happen",
+    "Use a trick or change of pace to beat your marker",
+    "Get your cross in early before they get set",
+    "Make a run in behind when the full-back's tired",
+    "Stay onside but be ready to sprint in behind",
+    "Look up before you cross to find a team-mate",
+    "Receive on the back foot, ready to attack",
+    "Don't give the ball away cheaply in our half",
+    "Recover quickly when you lose it out wide",
+    "Attack the back post when the cross comes from the other side",
+    "Keep the chalk on your boots — hug the touchline",
+    "Cross or shoot decisively — don't dither on the ball",
+    "Press the full-back when they have the ball",
+    "Take players on, even if it doesn't always work",
+    "Get into the box to score, not just to create"
+  ],
+  FWD: [
+    "First touch away from the defender, ready to shoot",
+    "Make near-post runs across the defender",
+    "Finish first-time, low and across the keeper",
+    "Hold the ball up and bring others in",
+    "Lead the press from the front",
+    "Gamble in the box — be there for the rebound",
+    "Spin in behind when the defender switches off",
+    "Place your shots into the corners, don't always blast",
+    "Get across your marker to attack the cross",
+    "Take a touch to set yourself, then shoot",
+    "Stretch the defence by running in behind",
+    "Use your body to shield and keep the ball",
+    "Be greedy in the box — always try to score",
+    "Stay calm and pick your spot one-on-one with the keeper",
+    "Pull off the shoulder of the last defender",
+    "Shoot early before the defender can block",
+    "Win the first ball to bring midfielders into play",
+    "Make runs even when you don't get the ball",
+    "Close down the keeper and defenders from the front",
+    "Follow in every shot — keepers spill the ball"
+  ]
+};
+
+/* Map a position code to one of the six POSITION_TASKS groups.
+   GK→GK; CB→CB; RB/LB/RWB/LWB→FB; CDM/CM/CAM→CM; RM/LM/RW/LW→WIDE; ST/CF→FWD.
+   Defaults to CM for anything unknown. */
+window.posGroup = function (pos) {
+  const P = String(pos || "").toUpperCase().trim();
+  if (P === "GK") return "GK";
+  if (P === "CB") return "CB";
+  if (["RB", "LB", "RWB", "LWB"].includes(P)) return "FB";
+  if (["CDM", "CM", "CAM"].includes(P)) return "CM";
+  if (["RM", "LM", "RW", "LW"].includes(P)) return "WIDE";
+  if (["ST", "CF"].includes(P)) return "FWD";
+  return "CM";
+};
