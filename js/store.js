@@ -845,12 +845,18 @@
     _applyPoints() {
       const s = this.season;
       (this.state.players || []).forEach(p => {
-        if (!this.ledgerFor(p.id, s).length) return; // keep projected season stats
-        p.points   = this.ledgerSum(p.id, s);
-        p.goals    = this.countCat(p.id, "goal", s);
-        p.assists  = this.countCat(p.id, "assist", s);
-        p.motm     = this.countCat(p.id, "motm", s);
-        p.sessions = this.countCat(p.id, "attendance", s);
+        const st = (p.stats && p.stats[s]) || {};
+        // ADDITIVE: typed-in archive performance (stored season totals) PLUS live
+        // ledger activity. A season's performance is recorded EITHER as stored totals
+        // (last season's archive) OR as match-result ledger events (the live season) —
+        // never both — so summing them never double-counts. This means a player who has
+        // earned a little live AP (e.g. a quiz) no longer loses their archived
+        // goals/assists/attendance from the card or their score.
+        p.points   = (st.points   || 0) + this.ledgerSum(p.id, s);
+        p.goals    = (st.goals    || 0) + this.countCat(p.id, "goal", s);
+        p.assists  = (st.assists  || 0) + this.countCat(p.id, "assist", s);
+        p.motm     = (st.motm     || 0) + this.countCat(p.id, "motm", s);
+        p.sessions = (st.sessions || 0) + this.countCat(p.id, "attendance", s);
       });
     },
 
@@ -953,7 +959,10 @@
     },
     tierOf(playerId, season) {
       season = season || this.season;
-      const ap = this.ledgerFor(playerId, season).length ? this.ledgerSum(playerId, season) : ((this.player(playerId) || {}).points || 0);
+      // Additive AP (matches _applyPoints): archived performance points + live ledger.
+      const _p = this.player(playerId) || {};
+      const _st = (_p.stats && _p.stats[season]) || {};
+      const ap = (_st.points || 0) + this.ledgerSum(playerId, season);
       const golds = this.skillGoldCount(playerId, season);
       const tiers = cfg.TIERS || [];
       let cur = tiers[0];
