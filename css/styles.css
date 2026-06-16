@@ -218,6 +218,23 @@ img{max-width:100%}
 .honour b{font-size:.98rem}
 .honour-win{border-color:var(--gold-ring);background:#fff}
 .honour-win b{color:var(--gold-ink)}
+/* ---- Home two-column row: tasks + next up ---- */
+.home-col h2{font-family:var(--display);font-size:1.35rem;margin:0}
+.task-list,.nextup-list{display:flex;flex-direction:column;gap:.55rem;margin-top:.2rem}
+.task-row{display:flex;align-items:center;gap:.7rem;width:100%;text-align:left;background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:.7rem .9rem;cursor:pointer;font:inherit;color:inherit;transition:border-color .15s,transform .15s}
+.task-row:hover{border-color:var(--gold-ring);transform:translateY(-1px)}
+.task-row .task-ic{flex:none;width:34px;height:34px;border-radius:9px;background:var(--surface-sunk);display:flex;align-items:center;justify-content:center;font-size:1.1rem}
+.task-row .task-l{font-weight:600;font-size:.95rem}
+.task-row .task-arrow{margin-left:auto;color:var(--muted)}
+.nextup-row{display:flex;align-items:center;gap:.75rem;width:100%;text-align:left;background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:.6rem .8rem;cursor:pointer;font:inherit;color:inherit;transition:border-color .15s,transform .15s}
+.nextup-row:hover{border-color:var(--gold-ring);transform:translateY(-1px)}
+.nextup-date{flex:none;width:46px;text-align:center;line-height:1.05}
+.nextup-date .nu-day{font-family:var(--display);font-weight:700;font-size:1.3rem;color:var(--ink)}
+.nextup-date .nu-mon{display:block;font-size:.66rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.nextup-main{min-width:0}
+.nextup-main b{display:block;font-size:.92rem;line-height:1.25;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nextup-main .nu-meta{font-size:.78rem;color:var(--muted);margin-top:.1rem}
+.nextup-row .task-arrow{margin-left:auto;color:var(--muted);flex:none}
 .stat{background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:1.1rem 1rem;text-align:center}
 .stat .n{font-family:var(--display);font-weight:700;font-size:2rem;color:var(--ink);line-height:1;font-feature-settings:"tnum" 1}
 .stat .l{font-size:.78rem;color:var(--muted);margin-top:.35rem;font-weight:500}

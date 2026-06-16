@@ -126,43 +126,95 @@ function pinNow(d) { global.Date = class extends RealDate { constructor(...a){ i
   eq(S.skillGoldCount(sp.id, CS), 2, "§2 two Gold checks counted");
   eq(S.tierOf(sp.id, CS).key, "icon", "§6 3000 AP + 2 Gold checks → Icon (ladder connects to the gate)");
 
-  /* ============ 4. MINI-IDPs (§5) ============ */
+  /* ============ 4. FOCUS AREAS (Mini-IDP) FULLY REMOVED ============ */
   const ip = ros[2];
-  ok(S.idpNeedsRefresh(ip.id), "§5 a player with no IDP needs refreshing this half-term");
-  // saveIdp enforces exactly 2 (truncates extra) and forces the first to Technical.
-  let r = await S.saveIdp(ip.id, [
-    { corner: "social", area: "First touch", drillUrl: "https://youtu.be/aaaaaaaaaaa", drillTitle: "Wall control", feedback: "" },
-    { corner: "physical", area: "Recovery sprints", drillUrl: "https://youtu.be/bbbbbbbbbbb", drillTitle: "", feedback: "" },
-    { corner: "psychological", area: "Third focus that should be dropped", drillUrl: "", drillTitle: "", feedback: "" }
-  ]);
-  ok(r.ok, "§5 saveIdp succeeds");
-  const idp = S.idpFor(ip.id);
-  eq(idp.focus.length, 2, "§5 exactly TWO focus areas are kept");
-  eq(idp.focus[0].corner, "technical", "§5 the first focus is forced to Technical");
-  ok(idp.focus[1].corner !== "technical", "§5 the second focus is a different corner");
-  ok(idp.focus[0].drillUrl && idp.focus[1].drillUrl, "§5 each focus links one drill video");
-  ok(!S.idpNeedsRefresh(ip.id), "§5 player no longer needs refreshing once both focus areas set");
-  // one-sentence post-match feedback slot
-  r = await S.setIdpFeedback(ip.id, 0, "Much calmer first touch on Sunday — keep it up!");
-  ok(r.ok && S.idpFor(ip.id).focus[0].feedback.length > 0, "§5 coach feedback sentence saves on a focus area");
-  // half-term refresh: a different half-term window starts blank (history kept)
-  const otherHt = "2026/27:ht5";
-  ok(S.idpFor(ip.id, otherHt).focus.length === 0, "§5 a different half-term window starts fresh");
-  ok(S.idpFor(ip.id).focus.length === 2, "§5 current half-term IDP still intact (history kept per window)");
+  ok(typeof S.idpFor !== "function", "focus areas gone: store.idpFor removed");
+  ok(typeof S.saveIdp !== "function", "focus areas gone: store.saveIdp removed");
+  ok(typeof S.idpNeedsRefresh !== "function", "focus areas gone: store.idpNeedsRefresh removed");
+  ok(typeof S.setIdpFeedback !== "function", "focus areas gone: store.setIdpFeedback removed");
+  ok(!S.IDP_CORNERS, "focus areas gone: IDP_CORNERS removed");
 
-  /* ============ render the kid Development page with an IDP + ladder (no throw) ============ */
+  /* ============ NEW: video reflection → +5% dev (AUTOMATED, idempotent) ============ */
+  // Map check: each topic maps to the right DEV area.
+  eq(S.devAreaForVideo({ folder: "Passing", title: "Pass & Move" }), "passing", "map: Passing → passing");
+  eq(S.devAreaForVideo({ folder: "Shooting", title: "Finishing" }), "shooting", "map: Shooting → shooting");
+  eq(S.devAreaForVideo({ folder: "Close control", title: "x" }), "dribbling", "map: Close control → dribbling");
+  eq(S.devAreaForVideo({ folder: "Ball mastery", title: "x" }), "dribbling", "map: Ball mastery → dribbling");
+  eq(S.devAreaForVideo({ folder: "Defending", title: "x" }), "defending", "map: Defending → defending");
+  eq(S.devAreaForVideo({ folder: "Goalkeeping", title: "x" }), "defending", "map: Goalkeeping → defending");
+  eq(S.devAreaForVideo({ folder: "Fitness", title: "x" }), "fitness", "map: Fitness → fitness");
+  eq(S.devAreaForVideo({ folder: "Movement", title: "x" }), "teamwork", "map: Movement → teamwork");
+  eq(S.devAreaForVideo({ folder: "Communication", title: "x" }), "teamwork", "map: Communication → teamwork");
+
+  // A reflection with a valid comment awards +5% to the mapped area ONCE.
+  ip.dev = { ...(ip.dev || {}), passing: 40 };
+  const vidP = { id: 77001, url: "https://youtu.be/passingvid1", folder: "Passing", title: "Pass & Move" };
+  let rr = await S.submitReflection(ip.id, vidP, "I learned to pass and move into space");
+  ok(rr.ok && rr.awarded, "reflection: valid comment is awarded");
+  eq(rr.area, "passing", "reflection: awarded to the mapped area (passing)");
+  eq(S.player(ip.id).dev.passing, 45, "reflection: +5% applied to passing (40 → 45)");
+  // Idempotent — a second reflection on the SAME video does NOT award again.
+  rr = await S.submitReflection(ip.id, vidP, "Watched it again, same lesson really");
+  ok(rr.ok && !rr.awarded && rr.dup, "reflection: idempotent (no second award for same video)");
+  eq(S.player(ip.id).dev.passing, 45, "reflection: dev unchanged on duplicate submit");
+  // Trivial comment (< 15 chars) is rejected — no award.
+  const vidS = { id: 77002, url: "https://youtu.be/shootvid1", folder: "Shooting", title: "Finishing" };
+  rr = await S.submitReflection(ip.id, vidS, "ok");
+  ok(!rr.ok, "reflection: trivial comment (<15 chars) rejected");
+  ok(!S.hasReflected(ip.id, vidS), "reflection: trivial comment leaves no reflection");
+  // Cap at 100.
+  ip.dev.dribbling = 98;
+  const vidD = { id: 77003, url: "https://youtu.be/dribvid1", folder: "Close control", title: "Control" };
+  rr = await S.submitReflection(ip.id, vidD, "Keep the ball close with small touches");
+  eq(S.player(ip.id).dev.dribbling, 100, "reflection: +5% capped at 100 (98 → 100)");
+
+  /* ============ NEW: training attendance → +5% lowest dev area (idempotent) ============ */
+  const ap = ros[3];
+  ap.dev = { passing: 50, shooting: 50, dribbling: 50, defending: 20, fitness: 50, teamwork: 50 };
+  S.state.ledger = S.state.ledger.filter(e => e.player_id !== ap.id);
+  S.state.devAttendanceMarks = {};
+  await S.saveRegister("2026-11-02", [{ playerId: ap.id, attended: true }], null);
+  eq(S.player(ap.id).dev.defending, 25, "attendance: +5% to the LOWEST area (defending 20 → 25)");
+  // Idempotent — re-running the same register does NOT double-award.
+  await S.saveRegister("2026-11-02", [{ playerId: ap.id, attended: true }], null);
+  eq(S.player(ap.id).dev.defending, 25, "attendance: idempotent (same session does not double-award)");
+  // A different session DOES award again (to the now-lowest area).
+  await S.saveRegister("2026-11-09", [{ playerId: ap.id, attended: true }], null);
+  eq(S.player(ap.id).dev.defending, 30, "attendance: a new session awards again (defending 25 → 30)");
+
+  /* ============ render the kid Academy/Development pages (no throw, no focus areas) ============ */
   const appJs = read("js/app.js");
   window.sessionStorage.setItem("harris_preview_auth", "1");
   window.scrollTo = () => {}; window.confirm = () => true; window.alert = () => {};
   try { window.eval(appJs); } catch (e) { ok(false, "app.js evaluates", e.message); }
   await new Promise(res => setTimeout(res, 30));
   S.isAdmin = false; S.me = ip.id; S.linkedPlayer = ip.id; S.myKids = [ip.id];
-  window.location.hash = "#development/" + ip.id;
+  window.location.hash = "#academy/progress";
   window.dispatchEvent(new window.Event("hashchange"));
   await new Promise(res => setTimeout(res, 20));
   let v = window.document.querySelector("#view").innerHTML;
-  ok(/My focus this half-term/.test(v), "§5 Development page shows 'My focus this half-term'");
-  ok(/Recovery sprints|First touch/.test(v), "§5 Development page renders the focus areas");
+  ok(!/My focus this half-term/.test(v), "focus areas gone: Academy no longer shows 'My focus this half-term'");
+  ok(/Development Plan/.test(v), "Academy leads with the Development Plan");
+  ok(/Smash these this week/.test(v), "Academy shows gamified 'This week's targets'");
+
+  // Videos tab: each watchable video renders a "watch & comment → +5%" box for the child.
+  await S.addDrill({ title: "Team passing clip", url: "https://youtu.be/teampassclip", area: "Passing", team: true });
+  window.location.hash = "#academy/videos";
+  window.dispatchEvent(new window.Event("hashchange"));
+  await new Promise(res => setTimeout(res, 20));
+  v = window.document.querySelector("#view").innerHTML;
+  ok(/What did this show you\?/.test(v), "Videos tab shows the reflection prompt for a watchable video");
+  ok(/reflect-go/.test(v), "Videos tab renders a reflection submit button");
+
+  // Academy Tasks tab lists the child's tasks (quiz/videos/training/chores/homework).
+  window.location.hash = "#academy/tasks";
+  window.dispatchEvent(new window.Event("hashchange"));
+  await new Promise(res => setTimeout(res, 20));
+  v = window.document.querySelector("#view").innerHTML;
+  ["Weekly quiz", "Watch videos", "Training attendance", "Home Team chores", "Homework"]
+    .forEach(t => ok(v.includes(t), `Tasks tab lists: ${t}`));
+  ok(/How Academy Points work/.test(v), "Tasks tab shows the compact 'How Academy Points work' box");
+  ok(!/This week's homework/.test(v), "Academy Tasks no longer leads with the homework card");
 
   // Skill ladder is private: it shows on the OWN player's profile.
   window.location.hash = "#players/" + ip.id;

@@ -31,10 +31,60 @@ Tags: 🏟️ Team · 🏠 Home. Ratings: ⭐⭐⭐ very popular · ⭐⭐ solid
 
 ## 🕗 Pending review
 *The daily job adds fresh candidates here. Tick `[x]` to approve, delete to reject.*
+*(Channel/length flagged "confirm on review" where not verifiable — please check on open.)*
 
-*(Nothing pending yet — first candidates arrive on the next daily run.)*
+**First touch**
+- [ ] 🏟️ Teaching a Beginner First Touch (Receiving) — coach-led 1:1 with a 10-y-o · confirm channel/length on review · ⭐⭐ — https://www.youtube.com/watch?v=mKcr04x7BS0
+
+**Close control**
+- [ ] 🏟️ Dribbling Drill For Close Ball Control (U9–U12) · confirm channel/length on review · ⭐⭐ — https://www.youtube.com/watch?v=hXcgw7U6qCw
+
+**Ball mastery**
+- [ ] 🏠 Ball Mastery Homework Drills for Young Football Players · confirm channel/length on review · ⭐⭐ — https://www.youtube.com/watch?v=z9PX76wIBBw
+
+**Keepy-ups/juggling**
+- [ ] 🏠 Football Kick Ups Tutorial for Beginners (Soccer Juggling) · confirm channel/length on review · ⭐⭐ — https://www.youtube.com/watch?v=5KDe6qbl7Ys
+
+**Skill moves**
+- [ ] 🏠 3 Creative Football Skills for Kids — New Ways to Easily Beat a Defender · confirm channel/length on review · ⭐⭐ — https://www.youtube.com/watch?v=gTWlOR9i2lo
+
+**Dribbling/1v1**
+- [ ] 🏟️ 1v1 Chaos Dribbling Drill (U8 / U9 / U10) · confirm channel/length on review · ⭐⭐ — https://www.youtube.com/watch?v=B6KLLYFvcL8
+
+**Passing**
+- [ ] 🏟️ Passing and Receiving Training — Full Session (U10+) · confirm channel/length on review · ⭐⭐ — https://www.youtube.com/watch?v=4Y9Q3uzow8E
+
+**Receiving on the half-turn**
+- [ ] 🏟️ Receiving on the Half-Turn — The Quickest Way to Change Direction · confirm channel/length on review · ⭐⭐ — https://www.youtube.com/watch?v=mAXA5DERqww
+
+**Shooting/finishing**
+- [ ] 🏟️ 4 Cone Shooting Drill (5 Variations) — Youth Coaching · confirm channel/length on review · ⭐⭐ — https://www.youtube.com/watch?v=nA6DKYOhO54
+
+**Movement off the ball**
+- [ ] 🏟️ Soccer Drill: Creating Space (U10) · The Coaching Manual · ⭐⭐ — https://www.youtube.com/watch?v=XkVDIvjiAUY
+
+**Communication/scanning**
+- [ ] 🏟️ Scanning Drill For Teams — Check Your Shoulder · confirm channel/length on review · ⭐⭐ — https://www.youtube.com/watch?v=A7YR73ALZ1s
+
+**Goalkeeper basics**
+- [ ] 🏟️/🏠 7 Fun Goalkeeper Training Drills for Kids (U5–U10) · Eddie10 · ⭐⭐ — https://www.youtube.com/watch?v=BHsPdQ7EnZM
 
 ---
 
 ## Daily candidates log
 *(The scheduled job appends dated candidates here and under Pending review — never into Approved, never to the site.)*
+
+2026-06-16 — [First touch] Teaching a Beginner First Touch (Receiving) — https://www.youtube.com/watch?v=mKcr04x7BS0
+2026-06-16 — [Close control] Dribbling Drill For Close Ball Control (U9–U12) — https://www.youtube.com/watch?v=hXcgw7U6qCw
+2026-06-16 — [Ball mastery] Ball Mastery Homework Drills for Young Football Players — https://www.youtube.com/watch?v=z9PX76wIBBw
+2026-06-16 — [Keepy-ups/juggling] Football Kick Ups Tutorial for Beginners — https://www.youtube.com/watch?v=5KDe6qbl7Ys
+2026-06-16 — [Skill moves] 3 Creative Football Skills for Kids — https://www.youtube.com/watch?v=gTWlOR9i2lo
+2026-06-16 — [Dribbling/1v1] 1v1 Chaos Dribbling Drill (U8/U9/U10) — https://www.youtube.com/watch?v=B6KLLYFvcL8
+2026-06-16 — [Passing] Passing and Receiving Training — Full Session (U10+) — https://www.youtube.com/watch?v=4Y9Q3uzow8E
+2026-06-16 — [Receiving on the half-turn] Receiving on the Half-Turn — https://www.youtube.com/watch?v=mAXA5DERqww
+2026-06-16 — [Shooting/finishing] 4 Cone Shooting Drill (5 Variations) — https://www.youtube.com/watch?v=nA6DKYOhO54
+2026-06-16 — [Movement off the ball] Soccer Drill: Creating Space (U10) — https://www.youtube.com/watch?v=XkVDIvjiAUY
+2026-06-16 — [Communication/scanning] Scanning Drill For Teams — Check Your Shoulder — https://www.youtube.com/watch?v=A7YR73ALZ1s
+2026-06-16 — [Goalkeeper basics] 7 Fun Goalkeeper Training Drills for Kids (U5–U10) — https://www.youtube.com/watch?v=BHsPdQ7EnZM
+2026-06-16 — [Defending (1v1)] SKIPPED — no genuinely good non-duplicate U10 1v1 video found today (already 3 approved)
+2026-06-16 — [Fitness/agility (home)] SKIPPED — only TikTok/blog results, no credible kid-appropriate YouTube clip found today

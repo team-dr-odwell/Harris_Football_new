@@ -72,7 +72,7 @@ function run(code, label) { try { window.eval(code); } catch (e) { errors.push(`
    "family", "parents", "home_team"].forEach(h => hashes.push(h));
   (S.state.players || []).forEach(p => { hashes.push("players/" + p.id); hashes.push("development/" + p.id); });
   ["attendance", "fixtures", "result", "register", "teamsheet", "points", "skillladder",
-   "squadgoals", "seasonstats", "quizresults", "quizedit", "academy", "idp", "videos",
+   "squadgoals", "seasonstats", "quizresults", "quizedit", "academy", "videos",
    "contacts", "directory", "roster", "players", "training", "events"]
     .forEach(t => hashes.push("admin/" + t));
   hashes.push("admin");
@@ -109,6 +109,22 @@ function run(code, label) { try { window.eval(code); } catch (e) { errors.push(`
     if (window.document.querySelector("#nav-family").classList.contains("hidden"))
       errors.push("Family nav tab hidden for a linked parent");
   } catch (e) { errors.push(`THROW rendering Family as parent: ${e.stack || e}`); }
+
+  // ---- Home rendered as a logged-in PARENT/CHILD (HomeFamily): new layout ----
+  try {
+    window.location.hash = "#home";
+    window.dispatchEvent(new window.Event("hashchange"));
+    await new Promise(r => setTimeout(r, 40));
+    const home = window.document.querySelector("#view").innerHTML || "";
+    [["Open my card", "the hero 'Open my card' button"],
+     ["'s Tasks", "the child's Tasks column heading"],
+     ["Next Up", "the Next Up column"],
+     ["Achievements", "the Achievements section"]]
+      .forEach(([needle, label]) => { if (!home.includes(needle)) errors.push(`HomeFamily missing ${label} ("${needle}")`); });
+    if (home.includes("This week's quiz")) errors.push("HomeFamily hero should NOT show the 'This week's quiz' button");
+    if (home.includes("Mover of the Month")) errors.push("HomeFamily should NOT show Mover of the Month");
+    if (home.includes("Your videos")) errors.push("HomeFamily should NOT show the 'Your videos' block");
+  } catch (e) { errors.push(`THROW rendering Home as parent/child: ${e.stack || e}`); }
 
   finish();
 })();

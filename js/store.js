@@ -117,7 +117,6 @@
         if (!Array.isArray(p.seasons)) p.seasons = ["2025/26", "2026/27"];
         if (p.signed === undefined || p.signed === null) p.signed = true;
         if (!p.stats || typeof p.stats !== "object") p.stats = {};
-        if (!p.idp || typeof p.idp !== "object") p.idp = {};
         if (!p.stats["2025/26"]) {
           p.stats["2025/26"] = {
             goals: p.goals || 0, assists: p.assists || 0, motm: p.motm || 0,
@@ -168,6 +167,8 @@
       base.chores = JSON.parse(localStorage.getItem("harris_chores") || "{}");
       base.squadGoals = JSON.parse(localStorage.getItem("harris_squadgoals") || "[]");
       base.directory = JSON.parse(localStorage.getItem("harris_directory") || "[]");
+      base.videoReflections = JSON.parse(localStorage.getItem("harris_reflections") || "[]");
+      base.devAttendanceMarks = JSON.parse(localStorage.getItem("harris_devmarks") || "{}");
       const kids = JSON.parse(localStorage.getItem("harris_my_kids") || "null");
       const myp = localStorage.getItem("harris_my_player");
       this.myKids = Array.isArray(kids) && kids.length ? kids : (myp ? [+myp] : []);
@@ -204,6 +205,8 @@
       try { const { data } = await sb.from("squad_goals").select("*"); squadGoals = data || []; } catch (e) { /* squad_goals not created yet */ }
       let directory = [];
       try { const { data } = await sb.from("directory").select("*").order("club"); directory = data || []; } catch (e) { /* directory table not created yet */ }
+      let videoReflections = [];
+      try { const { data } = await sb.from("video_reflections").select("*"); videoReflections = data || []; } catch (e) { /* video_reflections table not created yet — run migrate-academy-progress.sql */ }
       // who am I, and am I an admin?
       let allProfiles = [];
       try {
@@ -230,6 +233,7 @@
         training: training.data || [],
         trainingSchedule: window.HARRIS_DATA.trainingSchedule,
         drills, profiles: allProfiles, ledger, chores, squadGoals, directory,
+        videoReflections, devAttendanceMarks: {},
         events: (events.data || []).map(e => ({ ...e, desc: e.description, media_list: e.media, media: 0 })),
         gamePoints: (points.data || []).map(g => ({ ...g, playerId: g.player_id })),
         achievements: window.HARRIS_DATA.achievements,
@@ -629,57 +633,113 @@
       return { ok: true };
     },
 
-    /* ================= MINI-IDPs (§5) =================
-       Two focus areas per player per half-term: one Technical + one from another
-       FA corner, each linked to one drill video, plus one sentence of post-match
-       coach feedback. Refreshed each half-term window. Stored on players.idp keyed
-       by half-term so history is kept and a new window starts blank. */
-    IDP_CORNERS: [
-      { key: "technical",     label: "Technical" },
-      { key: "physical",      label: "Physical" },
-      { key: "psychological", label: "Psychological" },
-      { key: "social",        label: "Social" }
+    /* ================= VIDEO REFLECTION → DEVELOPMENT PROGRESS =================
+       AUTOMATED, no coach approval. When a child watches a topic video and writes
+       a genuine reflection (>= 15 chars), they earn +5% on the development area
+       that video maps to (capped at 100). One award per video per child (idempotent
+       on player_id + video key). Reflections are private (child / parent / coach).
+
+       VIDEO_AREA_MAP maps a video's folder/topic/area text → one of the six
+       DEV_AREAS keys (passing/shooting/dribbling/defending/fitness/teamwork).
+       Match is case-insensitive substring on the video's folder, then area, then
+       title. Anything unmatched defaults to "dribbling" (general ball work). */
+    DEV_AREA_KEYS: ["passing", "shooting", "dribbling", "defending", "fitness", "teamwork"],
+    VIDEO_AREA_MAP: [
+      // [substring to look for (lower-case), DEV area key]
+      ["half-turn", "passing"], ["half turn", "passing"], ["passing", "passing"], ["receiv", "passing"],
+      ["shoot", "shooting"], ["finish", "shooting"],
+      ["close control", "dribbling"], ["ball mastery", "dribbling"], ["keepy", "dribbling"],
+      ["juggl", "dribbling"], ["skill move", "dribbling"], ["dribbl", "dribbling"], ["1v1", "dribbling"],
+      ["first touch", "dribbling"],
+      ["defend", "defending"], ["goalkeep", "defending"], ["keeper", "defending"], [" gk", "defending"],
+      ["fitness", "fitness"], ["agility", "fitness"], ["speed", "fitness"], ["conditioning", "fitness"],
+      ["movement", "teamwork"], ["off the ball", "teamwork"], ["off-ball", "teamwork"],
+      ["communicat", "teamwork"], ["scan", "teamwork"], ["teamwork", "teamwork"]
     ],
-    // The IDP for a player in a half-term window (defaults to the current one).
-    // Returns { ht, focus:[{corner, area, drillUrl, drillTitle, feedback}, ...] }.
-    idpFor(playerId, ht) {
-      ht = ht || this._halfTermKey();
-      const p = this.player(playerId) || {};
-      const all = p.idp || {};
-      const rec = all[ht] || { focus: [] };
-      return { ht, focus: Array.isArray(rec.focus) ? rec.focus : [] };
+    // Map ONE video/drill row → a DEV area key. Looks at folder, then area, then title.
+    devAreaForVideo(v) {
+      v = v || {};
+      const hay = [v.folder, v.area, v.title].map(s => String(s || "").toLowerCase());
+      for (const [needle, key] of this.VIDEO_AREA_MAP) {
+        if (hay.some(h => h.includes(needle))) return key;
+      }
+      return "dribbling"; // sensible default: general ball-work
     },
-    // Has this player got a current-half-term IDP set (both focus areas filled)?
-    idpNeedsRefresh(playerId) {
-      const cur = this.idpFor(playerId);
-      return cur.focus.filter(f => f && f.area).length < 2;
+    // Stable key for "this video" — prefer the drill id, fall back to the URL.
+    _videoKey(v) {
+      v = v || {};
+      return v.id != null ? `drill:${v.id}` : `url:${String(v.url || "").trim()}`;
     },
-    // Save the 2 focus areas for the current (or given) half-term. `focus` is an
-    // array of up to 2 {corner, area, drillUrl, drillTitle, feedback}. We enforce
-    // the spec: at most 2, the first is Technical.
-    async saveIdp(playerId, focus, ht) {
+    // All reflections this child has already submitted (for read-back + idempotency).
+    reflectionsFor(playerId) {
+      return (this.state.videoReflections || []).filter(r => r.player_id === playerId);
+    },
+    // The stored key for a saved reflection row (live rows carry video_key /
+    // drill_id / video_url; preview rows also carry video_key).
+    _reflectionKey(r) {
+      r = r || {};
+      if (r.video_key) return r.video_key;
+      if (r.drill_id != null) return `drill:${r.drill_id}`;
+      return `url:${String(r.video_url || "").trim()}`;
+    },
+    // Has this child already reflected on (and been awarded for) this video?
+    hasReflected(playerId, v) {
+      const key = this._videoKey(v);
+      return this.reflectionsFor(playerId).some(r => this._reflectionKey(r) === key);
+    },
+    // Submit a child's reflection on a video. AUTOMATED +5% to the mapped DEV area
+    // (capped at 100). Idempotent — one award per video per child. Returns
+    // { ok, awarded, area, value, dup } so the UI can show the celebratory +5%.
+    async submitReflection(playerId, video, comment) {
       const p = this.player(playerId); if (!p) return { ok: false, msg: "Player not found" };
-      ht = ht || this._halfTermKey();
-      const clean = (Array.isArray(focus) ? focus : []).slice(0, 2).map((f, i) => ({
-        corner: i === 0 ? "technical" : (f.corner || "physical"),
-        area: (f.area || "").trim(),
-        drillUrl: (f.drillUrl || "").trim(),
-        drillTitle: (f.drillTitle || "").trim(),
-        feedback: (f.feedback || "").trim()
-      })).filter(f => f.area);
-      p.idp = { ...(p.idp || {}), [ht]: { focus: clean } };
+      comment = String(comment || "").trim();
+      if (comment.length < 15) return { ok: false, msg: "Tell us a bit more — at least 15 characters." };
+      this.state.videoReflections = this.state.videoReflections || [];
+      if (this.hasReflected(playerId, video)) return { ok: true, awarded: false, dup: true };
+      const area = this.devAreaForVideo(video);
+      const key = this._videoKey(video);
+      const row = {
+        id: this._nextId(this.state.videoReflections),
+        player_id: playerId, drill_id: video && video.id != null ? video.id : null,
+        video_url: (video && video.url) || null, video_key: key,
+        area, comment, created_at: new Date().toISOString()
+      };
+      // Bump the mapped DEV area by +5% (capped 100) on the player's CURRENT-season dev.
+      const before = (p.dev && p.dev[area]) || 0;
+      const value = Math.max(0, Math.min(100, before + 5));
+      this._setDevArea(p, area, value);
+      this.state.videoReflections.push(row);
       if (LIVE) {
-        const { error } = await this.sb.from("players").update({ idp: p.idp }).eq("id", playerId);
-        if (error) return { ok: false, msg: error.message };
-      } else { this._persistContent(); }
-      return { ok: true };
+        try {
+          const ins = { player_id: playerId, drill_id: row.drill_id, video_url: row.video_url,
+            video_key: key, area, comment };
+          const { data, error } = await this.sb.from("video_reflections").insert(ins).select().single();
+          if (error) return { ok: false, msg: error.message };
+          if (data && data.id != null) { row.id = data.id; }
+        } catch (e) { /* video_reflections table not created yet — flagged to user */ }
+        await this._persistDev(p);
+      } else {
+        this._persistContent();
+        this._persistReflections();
+      }
+      return { ok: true, awarded: true, area, value };
     },
-    // One-sentence post-match coach feedback slot, set per focus area (§5).
-    async setIdpFeedback(playerId, focusIndex, feedback, ht) {
-      const cur = this.idpFor(playerId, ht);
-      if (!cur.focus[focusIndex]) return { ok: false, msg: "No focus area there" };
-      cur.focus[focusIndex].feedback = (feedback || "").trim();
-      return this.saveIdp(playerId, cur.focus, cur.ht);
+    // Write a DEV area value onto a player's flat .dev AND the season stats block.
+    _setDevArea(p, area, value) {
+      p.dev = p.dev || {};
+      p.dev[area] = value;
+      if (!p.stats) p.stats = {};
+      const s = this.season;
+      p.stats[s] = p.stats[s] || {};
+      p.stats[s].dev = { ...(p.stats[s].dev || {}), ...p.dev };
+    },
+    // Persist a player's dev (live: bump players.stats which carries .dev per season).
+    async _persistDev(p) {
+      if (!LIVE) return;
+      try { await this.sb.from("players").update({ stats: p.stats }).eq("id", p.id); } catch (e) { /* ignore */ }
+    },
+    _persistReflections() {
+      localStorage.setItem("harris_reflections", JSON.stringify(this.state.videoReflections || []));
     },
 
     /* admin: set a player's SEASON TOTALS for the viewed season (for past seasons where
@@ -1220,10 +1280,45 @@
         events.push({ player_id: trainerId, season, category: "trainer",
           points: SC.trainerOfTheDay, note: "Trainer of the Day " + date, ref: `train:${date}:${trainerId}:trainer` });
       }
+      // Who was ALREADY recorded present for this date BEFORE this save? Used to
+      // make the +5% dev bump idempotent even across reloads in live mode (where
+      // the in-memory marker map starts empty) — only NEWLY-present players are bumped.
+      const alreadyPresent = new Set(Object.entries(this.registerState(date))
+        .filter(([, st]) => st.attended).map(([pid]) => +pid));
       const res = await this.replacePoints(`train:${date}:`, events);
       // After attendance is banked, recompute the 4-week training streak bonuses.
       await this._recomputeStreaks(season);
+      // AUTOMATED development bump (no coach action beyond the register): every
+      // player marked present gets +5% on their CURRENTLY-LOWEST dev area, once
+      // per session per player. Idempotent two ways: (1) the in-memory marker map
+      // and (2) skipping anyone who was already present in the saved register.
+      for (const pid of attendedIds) {
+        if (alreadyPresent.has(pid)) continue;
+        await this._attendanceDevBump(date, pid);
+      }
       return res;
+    },
+
+    // +5% to a player's lowest dev area for attending a session. Idempotent: a
+    // marker (one per session+player) prevents re-running the register from
+    // double-awarding. AUTOMATED — no coach approval.
+    async _attendanceDevBump(date, playerId) {
+      const p = this.player(playerId); if (!p) return;
+      this.state.devAttendanceMarks = this.state.devAttendanceMarks || {};
+      const key = `${date}:${playerId}`;
+      if (this.state.devAttendanceMarks[key]) return; // already awarded this session
+      // pick the currently-lowest of the six dev areas (ties → first in DEV_AREA_KEYS)
+      const dev = p.dev || {};
+      let lowKey = this.DEV_AREA_KEYS[0], lowVal = Infinity;
+      this.DEV_AREA_KEYS.forEach(k => { const v = dev[k] || 0; if (v < lowVal) { lowVal = v; lowKey = k; } });
+      const value = Math.max(0, Math.min(100, (dev[lowKey] || 0) + 5));
+      this._setDevArea(p, lowKey, value);
+      this.state.devAttendanceMarks[key] = { area: lowKey, value };
+      if (LIVE) { await this._persistDev(p); /* marker persisted via attendance/ledger presence */ }
+      else { this._persistContent(); this._persistDevMarks(); }
+    },
+    _persistDevMarks() {
+      localStorage.setItem("harris_devmarks", JSON.stringify(this.state.devAttendanceMarks || {}));
     },
     registerState(date) {
       const out = {};
