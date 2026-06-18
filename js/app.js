@@ -1103,9 +1103,14 @@
       null, null, null   // 3 match-day slots — to be confirmed
     ];
     const training = [
-      { name:"TheCarbonCo", tagline:"Training kit sponsor",
-        logo:"assets/thecarbonco.png", url:"",
-        blurb:"Proud training-kit sponsor of OWFC Harris — their name rides on every training top. Thank you for backing the squad this season." }
+      { name:"The Carbon Co", tagline:"Training kit sponsor",
+        logo:"assets/thecarbonco.png", url:"https://thecarbon.co",
+        blurb:"The Carbon Co builds compliance-led infrastructure for the regulated carbon market — helping project developers and partners issue, verify and sell high-integrity carbon credits backed by auditable, traceable data. Proud training-kit sponsor of OWFC Harris, with their name on every training top — thank you for backing the squad this season." }
+    ];
+    const ball = [
+      { name:"UR.tips", tagline:"Match-ball sponsor",
+        logo:"assets/ur-tips.png", url:"https://www.ur.tips",
+        blurb:"UR.tips is an AI-powered football prediction engine that crunches over 100 million data points to deliver sharp, data-driven match predictions. Proud match-ball sponsor of OWFC Harris." }
     ];
 
     const logoImg = s => {
@@ -1142,6 +1147,9 @@
 
       <div class="section-head" style="margin-top:1.8rem"><div><div class="eyebrow">On every training top</div><h2 style="font-size:1.5rem">Training kit sponsor</h2></div></div>
       <div class="sponsor-list">${training.map(sponsorCard).join("")}</div>
+
+      <div class="section-head" style="margin-top:1.8rem"><div><div class="eyebrow">On the match ball</div><h2 style="font-size:1.5rem">Match-ball sponsor</h2></div></div>
+      <div class="sponsor-list">${ball.map(sponsorCard).join("")}</div>
 
       <div class="card pad-lg sponsor-thanks" style="margin:1.4rem 0 0">
         <div class="eyebrow" style="color:var(--cool-orange)">Thank you</div>
