@@ -1096,28 +1096,30 @@
     const logo = `<img src="assets/cool365.png" alt="Cool 365 Ltd" class="sponsor-logo"
       onerror="if(!this.dataset.f){this.dataset.f='1';this.src='https://static.wixstatic.com/media/d58553_7c7c1fcc02f84c558522f629c3d69292~mv2.png';}else{this.outerHTML='&lt;span class=&quot;sponsor-logo-fallback&quot;&gt;COOL 365&lt;/span&gt;';}"/>`;
     view.innerHTML = `
-      <section class="hero" style="text-align:center">
-        <div class="hero-tag">OUR SPONSOR</div>
-        <h1>Proudly sponsored by <span>Cool 365 Ltd</span></h1>
+      <section class="hero" style="text-align:center;padding-bottom:.4rem">
+        <div class="hero-tag">OUR MATCH SPONSOR</div>
+        <h1>Cool 365 Ltd</h1>
+        <p>Proud match-day sponsor of OWFC Harris.</p>
       </section>
 
-      <div class="card pad-lg sponsor-brand" style="text-align:center;max-width:560px;margin:1.2rem auto 0">
-        ${logo}
-        <div style="margin-top:1.2rem">
-          <a class="btn btn-gold" href="https://www.cool365.co.uk" target="_blank" rel="noopener">Visit cool365.co.uk ↗</a>
+      <div class="card pad-lg sponsor-hero">
+        <div class="sponsor-logo-col">
+          ${logo}
+          <span class="tag gold sponsor-badge">⚽ Match Sponsor</span>
+          <a class="btn btn-gold btn-block" href="https://www.cool365.co.uk" target="_blank" rel="noopener" style="margin-top:.9rem">Visit cool365.co.uk ↗</a>
+        </div>
+        <div class="sponsor-copy">
+          <div class="eyebrow" style="color:var(--cool-orange)">About our sponsor</div>
+          <h2 style="margin:.2rem 0 .6rem;font-size:1.5rem">Air conditioning specialists</h2>
+          <p style="margin:0">Cool 365 Ltd are air conditioning specialists based in Blackheath, serving homes and businesses across London, Kent and the surrounding areas. With over 15 years in the trade, an F-Gas and Refcom certified team, and accreditation as Mitsubishi and Daikin installers, they deliver high-quality, warranty-backed installation, repairs, servicing and maintenance — from a single room to 100+ unit commercial projects. Rated 4.9 from 45+ reviews and backed by a 10-year warranty, they're known for a seamless, stress-free service.</p>
+          <p style="margin:.8rem 0 0"><b style="color:var(--cool-blue)">Air conditioning · Air source heat pumps · MVHR · Ventilation</b></p>
+          <p class="muted" style="margin:.5rem 0 0">Get in touch: <b>020 8166 8365</b> · <a href="mailto:info@cool365.co.uk" style="color:var(--cool-blue)">info@cool365.co.uk</a> · free site surveys available.</p>
         </div>
       </div>
 
-      <div class="card pad-lg sponsor-thanks" style="max-width:760px;margin:1.2rem auto 0">
+      <div class="card pad-lg sponsor-thanks" style="margin:1.2rem 0 0">
         <div class="eyebrow" style="color:var(--cool-orange)">Thank you</div>
         <p style="margin:.4rem 0 0;font-size:1.05rem;line-height:1.6">A huge thank you to <b>Cool 365 Ltd</b> for backing OWFC Harris. Your support helps us run our sessions, kit out the squad and keep football fun and accessible for every one of our players. We're proud to have you on our team. ⚽</p>
-      </div>
-
-      <div class="section-head" style="margin-top:1.6rem"><div><div class="eyebrow">Get to know them</div><h2 style="font-size:1.5rem">About Cool 365 Ltd</h2></div></div>
-      <div class="card pad-lg" style="max-width:760px">
-        <p style="margin:0">Cool 365 Ltd are air conditioning specialists based in Blackheath, serving homes and businesses across London, Kent and the surrounding areas. With over 15 years in the trade, an F-Gas and Refcom certified team, and accreditation as Mitsubishi and Daikin installers, they deliver high-quality, warranty-backed installation, repairs, servicing and maintenance — from a single room to 100+ unit commercial projects. Rated 4.9 from 45+ reviews and backed by a 10-year warranty, they're known for a seamless, stress-free service.</p>
-        <p style="margin:.9rem 0 0"><b style="color:var(--cool-blue)">Air conditioning · Air source heat pumps · MVHR · Ventilation</b></p>
-        <p class="muted" style="margin:.6rem 0 0">Get in touch: <b>020 8166 8365</b> · <a href="mailto:info@cool365.co.uk" style="color:var(--cool-blue)">info@cool365.co.uk</a> · free site surveys available.</p>
       </div>
 
       ${sponsorMatchesHTML()}`;
@@ -1138,8 +1140,15 @@
   // Match, no RSVP/who's-coming, no media, no player-card (.fc-card / data-player)
   // markup. Rendered at the bottom of the Sponsor page.
   function sponsorMatchesHTML() {
-    const upcoming = S.fixtures("upcoming");
-    const past = S.fixtures("past");
+    // Pin the sponsor view to the LATEST season (e.g. 2026/27) — show this season's
+    // fixtures only; never last season's results.
+    const seasons = cfg.SEASONS || [];
+    const season = (seasons[seasons.length - 1] || {}).id || S.season;
+    const range = S.seasonRange(season) || {};
+    const inSn = iso => (range.from && range.to) ? (iso >= range.from && iso <= range.to) : true;
+    const seasonFix = (S.state.fixtures || []).filter(f => f.date && inSn(f.date));
+    const upcoming = seasonFix.filter(f => f.our_score == null).sort((a,b)=>(a.date||"").localeCompare(b.date||""));
+    const past = seasonFix.filter(f => f.our_score != null).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
 
     // Sponsor-safe upcoming card: fixture logistics only — no RSVP, no media, no names.
     const sUpcoming = f => `<div class="card fixture">
@@ -1175,19 +1184,18 @@
     };
 
     return `
-      <div class="section-head" style="margin-top:1.8rem"><div><div class="eyebrow">${esc(S.season)} Season</div><h2 style="font-size:1.5rem">How the team are doing</h2></div></div>
+      <div class="section-head" style="margin-top:1.8rem"><div><div class="eyebrow">${esc(season)} Season</div><h2 style="font-size:1.5rem">How the team are doing</h2></div></div>
 
       ${resultsFormStrip(past)}
 
       <div class="section-head" style="margin-top:1.6rem"><div><div class="eyebrow">Coming up</div><h2 style="font-size:1.5rem">Upcoming fixtures</h2></div></div>
       ${upcoming.length
         ? `<div class="grid cols-2">${upcoming.map(sUpcoming).join("")}</div>`
-        : emptyState("⚽","No matches booked in yet","As soon as the next fixture is set, it'll appear here.")}
+        : emptyState("⚽","Fixtures coming soon","The new season's matches will appear here as they're scheduled.")}
 
-      <div class="section-head" style="margin-top:1.8rem"><div><div class="eyebrow">${esc(S.season)} Season</div><h2 style="font-size:1.5rem">Results</h2></div></div>
-      ${past.length
-        ? `<div class="grid cols-1">${past.map(sResult).join("")}</div>`
-        : emptyState("📋","No results to show yet","Once we've played a match, the score lands here.")}
+      ${past.length ? `
+      <div class="section-head" style="margin-top:1.8rem"><div><div class="eyebrow">${esc(season)} Season</div><h2 style="font-size:1.5rem">Results</h2></div></div>
+      <div class="grid cols-1">${past.map(sResult).join("")}</div>` : ""}
     `;
   }
 

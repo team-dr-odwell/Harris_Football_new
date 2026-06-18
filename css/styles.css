@@ -505,6 +505,11 @@ img{max-width:100%}
 .sponsor-logo-fallback{display:inline-block;font-family:var(--display);font-weight:900;font-size:2.2rem;letter-spacing:.04em;color:var(--cool-blue)}
 .sponsor-logo-fallback::after{content:"";display:inline-block;width:.6em;height:.6em;margin-left:.18em;border-radius:50%;background:var(--cool-orange);vertical-align:.05em}
 .sponsor-thanks{border-left:4px solid var(--cool-orange);background:var(--surface-soft)}
+/* Match-sponsor hero: logo left, write-up right; stacks on mobile. */
+.sponsor-hero{border-top:3px solid var(--cool-blue);display:grid;grid-template-columns:240px 1fr;gap:1.8rem;align-items:center}
+.sponsor-logo-col{display:flex;flex-direction:column;align-items:center;text-align:center}
+.sponsor-badge{margin-top:.8rem;font-weight:700}
+@media (max-width:640px){.sponsor-hero{grid-template-columns:1fr;gap:1.1rem;text-align:center}.sponsor-copy{text-align:left}}
 
 /* ---------- Responsive ---------- */
 @media (max-width:860px){
