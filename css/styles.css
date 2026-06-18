@@ -510,6 +510,9 @@ img{max-width:100%}
 .sponsor-logo-col{display:flex;flex-direction:column;align-items:center;text-align:center}
 .sponsor-badge{margin-top:.8rem;font-weight:700}
 @media (max-width:640px){.sponsor-hero{grid-template-columns:1fr;gap:1.1rem;text-align:center}.sponsor-copy{text-align:left}}
+/* Sponsor roster: one card per row; "available" slots are a dashed placeholder. */
+.sponsor-list{display:grid;gap:1rem}
+.sponsor-tbc{border:1.5px dashed var(--line-strong);text-align:center;background:var(--surface-soft)}
 
 /* ---------- Responsive ---------- */
 @media (max-width:860px){

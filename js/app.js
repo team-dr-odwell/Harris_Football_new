@@ -1089,37 +1089,63 @@
   // Public page — visible to EVERY role (coach, parent, player AND the restricted
   // sponsor login). Contains NO child data: brand, thank-you, write-up and a link.
   function Sponsor() {
-    // Logo with graceful fallback: if assets/cool365.png is missing, swap to a
-    // styled "COOL 365" text span so the page never looks broken before the file lands.
-    // Logo: try a local asset first; if it's not there, fall back to Cool 365's own
-    // hosted logo; if that also fails, show a styled "COOL 365" text span.
-    const logo = `<img src="assets/cool365.png" alt="Cool 365 Ltd" class="sponsor-logo"
-      onerror="if(!this.dataset.f){this.dataset.f='1';this.src='https://static.wixstatic.com/media/d58553_7c7c1fcc02f84c558522f629c3d69292~mv2.png';}else{this.outerHTML='&lt;span class=&quot;sponsor-logo-fallback&quot;&gt;COOL 365&lt;/span&gt;';}"/>`;
-    view.innerHTML = `
-      <section class="hero" style="text-align:center;padding-bottom:.4rem">
-        <div class="hero-tag">OUR MATCH SPONSOR</div>
-        <h1>Cool 365 Ltd</h1>
-        <p>Proud match-day sponsor of OWFC Harris.</p>
-      </section>
+    // 2026/27 sponsor roster — edit here to confirm new sponsors / add logos + links.
+    // A null match-day slot renders as an "available" placeholder. logoUrl is an
+    // optional hosted fallback if the local asset is missing; final fallback = text.
+    const matchday = [
+      { name:"Cool 365 Ltd", tagline:"Air conditioning specialists",
+        logo:"assets/cool365.png",
+        logoUrl:"https://static.wixstatic.com/media/d58553_7c7c1fcc02f84c558522f629c3d69292~mv2.png",
+        url:"https://www.cool365.co.uk",
+        blurb:"Cool 365 Ltd are air conditioning specialists based in Blackheath, serving homes and businesses across London, Kent and the surrounding areas. With over 15 years in the trade, an F-Gas and Refcom certified team, and accreditation as Mitsubishi and Daikin installers, they deliver high-quality, warranty-backed installation, repairs, servicing and maintenance — from a single room to 100+ unit commercial projects. Rated 4.9 from 45+ reviews and backed by a 10-year warranty, they're known for a seamless, stress-free service.",
+        services:"Air conditioning · Air source heat pumps · MVHR · Ventilation",
+        contact:`Get in touch: <b>020 8166 8365</b> · <a href="mailto:info@cool365.co.uk" style="color:var(--cool-blue)">info@cool365.co.uk</a> · free site surveys available.` },
+      null, null, null   // 3 match-day slots — to be confirmed
+    ];
+    const training = [
+      { name:"TheCarbonCo", tagline:"Training kit sponsor",
+        logo:"assets/thecarbonco.png", url:"",
+        blurb:"Proud training-kit sponsor of OWFC Harris — their name rides on every training top. Thank you for backing the squad this season." }
+    ];
 
-      <div class="card pad-lg sponsor-hero">
+    const logoImg = s => {
+      const text = `this.outerHTML='&lt;span class=&quot;sponsor-logo-fallback&quot;&gt;${esc(s.name)}&lt;/span&gt;'`;
+      const oe = s.logoUrl ? `if(!this.dataset.f){this.dataset.f='1';this.src='${s.logoUrl}';}else{${text}}` : text;
+      return `<img src="${esc(s.logo)}" alt="${esc(s.name)}" class="sponsor-logo" onerror="${oe}"/>`;
+    };
+    const sponsorCard = s => `<div class="card pad-lg sponsor-hero">
         <div class="sponsor-logo-col">
-          ${logo}
-          <span class="tag gold sponsor-badge">⚽ Match Sponsor</span>
-          <a class="btn btn-gold btn-block" href="https://www.cool365.co.uk" target="_blank" rel="noopener" style="margin-top:.9rem">Visit cool365.co.uk ↗</a>
+          ${logoImg(s)}
+          ${s.url ? `<a class="btn btn-gold btn-block" href="${esc(s.url)}" target="_blank" rel="noopener" style="margin-top:.9rem">Visit website ↗</a>` : ``}
         </div>
         <div class="sponsor-copy">
-          <div class="eyebrow" style="color:var(--cool-orange)">About our sponsor</div>
-          <h2 style="margin:.2rem 0 .6rem;font-size:1.5rem">Air conditioning specialists</h2>
-          <p style="margin:0">Cool 365 Ltd are air conditioning specialists based in Blackheath, serving homes and businesses across London, Kent and the surrounding areas. With over 15 years in the trade, an F-Gas and Refcom certified team, and accreditation as Mitsubishi and Daikin installers, they deliver high-quality, warranty-backed installation, repairs, servicing and maintenance — from a single room to 100+ unit commercial projects. Rated 4.9 from 45+ reviews and backed by a 10-year warranty, they're known for a seamless, stress-free service.</p>
-          <p style="margin:.8rem 0 0"><b style="color:var(--cool-blue)">Air conditioning · Air source heat pumps · MVHR · Ventilation</b></p>
-          <p class="muted" style="margin:.5rem 0 0">Get in touch: <b>020 8166 8365</b> · <a href="mailto:info@cool365.co.uk" style="color:var(--cool-blue)">info@cool365.co.uk</a> · free site surveys available.</p>
+          ${s.tagline ? `<div class="eyebrow" style="color:var(--cool-orange)">${esc(s.tagline)}</div>` : ``}
+          ${s.blurb ? `<p style="margin:.3rem 0 0">${s.blurb}</p>` : ``}
+          ${s.services ? `<p style="margin:.8rem 0 0"><b style="color:var(--cool-blue)">${esc(s.services)}</b></p>` : ``}
+          ${s.contact ? `<p class="muted" style="margin:.5rem 0 0">${s.contact}</p>` : ``}
         </div>
-      </div>
+      </div>`;
+    const tbcCard = () => `<div class="card pad-lg sponsor-tbc">
+        <div class="sponsor-logo-fallback" style="opacity:.45">Your logo here</div>
+        <p class="muted" style="margin:.6rem 0 0">A 2026/27 match-day sponsor slot — <b>available now</b>. Want your business on board? Have a word with the coaches.</p>
+      </div>`;
 
-      <div class="card pad-lg sponsor-thanks" style="margin:1.2rem 0 0">
+    view.innerHTML = `
+      <section class="hero" style="text-align:center;padding-bottom:.4rem">
+        <div class="hero-tag">OWFC HARRIS · 2026/27</div>
+        <h1>Harris 26/27 Sponsor Page</h1>
+        <p>The businesses backing our players this season — thank you for your support. ⚽</p>
+      </section>
+
+      <div class="section-head" style="margin-top:1.4rem"><div><div class="eyebrow">Backing every match</div><h2 style="font-size:1.5rem">Match-day sponsors</h2></div></div>
+      <div class="sponsor-list">${matchday.map(s => s ? sponsorCard(s) : tbcCard()).join("")}</div>
+
+      <div class="section-head" style="margin-top:1.8rem"><div><div class="eyebrow">On every training top</div><h2 style="font-size:1.5rem">Training kit sponsor</h2></div></div>
+      <div class="sponsor-list">${training.map(sponsorCard).join("")}</div>
+
+      <div class="card pad-lg sponsor-thanks" style="margin:1.4rem 0 0">
         <div class="eyebrow" style="color:var(--cool-orange)">Thank you</div>
-        <p style="margin:.4rem 0 0;font-size:1.05rem;line-height:1.6">A huge thank you to <b>Cool 365 Ltd</b> for backing OWFC Harris. Your support helps us run our sessions, kit out the squad and keep football fun and accessible for every one of our players. We're proud to have you on our team. ⚽</p>
+        <p style="margin:.4rem 0 0;font-size:1.05rem;line-height:1.6">A huge thank you to our sponsors for backing OWFC Harris. Your support helps us run our sessions, kit out the squad and keep football fun and accessible for every one of our players. ⚽</p>
       </div>
 
       ${sponsorMatchesHTML()}`;
