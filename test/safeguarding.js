@@ -255,6 +255,76 @@ const FIXED_NOW = new RealDate("2026-09-14T09:00:00Z");   // a Monday in 2026/27
   ok(/pe_self_insert on point_events[\s\S]*category in \('quiz','challenge','chore','homework'\)[\s\S]*owns_player\(player_id\)/.test(v2), "§11 parent point_events insert is scoped to own child + parent categories only");
   ok(/hw_parent_upd on homework for update to authenticated using \(owns_player\(player_id\)\)/.test(v2), "§11 parent may update only their own child's homework");
 
+  /* ============ SPONSOR ROLE — GDPR HARD GUARD (no child data, ever) ============ */
+  // A restricted sponsor login must NEVER reach any child data — not by nav and not
+  // by directly typing a hash. Every restricted route must redirect to the Sponsor
+  // (or About) page, and the rendered view must contain no child's full name and no
+  // squad card markup (.fc-card / data-player).
+  {
+    // Give a roster player a distinctive full name we can scan for.
+    const sentinel = S.roster(true)[0];
+    sentinel.name = "Zachary Sponsorsentinel";
+    S._applySeason();
+    // Put the sentinel on a PLAYED fixture as a goalscorer AND Player of the Match,
+    // so the sanitised sponsor matches view has every opportunity to leak a name.
+    const sFx = 7777;
+    S.state.fixtures.push({ id: sFx, status: "upcoming", date: "2026-09-07",
+      opponent: "Sentinel United", home_away: "H", competition: "League",
+      kickoff: "10:00", ground: "Harris Park" });
+    await S.saveResult(sFx, {
+      our_score: 3, their_score: 1, motm: sentinel.id, moment: null,
+      goals: [ { scorer: sentinel.id, assist: null } ],
+      cleanSheets: [], saves: [], lineup: [sentinel.id]
+    });
+    S.isSponsor = true; S.isAdmin = false;
+    S.me = sentinel.id; S.linkedPlayer = sentinel.id; S.myKids = [sentinel.id];
+
+    // (A) The sanitised fixtures/results now live at the BOTTOM of the Sponsor page
+    //     itself. It shows the name-free season picture (scores, opponents, form) —
+    //     but ZERO child data. (The separate #sponsorfixtures tab/route is gone.)
+    window.location.hash = "#sponsor"; window.dispatchEvent(new window.Event("hashchange"));
+    await new Promise(r => setTimeout(r, 10));
+    ok(window.location.hash === "#sponsor", "§sponsor: the Sponsor page is reachable (no redirect)");
+    const smHtml = window.document.querySelector("#view").innerHTML || "";
+    ok(/Sentinel United/.test(smHtml), "§sponsor: Sponsor page shows opponents");
+    ok(/3<span class="sep">–<\/span>1/.test(smHtml) || /3.{0,40}–.{0,40}1/.test(smHtml), "§sponsor: Sponsor page shows the score");
+    ok(/Recent form/.test(smHtml) && /Goals for–against/.test(smHtml), "§sponsor: Sponsor page shows the name-free form strip");
+    // The whole point: not one shred of child data may appear here.
+    ok(!/Sponsorsentinel/.test(smHtml), "§sponsor: Sponsor page never prints a child's name (no scorer/MOTM name)");
+    ok(!/class="fc-card"/.test(smHtml) && !/data-player=/.test(smHtml), "§sponsor: Sponsor page renders no player-card markup");
+    ok(!/att-btn/.test(smHtml) && !/Will .* be there/.test(smHtml) && !/data-rsvp/.test(smHtml), "§sponsor: Sponsor page has no RSVP controls");
+    ok(!/who's coming/i.test(smHtml) && !/Going<\/span>/.test(smHtml), "§sponsor: Sponsor page shows no attendance / who's-coming");
+    ok(!/Player of the Match/.test(smHtml), "§sponsor: Sponsor page shows no Player of the Match");
+    ok(!/data-media=/.test(smHtml) && !/data-add=/.test(smHtml) && !/PHOTOS/.test(smHtml), "§sponsor: Sponsor page shows no media / photo-add");
+
+    // The old separate matches tab/route is gone — #sponsorfixtures must now redirect
+    // to #sponsor like any other non-permitted route.
+    const restricted = ["players", "academy", "family", "admin", "players/" + sentinel.id,
+                        "development/" + sentinel.id, "league", "schedule",
+                        "schedule/training", "schedule/events", "home", "sponsorfixtures"];
+    for (const h of restricted) {
+      window.location.hash = "#" + h;
+      window.dispatchEvent(new window.Event("hashchange"));
+      await new Promise(r => setTimeout(r, 10));
+      const onHash = window.location.hash;
+      ok(onHash === "#sponsor" || onHash === "#about",
+        `§sponsor: #${h} is redirected away from child data (landed on ${onHash})`);
+      const html = window.document.querySelector("#view").innerHTML || "";
+      ok(!/Sponsorsentinel/.test(html), `§sponsor: #${h} never exposes a child's full name`);
+      ok(!/class="fc-card"/.test(html) && !/data-player=/.test(html),
+        `§sponsor: #${h} never renders the squad card markup`);
+    }
+    // The two permitted destinations DO render (and stay put — no redirect).
+    window.location.hash = "#sponsor"; window.dispatchEvent(new window.Event("hashchange"));
+    await new Promise(r => setTimeout(r, 10));
+    ok(window.location.hash === "#sponsor" && /Cool 365/.test(window.document.querySelector("#view").innerHTML),
+      "§sponsor: the Sponsor page itself renders for a sponsor login");
+    window.location.hash = "#about"; window.dispatchEvent(new window.Event("hashchange"));
+    await new Promise(r => setTimeout(r, 10));
+    ok(window.location.hash === "#about", "§sponsor: About is permitted for a sponsor login");
+    S.isSponsor = false;
+  }
+
   /* ============ no console errors during any render ============ */
   eq(consoleErrors.length, 0, "no console/jsdom errors during safeguarding renders", consoleErrors.join(" | "));
 

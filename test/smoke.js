@@ -63,7 +63,7 @@ function run(code, label) { try { window.eval(code); } catch (e) { errors.push(`
   ["home",
    // new IA
    "schedule", "schedule/matches", "schedule/matches/upcoming", "schedule/matches/past",
-   "schedule/training", "schedule/events", "about",
+   "schedule/training", "schedule/events", "about", "sponsor",
    "academy", "academy/progress", "academy/quiz", "academy/tasks", "academy/videos",
    "players", "development", "league",
    // kept legacy aliases (so old WhatsApp/shared links never break)

@@ -35,39 +35,65 @@ Tags: 🏟️ Team · 🏠 Home. Ratings: ⭐⭐⭐ very popular · ⭐⭐ solid
 
 **First touch**
 - [ ] 🏟️ Teaching a Beginner First Touch (Receiving) — coach-led 1:1 with a 10-y-o · confirm channel/length on review · ⭐⭐ — https://www.youtube.com/watch?v=mKcr04x7BS0
+- [ ] 🏟️ How I Coach A Variety Of 1st Touch Drills For Soccer · confirm channel/length on review · ⭐⭐ — https://www.youtube.com/watch?v=8t0S-QZmHIg
+- [ ] 🏟️ First Touch Drills + Change of Direction (U10–U14) · confirm channel/length on review · ⭐⭐ — https://www.youtube.com/watch?v=UnbGJj3VwoM
 
 **Close control**
 - [ ] 🏟️ Dribbling Drill For Close Ball Control (U9–U12) · confirm channel/length on review · ⭐⭐ — https://www.youtube.com/watch?v=hXcgw7U6qCw
+- [ ] 🏟️/🏠 Ball Control Drills For U7–U11 Soccer/Football (3 drills) · confirm channel/length on review · ⭐⭐ — https://www.youtube.com/watch?v=whKgBEDnM4I
+- [ ] 🏟️/🏠 Improve Your Dribbling — 10 Easy Close Control Dribbling Exercises · confirm channel/length on review · ⭐⭐ — https://www.youtube.com/watch?v=rTdHPcQQMwM
 
 **Ball mastery**
 - [ ] 🏠 Ball Mastery Homework Drills for Young Football Players · confirm channel/length on review · ⭐⭐ — https://www.youtube.com/watch?v=z9PX76wIBBw
+- [ ] 🏟️/🏠 10 Ball Mastery Soccer Drills for Kids (U6/U8/U10/U12) · confirm channel/length on review · ⭐⭐ — https://www.youtube.com/watch?v=CosG13seo3o
+- [ ] 🏠 20 Ball Mastery Drills — Homework (U10–U14) · confirm channel/length on review · ⭐⭐ — https://www.youtube.com/watch?v=tx16iYA7TVs
 
 **Keepy-ups/juggling**
 - [ ] 🏠 Football Kick Ups Tutorial for Beginners (Soccer Juggling) · confirm channel/length on review · ⭐⭐ — https://www.youtube.com/watch?v=5KDe6qbl7Ys
+- [ ] 🏠 Soccer/Football Juggling Tutorial — The Basics for Kids & Beginners · confirm channel/length on review · ⭐⭐ — https://www.youtube.com/watch?v=SzZ7Ecql-sg
 
 **Skill moves**
 - [ ] 🏠 3 Creative Football Skills for Kids — New Ways to Easily Beat a Defender · confirm channel/length on review · ⭐⭐ — https://www.youtube.com/watch?v=gTWlOR9i2lo
+- [ ] 🏠 5 Moves To Beat Defenders — Step By Step Dribbling Tutorial · confirm channel/length on review · ⭐⭐ — https://www.youtube.com/watch?v=nPTnDkMPHN4
+- [ ] 🏠 8 Best Soccer Moves Kids Should Learn (Easy Skill Moves) · confirm channel/length on review · ⭐⭐ — https://www.youtube.com/watch?v=4gsh7JPcO10
 
 **Dribbling/1v1**
 - [ ] 🏟️ 1v1 Chaos Dribbling Drill (U8 / U9 / U10) · confirm channel/length on review · ⭐⭐ — https://www.youtube.com/watch?v=B6KLLYFvcL8
+- [ ] 🏟️ 1v1 Dribbling Drill — How to Coach Soccer for U10/U11/U12 · confirm channel/length on review · ⭐⭐ — https://www.youtube.com/watch?v=npeM7yvN_8A
+- [ ] 🏟️ 1v1 + GK Drill in a Confined Space — How to Coach Soccer (U10/U11/U12) · confirm channel/length on review · ⭐⭐ — https://www.youtube.com/watch?v=G4MUlMT4ky0
 
 **Passing**
 - [ ] 🏟️ Passing and Receiving Training — Full Session (U10+) · confirm channel/length on review · ⭐⭐ — https://www.youtube.com/watch?v=4Y9Q3uzow8E
+- [ ] 🏟️ 5 Must-Try Soccer Drills for U10 & U11 · Advance.Football · ⭐⭐ — https://www.youtube.com/watch?v=fSQOo_3FqAY
+- [ ] 🏟️ Effective Passing Drills in Soccer for Kids (U8/U10/U12, simple & easy) · confirm channel/length on review · ⭐⭐ — https://www.youtube.com/watch?v=YDeZZWIDhbw
 
 **Receiving on the half-turn**
 - [ ] 🏟️ Receiving on the Half-Turn — The Quickest Way to Change Direction · confirm channel/length on review · ⭐⭐ — https://www.youtube.com/watch?v=mAXA5DERqww
+- [ ] 🏟️ Soccer Coaching: Receiving on the Half Turn (Game) · confirm channel/length on review · ⭐⭐ — https://www.youtube.com/watch?v=ei0ja9YyBZc
 
 **Shooting/finishing**
 - [ ] 🏟️ 4 Cone Shooting Drill (5 Variations) — Youth Coaching · confirm channel/length on review · ⭐⭐ — https://www.youtube.com/watch?v=nA6DKYOhO54
+- [ ] 🏟️ Turn & Shoot Drill For Football/Soccer (U8/U9/U10) · confirm channel/length on review · ⭐⭐ — https://www.youtube.com/watch?v=k-dpcfQMwC8
 
 **Movement off the ball**
 - [ ] 🏟️ Soccer Drill: Creating Space (U10) · The Coaching Manual · ⭐⭐ — https://www.youtube.com/watch?v=XkVDIvjiAUY
+- [ ] 🏟️ Zig Zag Passing Drill — Passing & Off-the-Ball Movement (U10–U13) · confirm channel/length on review · ⭐⭐ — https://www.youtube.com/watch?v=zpvSpP47ZEM
+
+**Defending (1v1)**
+- [ ] 🏟️ 1v1 Defending Drill — Become The Ultimate Defender (jockeying / body shape) · confirm channel/length on review · ⭐⭐ — https://www.youtube.com/watch?v=9aW9y3Lzt50
+- [ ] 🏟️ Don't Dive In — 1v1 Defending Drill (Football/Soccer) · confirm channel/length on review · ⭐⭐ — https://www.youtube.com/watch?v=uVkpeXS6Byw
 
 **Communication/scanning**
 - [ ] 🏟️ Scanning Drill For Teams — Check Your Shoulder · confirm channel/length on review · ⭐⭐ — https://www.youtube.com/watch?v=A7YR73ALZ1s
+- [ ] 🏟️ Soccer Drillz: "Man On" & "Time" (communication calls) · confirm channel/length on review · ⭐⭐ — https://www.youtube.com/watch?v=k_yagEhUb3E
+- [ ] 🏟️ U10 Cognitive Training — When to Scan! · confirm channel/length on review · ⭐⭐ — https://www.youtube.com/watch?v=Lsv73_ZFmI4
+
+**Fitness/agility (home)**
+- [ ] 🏠 Best Football Drills For Kids — Do By Yourself, No Equipment (5–10 yrs) · confirm channel/length on review · ⭐⭐ — https://www.youtube.com/watch?v=cj4T-nQNzz4
 
 **Goalkeeper basics**
 - [ ] 🏟️/🏠 7 Fun Goalkeeper Training Drills for Kids (U5–U10) · Eddie10 · ⭐⭐ — https://www.youtube.com/watch?v=BHsPdQ7EnZM
+- [ ] 🏠 At Home Youth Goalkeeper Training for Beginners · confirm channel/length on review · ⭐⭐ — https://www.youtube.com/watch?v=sn0KE6pmu4c
 
 ---
 
@@ -88,3 +114,31 @@ Tags: 🏟️ Team · 🏠 Home. Ratings: ⭐⭐⭐ very popular · ⭐⭐ solid
 2026-06-16 — [Goalkeeper basics] 7 Fun Goalkeeper Training Drills for Kids (U5–U10) — https://www.youtube.com/watch?v=BHsPdQ7EnZM
 2026-06-16 — [Defending (1v1)] SKIPPED — no genuinely good non-duplicate U10 1v1 video found today (already 3 approved)
 2026-06-16 — [Fitness/agility (home)] SKIPPED — only TikTok/blog results, no credible kid-appropriate YouTube clip found today
+2026-06-17 — [First touch] How I Coach A Variety Of 1st Touch Drills For Soccer — https://www.youtube.com/watch?v=8t0S-QZmHIg
+2026-06-17 — [Close control] Ball Control Drills For U7–U11 Soccer/Football (3 drills) — https://www.youtube.com/watch?v=whKgBEDnM4I
+2026-06-17 — [Ball mastery] 10 Ball Mastery Soccer Drills for Kids (U6/U8/U10/U12) — https://www.youtube.com/watch?v=CosG13seo3o
+2026-06-17 — [Skill moves] 5 Moves To Beat Defenders — Step By Step Dribbling Tutorial — https://www.youtube.com/watch?v=nPTnDkMPHN4
+2026-06-17 — [Dribbling/1v1] 1v1 Dribbling Drill — How to Coach Soccer for U10/U11/U12 — https://www.youtube.com/watch?v=npeM7yvN_8A
+2026-06-17 — [Passing] 5 Must-Try Soccer Drills for U10 & U11 (Advance.Football) — https://www.youtube.com/watch?v=fSQOo_3FqAY
+2026-06-17 — [Receiving on the half-turn] Soccer Coaching: Receiving on the Half Turn (Game) — https://www.youtube.com/watch?v=ei0ja9YyBZc
+2026-06-17 — [Defending (1v1)] 1v1 Defending Drill — Become The Ultimate Defender — https://www.youtube.com/watch?v=9aW9y3Lzt50
+2026-06-17 — [Communication/scanning] Soccer Drillz: "Man On" & "Time" — https://www.youtube.com/watch?v=k_yagEhUb3E
+2026-06-17 — [Goalkeeper basics] At Home Youth Goalkeeper Training for Beginners — https://www.youtube.com/watch?v=sn0KE6pmu4c
+2026-06-17 — [Keepy-ups/juggling] SKIPPED — section well-stocked (3 approved + 1 pending); no clearly non-duplicate option today
+2026-06-17 — [Shooting/finishing] SKIPPED — top results duplicate already-listed clips (Finishing 3-Variations approved; 4-Cone Shooting pending)
+2026-06-17 — [Movement off the ball] SKIPPED — top results duplicate already-listed clips (Teach Off-Ball Movement approved; Creating Space pending)
+2026-06-17 — [Fitness/agility (home)] SKIPPED — only generic/adult agility-ladder content, no credible kid-aimed home clip found today
+2026-06-18 — [First touch] First Touch Drills + Change of Direction (U10–U14) — https://www.youtube.com/watch?v=UnbGJj3VwoM
+2026-06-18 — [Close control] Improve Your Dribbling — 10 Easy Close Control Dribbling Exercises — https://www.youtube.com/watch?v=rTdHPcQQMwM
+2026-06-18 — [Ball mastery] 20 Ball Mastery Drills — Homework (U10–U14) — https://www.youtube.com/watch?v=tx16iYA7TVs
+2026-06-18 — [Keepy-ups/juggling] Soccer/Football Juggling Tutorial — The Basics for Kids & Beginners — https://www.youtube.com/watch?v=SzZ7Ecql-sg
+2026-06-18 — [Skill moves] 8 Best Soccer Moves Kids Should Learn (Easy Skill Moves) — https://www.youtube.com/watch?v=4gsh7JPcO10
+2026-06-18 — [Dribbling/1v1] 1v1 + GK Drill in a Confined Space (U10/U11/U12) — https://www.youtube.com/watch?v=G4MUlMT4ky0
+2026-06-18 — [Passing] Effective Passing Drills in Soccer for Kids (U8/U10/U12) — https://www.youtube.com/watch?v=YDeZZWIDhbw
+2026-06-18 — [Shooting/finishing] Turn & Shoot Drill For Football/Soccer (U8/U9/U10) — https://www.youtube.com/watch?v=k-dpcfQMwC8
+2026-06-18 — [Movement off the ball] Zig Zag Passing Drill — Passing & Off-the-Ball Movement (U10–U13) — https://www.youtube.com/watch?v=zpvSpP47ZEM
+2026-06-18 — [Defending (1v1)] Don't Dive In — 1v1 Defending Drill — https://www.youtube.com/watch?v=uVkpeXS6Byw
+2026-06-18 — [Communication/scanning] U10 Cognitive Training — When to Scan! — https://www.youtube.com/watch?v=Lsv73_ZFmI4
+2026-06-18 — [Fitness/agility (home)] Best Football Drills For Kids — Do By Yourself, No Equipment (5–10 yrs) — https://www.youtube.com/watch?v=cj4T-nQNzz4
+2026-06-18 — [Receiving on the half-turn] SKIPPED — section well-stocked (2 approved + 2 pending); remaining results skew U7–U9
+2026-06-18 — [Goalkeeper basics] SKIPPED — section well-stocked (2 approved + 2 pending); no clearly non-duplicate U10 option today

@@ -15,6 +15,9 @@
   /* Lines */
   --line:#e6e4e0;
   --line-strong:#d6d3cd;
+  /* Sponsor (Cool 365 Ltd) brand accents — used tastefully on the Sponsor page only */
+  --cool-blue:#1f7da6;     /* darkened from #29ABE2 for AA-on-white text */
+  --cool-orange:#c26a0a;   /* darkened from #F7941D for AA-on-white text */
   /* Gold — #c6a24c is FILL ONLY; gold TEXT must use --gold-ink */
   --gold:#c6a24c;
   --gold-ink:#8a6e25;
@@ -495,6 +498,13 @@ img{max-width:100%}
 .footer-small{font-size:.78rem;color:var(--muted)}
 .footer-link{color:var(--gold-ink);text-decoration:none;display:inline-flex;align-items:center;min-height:44px}
 .footer-link:hover{text-decoration:underline}
+
+/* ---------- Sponsor page (on-brand white cards + tasteful Cool365 accents) ---------- */
+.sponsor-brand{border-top:3px solid var(--cool-blue)}
+.sponsor-logo{max-width:240px;max-height:120px;width:auto;height:auto;display:inline-block}
+.sponsor-logo-fallback{display:inline-block;font-family:var(--display);font-weight:900;font-size:2.2rem;letter-spacing:.04em;color:var(--cool-blue)}
+.sponsor-logo-fallback::after{content:"";display:inline-block;width:.6em;height:.6em;margin-left:.18em;border-radius:50%;background:var(--cool-orange);vertical-align:.05em}
+.sponsor-thanks{border-left:4px solid var(--cool-orange);background:var(--surface-soft)}
 
 /* ---------- Responsive ---------- */
 @media (max-width:860px){

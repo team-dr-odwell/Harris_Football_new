@@ -52,9 +52,12 @@
     await S.load();
     populateSeasonSelect();
     $("#nav-admin").classList.toggle("hidden", !S.isAdmin);
+    applySponsorChrome();   // hide everything but Sponsor + About for a sponsor login
     // Change-password affordance: visible whenever someone is signed in. The modal
     // itself degrades gracefully in preview (no real auth) with a friendly note.
     const cpw = $("#changepw-btn"); if (cpw) cpw.classList.remove("hidden");
+    // GDPR: a sponsor login skips onboarding / child-picker entirely and lands on #sponsor.
+    if (S.isSponsor) { location.hash = "#sponsor"; route(); return; }
     if (S.needsOnboarding()) { showOnboarding(); return; }
     if (!S.hasLinkedPlayer() && !S.isAdmin) { showChildPicker(false); return; }
     if (!location.hash) location.hash = "#home";
@@ -98,12 +101,27 @@
   }
 
   function updateMyPlayerChip() {
+    if (S.isSponsor) { const chip = $("#myplayer-btn"); if (chip) chip.classList.add("hidden"); return; }
     const chip = $("#myplayer-btn");
     const p = S.hasLinkedPlayer() ? S.player(S.me) : null;
     if (p) { chip.textContent = "👤 " + firstNameOf(p) + (S.myChildren().length > 1 ? " ⇄" : ""); chip.classList.remove("hidden"); }
     else { chip.classList.add("hidden"); }
     // The Family tab is the parents' space — only show it once a child is linked.
     const fam = $("#nav-family"); if (fam) fam.classList.toggle("hidden", !S.hasLinkedPlayer());
+  }
+
+  // GDPR: a sponsor login sees EXACTLY two nav items — Sponsor (which carries the
+  // sanitised fixtures/results at the bottom of the page) and About. Hide Home,
+  // Schedule, Squad, Academy, Family, Admin and the season/child controls so a
+  // sponsor has no path to any child data. No-op for non-sponsors.
+  function applySponsorChrome() {
+    if (!S.isSponsor) return;
+    const keep = new Set(["sponsor", "about"]);
+    document.querySelectorAll("#nav .nav-link").forEach(l =>
+      l.classList.toggle("hidden", !keep.has(l.dataset.route)));
+    ["#season-select", "#myplayer-btn", "#nav-admin", "#nav-family", "#changepw-btn"].forEach(sel => {
+      const el = $(sel); if (el) el.classList.add("hidden");
+    });
   }
 
   function showOnboarding() {
@@ -193,7 +211,7 @@
   // Information architecture: Home | Schedule | Squad | Academy | Family | About (+ Admin).
   //   schedule  -> one page with Matches / Training / Events tabs
   //   academy   -> the signed-in child's development WORK (League() renders it)
-  const VIEWS = { home:Home, schedule:Schedule, about:About,
+  const VIEWS = { home:Home, schedule:Schedule, about:About, sponsor:Sponsor,
                   fixtures:Fixtures, training:TrainingView, events:Events,
                   players:Players, development:Development, league:League, academy:League,
                   family:Family, admin:Admin };
@@ -211,7 +229,7 @@
     schedule:"schedule", fixtures:"schedule", training:"schedule", events:"schedule",
     players:"players", squad:"players", development:"academy",
     league:"academy", academy:"academy",
-    family:"family", about:"about", home:"home", admin:"admin"
+    family:"family", about:"about", home:"home", admin:"admin", sponsor:"sponsor"
   };
   function route() {
     let parts = (location.hash.replace("#", "") || "home").split("/");
@@ -219,6 +237,18 @@
     // Resolve aliases to a canonical destination, EXCEPT where the alias key still
     // owns its own view function (fixtures/training/events render Schedule sub-tabs).
     if (ROUTE_ALIASES[key] && !VIEWS[key]) key = ROUTE_ALIASES[key];
+    // ---- GDPR HARD GUARD (sponsor role) ----
+    // A sponsor login may ONLY reach: the public Sponsor page (which now carries the
+    // GDPR-sanitised matches view — scores + form + fixtures, ZERO child data) and
+    // About. EVERY other request — including a directly typed hash like #players,
+    // #academy, #family, #admin, #schedule (+ its training/events tabs) or
+    // #players/<id> — is redirected to #sponsor before any child-data view function
+    // can run. This catches deep-links / manual URL entry, not just nav.
+    const SPONSOR_OK = new Set(["sponsor", "about"]);
+    if (S.isSponsor && !SPONSOR_OK.has(key)) {
+      if (location.hash !== "#sponsor") { location.hash = "#sponsor"; return; }
+      key = "sponsor"; parts = ["sponsor"];
+    }
     // Which top-nav item lights up for this route.
     const navMatch = NAV_OF[parts[0]] || NAV_OF[key] || key;
     document.querySelectorAll(".nav-link").forEach(l => l.classList.toggle("active", l.dataset.route === navMatch));
@@ -1053,6 +1083,110 @@
         <p style="margin:0">The safety and welfare of every child comes first. Like all FA-affiliated youth teams we have safeguarding policies in place, and anyone working with the children holds an up-to-date FA-accepted DBS check and safeguarding training. On this site, children's full surnames are never shown on player cards. If you ever have a worry about a child's welfare, please speak to our coaches or Club Welfare Officer straight away.</p>`)}
       <div style="margin-top:1.4rem"><button class="btn btn-gold btn-sm" data-go="home">← Back to home</button></div>`;
     wireGo();
+  }
+
+  /* ============================ SPONSOR ============================ */
+  // Public page — visible to EVERY role (coach, parent, player AND the restricted
+  // sponsor login). Contains NO child data: brand, thank-you, write-up and a link.
+  function Sponsor() {
+    // Logo with graceful fallback: if assets/cool365.png is missing, swap to a
+    // styled "COOL 365" text span so the page never looks broken before the file lands.
+    const logo = `<img src="assets/cool365.png" alt="Cool 365 Ltd" class="sponsor-logo"
+      onerror="this.outerHTML='&lt;span class=&quot;sponsor-logo-fallback&quot;&gt;COOL 365&lt;/span&gt;'"/>`;
+    view.innerHTML = `
+      <section class="hero" style="text-align:center">
+        <div class="hero-tag">OUR SPONSOR</div>
+        <h1>Proudly sponsored by <span>Cool 365 Ltd</span></h1>
+      </section>
+
+      <div class="card pad-lg sponsor-brand" style="text-align:center;max-width:560px;margin:1.2rem auto 0">
+        ${logo}
+        <div style="margin-top:1.2rem">
+          <a class="btn btn-gold" href="https://www.cool365.co.uk" target="_blank" rel="noopener">Visit cool365.co.uk ↗</a>
+        </div>
+      </div>
+
+      <div class="card pad-lg sponsor-thanks" style="max-width:760px;margin:1.2rem auto 0">
+        <div class="eyebrow" style="color:var(--cool-orange)">Thank you</div>
+        <p style="margin:.4rem 0 0;font-size:1.05rem;line-height:1.6">A huge thank you to <b>Cool 365 Ltd</b> for backing OWFC Harris. Your support helps us run our sessions, kit out the squad and keep football fun and accessible for every one of our players. We're proud to have you on our team. ⚽</p>
+      </div>
+
+      <div class="section-head" style="margin-top:1.6rem"><div><div class="eyebrow">Get to know them</div><h2 style="font-size:1.5rem">About Cool 365 Ltd</h2></div></div>
+      <div class="card pad-lg" style="max-width:760px">
+        <p style="margin:0">Cool 365 Ltd are air conditioning specialists based in Blackheath, serving homes and businesses across London, Kent and the surrounding areas. With over 15 years in the trade, an F-Gas and Refcom certified team, and accreditation as Mitsubishi and Daikin installers, they deliver high-quality, warranty-backed installation, repairs, servicing and maintenance — from a single room to 100+ unit commercial projects. Rated 4.9 from 45+ reviews and backed by a 10-year warranty, they're known for a seamless, stress-free service.</p>
+        <p style="margin:.9rem 0 0"><b style="color:var(--cool-blue)">Air conditioning · Air source heat pumps · MVHR · Ventilation</b></p>
+        <p class="muted" style="margin:.6rem 0 0">Get in touch: <b>020 8166 8365</b> · <a href="mailto:info@cool365.co.uk" style="color:var(--cool-blue)">info@cool365.co.uk</a> · free site surveys available.</p>
+      </div>
+
+      ${sponsorMatchesHTML()}`;
+    wireGo();
+  }
+
+  /* ============================ SPONSOR — MATCHES (GDPR-sanitised) ============================ */
+  // A sponsor-only matches view. It reuses the SAME live, computed numbers as the
+  // family/coach Matches tab (results + form strip), but renders ZERO child data:
+  //   • NO goalscorer / assist names    • NO Player of the Match
+  //   • NO RSVP / "who's coming" / attendance    • NO media / photo add
+  //   • NO player name or player-card (.fc-card / data-player) markup anywhere.
+  // It shows only: the season form strip (W/D/L, goals for–against, last-6 dots —
+  // all name-free), UPCOMING fixtures (date, opponent, kick-off, home/away, ground,
+  // competition) and RESULTS (date, opponent, score, Win/Loss/Draw, competition).
+  // Returns the GDPR-sanitised matches markup (form strip + upcoming + results) as
+  // an HTML string. ZERO child data — no goalscorer/assist names, no Player of the
+  // Match, no RSVP/who's-coming, no media, no player-card (.fc-card / data-player)
+  // markup. Rendered at the bottom of the Sponsor page.
+  function sponsorMatchesHTML() {
+    const upcoming = S.fixtures("upcoming");
+    const past = S.fixtures("past");
+
+    // Sponsor-safe upcoming card: fixture logistics only — no RSVP, no media, no names.
+    const sUpcoming = f => `<div class="card fixture">
+      <div class="fixture-top">
+        <div class="fixture-vs"><span class="club-badge us">H</span>
+          <div><h3>vs ${esc(f.opponent)}</h3><span class="tag ${f.competition==='Cup'?'gold':''}">${esc(f.competition)} · ${f.home_away==='H'?'Home':'Away'}</span></div>
+        </div>
+        <span class="tag gold">${fdate(f.date)}</span>
+      </div>
+      <div class="fixture-meta">
+        <span class="mi"><b>Kick-off</b> ${esc(f.kickoff)}</span>
+        <span class="mi"><b>Ground</b> ${esc(f.ground)}</span>
+      </div>
+    </div>`;
+
+    // Sponsor-safe result card: score + outcome + competition only — no goal list,
+    // no Player of the Match, no media gallery.
+    const sResult = f => {
+      const rc = f.result==="W"?"win":f.result==="L"?"loss":"draw";
+      const hasResult = f.our_score != null && f.their_score != null;
+      return `<div class="card fixture">
+        <div class="fixture-top">
+          <div class="fixture-vs"><span class="club-badge us">H</span>
+            <div><h3>vs ${esc(f.opponent)}</h3><span class="tag">${esc(f.competition)} · ${f.home_away==='H'?'Home':'Away'} · ${fdate(f.date)}</span></div>
+          </div>
+          <div style="text-align:right">
+            ${hasResult
+              ? `<div class="score">${f.our_score}<span class="sep">–</span>${f.their_score}</div><span class="tag ${rc}">${f.result==="W"?"Win":f.result==="L"?"Loss":"Draw"}</span>`
+              : `<span class="tag">Score to add</span>`}
+          </div>
+        </div>
+      </div>`;
+    };
+
+    return `
+      <div class="section-head" style="margin-top:1.8rem"><div><div class="eyebrow">${esc(S.season)} Season</div><h2 style="font-size:1.5rem">How the team are doing</h2></div></div>
+
+      ${resultsFormStrip(past)}
+
+      <div class="section-head" style="margin-top:1.6rem"><div><div class="eyebrow">Coming up</div><h2 style="font-size:1.5rem">Upcoming fixtures</h2></div></div>
+      ${upcoming.length
+        ? `<div class="grid cols-2">${upcoming.map(sUpcoming).join("")}</div>`
+        : emptyState("⚽","No matches booked in yet","As soon as the next fixture is set, it'll appear here.")}
+
+      <div class="section-head" style="margin-top:1.8rem"><div><div class="eyebrow">${esc(S.season)} Season</div><h2 style="font-size:1.5rem">Results</h2></div></div>
+      ${past.length
+        ? `<div class="grid cols-1">${past.map(sResult).join("")}</div>`
+        : emptyState("📋","No results to show yet","Once we've played a match, the score lands here.")}
+    `;
   }
 
   /* ============================ ACADEMY ============================ */

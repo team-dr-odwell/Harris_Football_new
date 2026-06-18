@@ -15,6 +15,7 @@
     state: null,
     me: cfg.DEMO_PLAYER_ID,
     isAdmin: !LIVE,   // preview: everyone behind the team password can try the admin panel
+    isSponsor: false,  // GDPR-restricted sponsor login: Sponsor + About only, never any child data
     linkedPlayer: null,   // the active child this account is currently viewing as
     myKids: [],           // all children linked to this family account (ids)
     userId: null,
@@ -216,6 +217,7 @@
           const { data: prof } = await sb.from("profiles").select("*").eq("id", user.id).maybeSingle();
           if (prof) {
             this.isAdmin = !!prof.is_admin;
+            this.isSponsor = !!prof.is_sponsor;   // GDPR-restricted sponsor login
             if (prof.parent_name) this.displayName = prof.parent_name;
             const kids = (Array.isArray(prof.player_ids) && prof.player_ids.length) ? prof.player_ids : (prof.player_id ? [prof.player_id] : []);
             this.myKids = kids;
