@@ -1091,8 +1091,10 @@
   function Sponsor() {
     // Logo with graceful fallback: if assets/cool365.png is missing, swap to a
     // styled "COOL 365" text span so the page never looks broken before the file lands.
+    // Logo: try a local asset first; if it's not there, fall back to Cool 365's own
+    // hosted logo; if that also fails, show a styled "COOL 365" text span.
     const logo = `<img src="assets/cool365.png" alt="Cool 365 Ltd" class="sponsor-logo"
-      onerror="this.outerHTML='&lt;span class=&quot;sponsor-logo-fallback&quot;&gt;COOL 365&lt;/span&gt;'"/>`;
+      onerror="if(!this.dataset.f){this.dataset.f='1';this.src='https://static.wixstatic.com/media/d58553_7c7c1fcc02f84c558522f629c3d69292~mv2.png';}else{this.outerHTML='&lt;span class=&quot;sponsor-logo-fallback&quot;&gt;COOL 365&lt;/span&gt;';}"/>`;
     view.innerHTML = `
       <section class="hero" style="text-align:center">
         <div class="hero-tag">OUR SPONSOR</div>
