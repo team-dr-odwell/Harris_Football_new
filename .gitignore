@@ -12,3 +12,6 @@ node_modules/
 # agent temp
 node_modules_tmp/
 test/_dbg.js
+
+# Private planning / security docs — MUST NOT be in the public repo
+platform-os/

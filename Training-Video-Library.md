@@ -39,11 +39,13 @@ Tags: 🏟️ Team · 🏠 Home. Ratings: ⭐⭐⭐ very popular · ⭐⭐ solid
 - [ ] 🏟️ First Touch Drills + Change of Direction (U10–U14) · confirm channel/length on review · ⭐⭐ — https://www.youtube.com/watch?v=UnbGJj3VwoM
 - [ ] 🏟️ How I Coach First Touch Under Pressure for Soccer · confirm channel/length on review · ⭐⭐ — https://www.youtube.com/watch?v=8xfWkNLdVYE
 - [ ] 🏟️/🏠 Improve Your First Touch — 7 First Touch Drills (Team & Partner, U11–U14) · confirm channel/length on review · ⭐⭐⭐ — https://www.youtube.com/watch?v=O4v-o1xeco0
+- [ ] 🏟️/🏠 First Touch & Awareness Drills — U11 Individual Session (4 drills) · confirm channel/length on review · ⭐⭐ — https://www.youtube.com/watch?v=Gn13wyZgCdU
 
 **Close control**
 - [ ] 🏟️ Dribbling Drill For Close Ball Control (U9–U12) · confirm channel/length on review · ⭐⭐ — https://www.youtube.com/watch?v=hXcgw7U6qCw
 - [ ] 🏟️/🏠 Ball Control Drills For U7–U11 Soccer/Football (3 drills) · confirm channel/length on review · ⭐⭐ — https://www.youtube.com/watch?v=whKgBEDnM4I
 - [ ] 🏟️/🏠 Improve Your Dribbling — 10 Easy Close Control Dribbling Exercises · confirm channel/length on review · ⭐⭐ — https://www.youtube.com/watch?v=rTdHPcQQMwM
+- [ ] 🏟️/🏠 5 Close Control Dribbling Drills For Footballers — Improve Dribbling in Small Spaces · confirm channel/length on review · ⭐⭐ — https://www.youtube.com/watch?v=QqjaavLXdHs
 
 **Ball mastery**
 - [ ] 🏠 Ball Mastery Homework Drills for Young Football Players · confirm channel/length on review · ⭐⭐ — https://www.youtube.com/watch?v=z9PX76wIBBw
@@ -89,15 +91,18 @@ Tags: 🏟️ Team · 🏠 Home. Ratings: ⭐⭐⭐ very popular · ⭐⭐ solid
 **Defending (1v1)**
 - [ ] 🏟️ 1v1 Defending Drill — Become The Ultimate Defender (jockeying / body shape) · confirm channel/length on review · ⭐⭐ — https://www.youtube.com/watch?v=9aW9y3Lzt50
 - [ ] 🏟️ Don't Dive In — 1v1 Defending Drill (Football/Soccer) · confirm channel/length on review · ⭐⭐ — https://www.youtube.com/watch?v=uVkpeXS6Byw
+- [ ] 🏟️ Soccer Drill: Defending & Pressing (U11) · The Coaching Manual · ⭐⭐ — https://www.youtube.com/watch?v=zqt_c00WM-Q
 
 **Communication/scanning**
 - [ ] 🏟️ Scanning Drill For Teams — Check Your Shoulder · confirm channel/length on review · ⭐⭐ — https://www.youtube.com/watch?v=A7YR73ALZ1s
 - [ ] 🏟️ Soccer Drillz: "Man On" & "Time" (communication calls) · confirm channel/length on review · ⭐⭐ — https://www.youtube.com/watch?v=k_yagEhUb3E
 - [ ] 🏟️ U10 Cognitive Training — When to Scan! · confirm channel/length on review · ⭐⭐ — https://www.youtube.com/watch?v=Lsv73_ZFmI4
 - [ ] 🏟️ 5 Scanning Drills to Improve Football IQ — How to Scan Like a Pro · confirm channel/length on review · ⭐⭐ — https://www.youtube.com/watch?v=YFnhW3hcuU8
+- [ ] 🏟️ How to Get Young Players to SCAN as Much as a Pro (drill + game) · confirm channel/length on review · ⭐⭐ — https://www.youtube.com/watch?v=b_Gebed7DPE
 
 **Fitness/agility (home)**
 - [ ] 🏠 Best Football Drills For Kids — Do By Yourself, No Equipment (5–10 yrs) · confirm channel/length on review · ⭐⭐ — https://www.youtube.com/watch?v=cj4T-nQNzz4
+- [ ] 🏟️/🏠 3 Agility Drills for Youth Football · confirm channel/length on review · ⭐⭐ — https://www.youtube.com/watch?v=oo_lVJGYs0w
 
 **Goalkeeper basics**
 - [ ] 🏟️/🏠 7 Fun Goalkeeper Training Drills for Kids (U5–U10) · Eddie10 · ⭐⭐ — https://www.youtube.com/watch?v=BHsPdQ7EnZM
@@ -207,3 +212,45 @@ Tags: 🏟️ Team · 🏠 Home. Ratings: ⭐⭐⭐ very popular · ⭐⭐ solid
 2026-06-22 — [Communication/scanning] SKIPPED — section well-stocked (3 approved + 4 pending); only playlists/blogs today
 2026-06-22 — [Goalkeeper basics] SKIPPED — section well-stocked (2 approved + 3 pending); new hits were older full sessions, no clean U10 non-duplicate
 2026-06-22 — [Fitness/agility (home)] SKIPPED — only TikTok/blog + generic agility-ladder results, no credible kid-aimed home football clip
+2026-06-23 — [Defending (1v1)] Soccer Drill: Defending & Pressing (U11) — https://www.youtube.com/watch?v=zqt_c00WM-Q
+2026-06-23 — [First touch] SKIPPED — section well-stocked (5 approved/pending); today's hits duplicate listed clips (O4v-o1xeco0, 8t0S-QZmHIg) or were blogs
+2026-06-23 — [Close control] SKIPPED — only blog/listicle results, nothing close-control-specific & non-duplicate
+2026-06-23 — [Ball mastery] SKIPPED — section well-stocked (2 approved + 4 pending); no new non-duplicate clip today
+2026-06-23 — [Keepy-ups/juggling] SKIPPED — section well-stocked (3 approved + 3 pending); no new non-duplicate clip today
+2026-06-23 — [Skill moves] SKIPPED — section well-stocked (3 approved + 3 pending); only borderline freestyle compilations skewing older
+2026-06-23 — [Dribbling/1v1] SKIPPED — only blogs/playlists, no credible non-duplicate single clip
+2026-06-23 — [Passing] SKIPPED — only blogs/playlists/YouCoach pages, no credible non-duplicate single clip
+2026-06-23 — [Receiving on the half-turn] SKIPPED — section well-stocked (2 approved + 4 pending); no new non-duplicate clip today
+2026-06-23 — [Shooting/finishing] SKIPPED — only playlists/coaching-site pages, no credible non-duplicate single clip
+2026-06-23 — [Movement off the ball] SKIPPED — top result (Teach Off-Ball Movement, eTkPSnY64fM) duplicates approved clip; rest were blogs
+2026-06-23 — [Communication/scanning] SKIPPED — section well-stocked (3 approved + 4 pending); no new non-duplicate clip today
+2026-06-23 — [Goalkeeper basics] SKIPPED — only blog/30-min-plan results, no credible non-duplicate ≤8-min U10 clip
+2026-06-23 — [Fitness/agility (home)] SKIPPED — only blog/listicle + generic agility-ladder results; one Joner clip (FS1LrWzSSmQ) likely over-length, held back for quality
+2026-06-24 — [Close control] 5 Close Control Dribbling Drills For Footballers — Improve Dribbling in Small Spaces — https://www.youtube.com/watch?v=QqjaavLXdHs
+2026-06-24 — [Fitness/agility (home)] 3 Agility Drills for Youth Football — https://www.youtube.com/watch?v=oo_lVJGYs0w
+2026-06-24 — [First touch] SKIPPED — only playlists/blogs, no non-duplicate single clip; section well-stocked (5 listed)
+2026-06-24 — [Ball mastery] SKIPPED — section well-stocked (2 approved + 4 pending); no new non-duplicate clip today
+2026-06-24 — [Keepy-ups/juggling] SKIPPED — section well-stocked (3 approved + 3 pending); no new non-duplicate clip today
+2026-06-24 — [Skill moves] SKIPPED — section well-stocked (3 approved + 3 pending); only freestyle compilations skewing older
+2026-06-24 — [Dribbling/1v1] SKIPPED — only playlists/blogs, no credible non-duplicate single clip
+2026-06-24 — [Passing] SKIPPED — top hits duplicate approved Pass & Move (EDJKPs2Qcag); rest playlists; section well-stocked (1 approved + 4 pending)
+2026-06-24 — [Receiving on the half-turn] SKIPPED — section well-stocked (2 approved + 4 pending); no new non-duplicate clip today
+2026-06-24 — [Shooting/finishing] SKIPPED — top hit (Finishing Drill 3-Variation, aqqeTGEkK9Q) duplicates approved clip; rest playlists
+2026-06-24 — [Movement off the ball] SKIPPED — only blog/coaching-site results, no credible non-duplicate YouTube clip
+2026-06-24 — [Defending (1v1)] SKIPPED — top hit (Rotating 1v1 Defending, 7bWP2Ygwm_o) duplicates approved clip; section well-stocked (3 approved + 3 pending)
+2026-06-24 — [Communication/scanning] SKIPPED — top hit (How to Coach Scanning Vol 2, 4Get6r03mFE) duplicates approved clip; section well-stocked
+2026-06-24 — [Goalkeeper basics] SKIPPED — new hits were full-length session recordings (likely >8 min); no clean ≤8-min U10 non-duplicate; section well-stocked
+2026-06-25 — [First touch] First Touch & Awareness Drills — U11 Individual Session (4 drills) — https://www.youtube.com/watch?v=Gn13wyZgCdU
+2026-06-25 — [Communication/scanning] How to Get Young Players to SCAN as Much as a Pro (drill + game) — https://www.youtube.com/watch?v=b_Gebed7DPE
+2026-06-25 — [Close control] SKIPPED — only blogs/listicles + MOJO playlist, nothing close-control-specific & non-duplicate
+2026-06-25 — [Ball mastery] SKIPPED — section well-stocked (2 approved + 4 pending); only more homework-set compilations from same channels, filler
+2026-06-25 — [Keepy-ups/juggling] SKIPPED — section well-stocked (3 approved + 3 pending); no new non-duplicate clip today
+2026-06-25 — [Skill moves] SKIPPED — section well-stocked (3 approved + 3 pending); only freestyle compilations skewing older
+2026-06-25 — [Dribbling/1v1] SKIPPED — only playlists/blogs, no credible non-duplicate single clip
+2026-06-25 — [Passing] SKIPPED — only playlists/blogs/coaching-site pages, no credible non-duplicate single clip
+2026-06-25 — [Receiving on the half-turn] SKIPPED — only blog/coaching-site results; section well-stocked (2 approved + 4 pending)
+2026-06-25 — [Shooting/finishing] SKIPPED — top hit (Finishing Drill 3-Variation, aqqeTGEkK9Q) duplicates approved clip; rest playlists
+2026-06-25 — [Movement off the ball] SKIPPED — top hit (Teach Off-Ball Movement, eTkPSnY64fM) duplicates approved clip; rest blogs/attacking compilations
+2026-06-25 — [Defending (1v1)] SKIPPED — top hits duplicate listed clips (Rotating 1v1 7bWP2Ygwm_o; Defending & Pressing zqt_c00WM-Q; MOJO 10 Best); section well-stocked
+2026-06-25 — [Fitness/agility (home)] SKIPPED — only blog/listicle + generic agility-ladder results, no credible kid-aimed home football clip
+2026-06-25 — [Goalkeeper basics] SKIPPED — all hits duplicate listed clips (BHsPdQ7EnZM, sn0KE6pmu4c) or 30-min plans; section well-stocked
